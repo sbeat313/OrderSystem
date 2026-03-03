@@ -60,10 +60,10 @@ table { border-collapse: collapse; width: 100%; background: #fff; }
 th, td { border: 1px solid #0f172a; text-align: center; font-size: 12px; padding: 4px; min-width: 48px; }
 th { background: #f8fafc; height: 30px; position: sticky; top: 0; z-index: 1; }
 td.venue { min-width: 76px; font-weight: 700; background: #fff; position: sticky; left: 0; z-index: 1; }
+td.slot-time { min-width: 64px; font-weight: 600; background: #f8fafc; }
 td.slot { height: 48px; background: #f8fafc; }
 td.slot.booked-admin { background: #dcfce7; }
 td.slot.booked-user { background: #0ea5e9; color: #fff; }
-td.slot.school { background: #f5e8c5; }
 .badge { display:inline-block; padding:2px 6px; border-radius:999px; font-size:11px; font-weight:700; background:#e2e8f0; }
 .small { font-size: 11px; line-height: 1.2; white-space: pre-line; }
 .helper { margin: 6px 0 0; font-size: 12px; color: #475569; }
@@ -118,8 +118,6 @@ td.slot.school { background: #f5e8c5; }
 <script>
 const START_HOUR = 8;
 const END_HOUR = 22;
-const SCHOOL_START = 9;
-const SCHOOL_END = 16;
 let currentRole = 'user';
 let isAdmin = false;
 let venues = [];
@@ -199,7 +197,7 @@ function setAuthBadge() {
 function renderDaily(bookings) {
   const grid = document.getElementById('grid');
   let html = '<tr><th>場地\\時段</th>';
-  for (let h = START_HOUR; h < END_HOUR; h++) html += `<th>${String(h).padStart(2, '0')}</th>`;
+  for (let h = START_HOUR; h < END_HOUR; h++) html += `<th>${String(h).padStart(2, '0')}-${String(h+1).padStart(2, '0')}</th>`;
   html += '</tr>';
 
   for (const venue of venues) {
@@ -216,9 +214,6 @@ function renderDaily(bookings) {
           cls += ' booked-user';
           text = '已預約';
         }
-      } else if (currentRole === 'user' && h >= SCHOOL_START && h < SCHOOL_END) {
-        cls += ' school';
-        text = h === SCHOOL_START ? '學校上課時段' : '';
       }
       html += `<td class="${cls}"><div class="small">${text}</div></td>`;
     }
@@ -237,29 +232,35 @@ function renderWeekly(weekData, baseDate, days = 7) {
     dates.push(fmtDate(d));
   }
 
-  let html = '<tr><th>場地\\日期</th>';
+  let html = '<tr><th>場地</th><th>時段</th>';
   for (const d of dates) html += `<th>${d.slice(5)}<br>${['一','二','三','四','五','六','日'][((new Date(d+'T00:00:00').getDay()+6)%7)]}</th>`;
   html += '</tr>';
 
   for (const venue of venues) {
-    html += `<tr><td class="venue">${venue.name}</td>`;
-    for (const day of dates) {
-      const list = (weekData[day] || []).filter(b => b.venue_id === venue.venue_id);
-      let cell = '';
-      let cls = 'slot';
-      if (list.length > 0) {
-        cls += currentRole === 'admin' ? ' booked-admin' : ' booked-user';
-        cell = currentRole === 'admin'
-          ? list.map(b => `${b.start_time.slice(11,16)}-${b.end_time.slice(11,16)}\n${b.customer}\n${b.purpose || ''}`).join('\\n\\n')
-          : `已預約 ${list.length} 筆`;
-      } else if (currentRole === 'user') {
-        cls += ' school';
-        cell = '可預約';
+    for (let h = START_HOUR; h < END_HOUR; h++) {
+      html += '<tr>';
+      if (h === START_HOUR) {
+        html += `<td class="venue" rowspan="${END_HOUR - START_HOUR}">${venue.name}</td>`;
       }
-      html += `<td class="${cls}"><div class="small">${cell}</div></td>`;
+      html += `<td class="slot-time">${String(h).padStart(2, '0')}-${String(h+1).padStart(2, '0')}</td>`;
+
+      for (const day of dates) {
+        const bookings = weekData[day] || [];
+        const b = bookingForSlot(venue.venue_id, h, bookings);
+        let cls = 'slot';
+        let cell = '';
+        if (b) {
+          cls += currentRole === 'admin' ? ' booked-admin' : ' booked-user';
+          cell = currentRole === 'admin'
+            ? `${b.start_time.slice(11,16)}-${b.end_time.slice(11,16)}\n${b.customer}\n${b.purpose || ''}`
+            : '已預約';
+        }
+        html += `<td class="${cls}"><div class="small">${cell}</div></td>`;
+      }
+      html += '</tr>';
     }
-    html += '</tr>';
   }
+
   grid.innerHTML = html;
 }
 
