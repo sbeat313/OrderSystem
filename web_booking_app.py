@@ -40,7 +40,7 @@ HTML_PAGE = """<!doctype html>
 :root { --border:#d1d5db; --primary:#2563eb; --bg:#f3f6fb; --panel:#ffffff; }
 *{ box-sizing:border-box; }
 body { font-family: "Noto Sans TC", Arial, sans-serif; margin: 0; background: linear-gradient(160deg,#eef2ff,#f8fafc); color: #111827; }
-.container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+.container { max-width: 96vw; margin: 0 auto; padding: 20px; }
 .title { margin: 0 0 14px; font-size: 28px; letter-spacing: .5px; }
 .layout { display: grid; grid-template-columns: 360px 1fr; gap: 18px; }
 .panel { border: 1px solid var(--border); border-radius: 14px; padding: 14px; background: var(--panel); box-shadow: 0 6px 20px rgba(15,23,42,.06); }
@@ -195,7 +195,7 @@ function renderDaily(bookings) {
       if (b) {
         if (currentRole === 'admin') {
           cls += ' booked-admin';
-          text = `${b.customer}\\n${b.purpose || ''}`;
+          text = `${b.start_time.slice(11,16)}-${b.end_time.slice(11,16)}\n${b.customer}\n${b.purpose || ''}`;
         } else {
           cls += ' booked-user';
           text = '已預約';
@@ -234,7 +234,7 @@ function renderWeekly(weekData, baseDate, days = 7) {
       if (list.length > 0) {
         cls += currentRole === 'admin' ? ' booked-admin' : ' booked-user';
         cell = currentRole === 'admin'
-          ? list.map(b => `${b.start_time.slice(11,16)}-${b.end_time.slice(11,16)} ${b.customer}`).join('\\n')
+          ? list.map(b => `${b.start_time.slice(11,16)}-${b.end_time.slice(11,16)}\n${b.customer}\n${b.purpose || ''}`).join('\\n\\n')
           : `已預約 ${list.length} 筆`;
       } else if (currentRole === 'user') {
         cls += ' school';
