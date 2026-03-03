@@ -57,6 +57,12 @@ class TestWebBookingApp(unittest.TestCase):
         venues = json.loads(body)
         self.assertEqual(len(venues), 6)
 
+    def test_get_purposes(self):
+        status, body = self.request("GET", "/api/purposes")
+        self.assertEqual(status, 200)
+        purposes = json.loads(body)
+        self.assertIn({"purpose_id": 1, "name": "單月租"}, purposes)
+
     def test_create_and_list_booking(self):
         status, body = self.request(
             "POST",
@@ -64,7 +70,7 @@ class TestWebBookingApp(unittest.TestCase):
             {
                 "venue_id": 1,
                 "customer": "王小明",
-                "purpose": "練習",
+                "purpose": "臨租",
                 "start": "2026-04-01 18:00",
                 "end": "2026-04-01 20:00",
             },
@@ -87,6 +93,7 @@ class TestWebBookingApp(unittest.TestCase):
                 "customer": "王小明",
                 "start": "2026-04-01 18:00",
                 "end": "2026-04-01 20:00",
+                "purpose": "臨租",
             },
         )
         status, _ = self.request(
@@ -97,6 +104,7 @@ class TestWebBookingApp(unittest.TestCase):
                 "customer": "李小華",
                 "start": "2026-04-01 19:00",
                 "end": "2026-04-01 21:00",
+                "purpose": "臨租",
             },
         )
         self.assertEqual(status, 400)

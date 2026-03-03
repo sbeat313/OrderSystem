@@ -17,6 +17,12 @@ class Venue:
 
 
 @dataclass
+class Purpose:
+    purpose_id: int
+    name: str
+
+
+@dataclass
 class Booking:
     booking_id: int
     venue_id: int
@@ -50,6 +56,14 @@ class BookingManager:
             )
             conn.execute(
                 """
+                CREATE TABLE IF NOT EXISTS purposes (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL UNIQUE
+                )
+                """
+            )
+            conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS bookings (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     venue_id INTEGER NOT NULL,
@@ -68,10 +82,31 @@ class BookingManager:
                     [(f"{index}號場",) for index in range(1, 7)],
                 )
 
+            purpose_count = conn.execute("SELECT COUNT(*) FROM purposes").fetchone()[0]
+            if purpose_count == 0:
+                conn.executemany(
+                    "INSERT INTO purposes(name) VALUES (?)",
+                    [
+                        ("單月租",),
+                        ("雙月租",),
+                        ("臨租",),
+                        ("月租球友續租",),
+                        ("股東價",),
+                        ("連假專案",),
+                        ("寒暑假專案",),
+                        ("過年專案",),
+                    ],
+                )
+
     def list_venues(self) -> List[Venue]:
         with self._connect() as conn:
             rows = conn.execute("SELECT id, name FROM venues ORDER BY id").fetchall()
         return [Venue(venue_id=row["id"], name=row["name"]) for row in rows]
+
+    def list_purposes(self) -> List[Purpose]:
+        with self._connect() as conn:
+            rows = conn.execute("SELECT id, name FROM purposes ORDER BY id").fetchall()
+        return [Purpose(purpose_id=row["id"], name=row["name"]) for row in rows]
 
     def add_booking(
         self,
@@ -88,6 +123,16 @@ class BookingManager:
             ).fetchone()
             if venue is None:
                 raise ValueError("場地不存在")
+
+            purpose_name = purpose.strip()
+            if not purpose_name:
+                raise ValueError("用途不可為空")
+            purpose_row = conn.execute(
+                "SELECT 1 FROM purposes WHERE name = ?",
+                (purpose_name,),
+            ).fetchone()
+            if purpose_row is None:
+                raise ValueError("用途不存在，請從選單選擇")
 
             conflict = conn.execute(
                 """
@@ -118,7 +163,7 @@ class BookingManager:
                 (
                     venue_id,
                     customer.strip(),
-                    purpose.strip(),
+                    purpose_name,
                     start_time.strftime(TIME_FORMAT),
                     end_time.strftime(TIME_FORMAT),
                 ),
@@ -130,7 +175,7 @@ class BookingManager:
             venue_id=venue["id"],
             venue_name=venue["name"],
             customer=customer.strip(),
-            purpose=purpose.strip(),
+            purpose=purpose_name,
             start_time=start_time,
             end_time=end_time,
         )
@@ -192,10 +237,14 @@ def run_cli() -> None:
             for v in venues:
                 print(f"{v.venue_id}) {v.name}")
             try:
+                purposes = manager.list_purposes()
+                print("可用用途：")
+                for p in purposes:
+                    print(f"- {p.name}")
                 booking = manager.add_booking(
                     venue_id=int(input("場地編號：").strip()),
                     customer=input("預約人：").strip(),
-                    purpose=input("用途：").strip(),
+                    purpose=input("用途（請輸入完整名稱）：").strip(),
                     start=input(f"開始時間 ({TIME_FORMAT})：").strip(),
                     end=input(f"結束時間 ({TIME_FORMAT})：").strip(),
                 )

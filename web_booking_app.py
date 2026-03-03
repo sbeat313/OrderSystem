@@ -76,7 +76,7 @@ td.slot.school { background: #f5e8c5; }
       <h3>新增預約（管理員）</h3>
       <label>場地</label><select id="venue"></select>
       <label>預約人</label><input id="customer" placeholder="例如：江江" />
-      <label>用途</label><input id="purpose" placeholder="例如：團練" />
+      <label>用途</label><select id="purpose"></select>
       <label>開始時間</label><input id="start" type="datetime-local" />
       <label>結束時間</label><input id="end" type="datetime-local" />
       <button id="add-btn">新增預約</button>
@@ -116,6 +116,7 @@ const SCHOOL_END = 16;
 let currentRole = 'user';
 let isAdmin = false;
 let venues = [];
+let purposes = [];
 
 function toServerDateTime(v) { return v.replace('T', ' '); }
 function toDateObj(s) { return new Date(s.replace(' ', 'T') + ':00'); }
@@ -137,6 +138,13 @@ async function loadVenues() {
   venues = await resp.json();
   const select = document.getElementById('venue');
   select.innerHTML = venues.map(v => `<option value="${v.venue_id}">${v.name}</option>`).join('');
+}
+
+async function loadPurposes() {
+  const resp = await fetch('/api/purposes');
+  purposes = await resp.json();
+  const select = document.getElementById('purpose');
+  select.innerHTML = purposes.map(p => `<option value="${p.name}">${p.name}</option>`).join('');
 }
 
 async function loadBookings(date) {
@@ -322,6 +330,7 @@ document.getElementById('add-btn').addEventListener('click', async () => {
   const now = new Date();
   document.getElementById('date').value = now.toISOString().slice(0, 10);
   await loadVenues();
+  await loadPurposes();
   setAuthBadge();
   await refresh();
 })();
@@ -357,6 +366,11 @@ class BookingWebHandler(BaseHTTPRequestHandler):
             with manager_lock:
                 venues = [v.__dict__ for v in manager.list_venues()]
             self._send_json(venues)
+            return
+        if parsed.path == "/api/purposes":
+            with manager_lock:
+                purposes = [p.__dict__ for p in manager.list_purposes()]
+            self._send_json(purposes)
             return
         if parsed.path == "/api/bookings":
             date = parse_qs(parsed.query).get("date", [""])[0]
