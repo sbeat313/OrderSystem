@@ -101,6 +101,14 @@ class TestWebBookingApp(unittest.TestCase):
         )
         self.assertEqual(status, 400)
 
+    def test_admin_login(self):
+        status, _ = self.request("POST", "/api/admin/login", {"password": "wrong"})
+        self.assertEqual(status, 401)
+
+        status, body = self.request("POST", "/api/admin/login", {"password": "admin123"})
+        self.assertEqual(status, 200)
+        self.assertTrue(json.loads(body)["ok"])
+
 
 if __name__ == "__main__":
     unittest.main()
