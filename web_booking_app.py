@@ -100,6 +100,7 @@ td.slot.school { background: #f5e8c5; }
         </div>
         <button class="chip" id="user-view">使用者檢視</button>
         <button class="chip" id="admin-view">管理員檢視</button>
+        <button class="chip" id="options-link" style="display:none;" onclick="location.href='/options'">場地/用途設定</button>
         <span id="auth-state" class="badge">目前：使用者</span>
       </div>
       <div class="grid-wrap">
@@ -118,6 +119,7 @@ let currentRole = 'user';
 let isAdmin = false;
 let venues = [];
 let purposes = [];
+let bookingsCache = {};
 
 function toServerDateTime(v) { return v.replace('T', ' '); }
 function toDateObj(s) { return new Date(s.replace(' ', 'T') + ':00'); }
@@ -148,20 +150,28 @@ async function loadPurposes() {
   select.innerHTML = purposes.map(p => `<option value="${p.name}">${p.name}</option>`).join('');
 }
 
-async function loadBookings(date) {
+async function loadBookings(date, force = false) {
+  if (!force && bookingsCache[date]) return bookingsCache[date];
   const resp = await fetch(`/api/bookings?date=${date}`);
-  return await resp.json();
+  const data = await resp.json();
+  bookingsCache[date] = data;
+  return data;
 }
 
 async function loadRangeBookings(baseDate, days) {
   const start = weekStart(baseDate);
-  const data = {};
+  const dates = [];
   for (let i = 0; i < days; i++) {
     const d = new Date(start);
     d.setDate(start.getDate() + i);
-    const key = fmtDate(d);
-    data[key] = await loadBookings(key);
+    dates.push(fmtDate(d));
   }
+
+  const lists = await Promise.all(dates.map(d => loadBookings(d)));
+  const data = {};
+  dates.forEach((d, idx) => {
+    data[d] = lists[idx];
+  });
   return data;
 }
 
@@ -178,6 +188,7 @@ function setAuthBadge() {
   document.getElementById('auth-state').textContent = isAdmin ? '目前：管理員' : '目前：使用者';
   document.getElementById('admin-view').classList.toggle('active', currentRole === 'admin');
   document.getElementById('user-view').classList.toggle('active', currentRole === 'user');
+  document.getElementById('options-link').style.display = isAdmin ? 'inline-block' : 'none';
 }
 
 function renderDaily(bookings) {
@@ -326,6 +337,7 @@ document.getElementById('add-btn').addEventListener('click', async () => {
   }
   msg.style.color = '#16a34a';
   msg.textContent = `新增成功 #${data.booking_id}`;
+  bookingsCache = {};
   refresh();
 });
 
