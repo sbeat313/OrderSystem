@@ -153,14 +153,13 @@ td.slot.booked-user { background: linear-gradient(180deg,#06b6d4,#3b82f6); color
           <option value="biweekly" selected>雙週</option>
         </select>
       </div>
-      <button class="chip" id="user-view">使用者檢視</button>
-      <button class="chip" id="admin-view">管理員檢視</button>
+      <button class="chip" id="advanced-toggle">進階顯示（管理功能）</button>
       <button class="chip" id="options-link" style="display:none;" onclick="location.href='/options'">場地/用途設定</button>
       <button class="chip" id="open-add-modal" style="display:none;">新增預約</button>
-      <span id="auth-state" class="badge">目前：使用者</span>
+      <span id="auth-state" class="badge">目前：一般使用者</span>
     </div>
     <div id="msg" class="note"></div>
-    <div class="legend"><span class="dot admin"></span>管理員檢視：已預約 <span class="dot user"></span>藍色代表已預約（使用者檢視不顯示文字）</div>
+    <div class="legend"><span class="dot admin"></span>進階顯示：可看到完整預約資訊 <span class="dot user"></span>一般使用者僅以藍色顯示已預約</div>
     <div class="grid-wrap">
       <table id="grid"></table>
     </div>
@@ -258,11 +257,11 @@ function bookingForSlot(venueId, slotHour, bookings) {
 }
 
 function setAuthBadge() {
-  document.getElementById('auth-state').textContent = isAdmin ? '目前：管理員' : '目前：使用者';
-  document.getElementById('admin-view').classList.toggle('active', currentRole === 'admin');
-  document.getElementById('user-view').classList.toggle('active', currentRole === 'user');
-  document.getElementById('options-link').style.display = isAdmin ? 'inline-block' : 'none';
-  document.getElementById('open-add-modal').style.display = isAdmin ? 'inline-block' : 'none';
+  const advancedOn = currentRole === 'admin';
+  document.getElementById('auth-state').textContent = advancedOn ? '目前：進階顯示（管理者）' : '目前：一般使用者';
+  document.getElementById('advanced-toggle').classList.toggle('active', advancedOn);
+  document.getElementById('options-link').style.display = advancedOn ? 'inline-block' : 'none';
+  document.getElementById('open-add-modal').style.display = advancedOn ? 'inline-block' : 'none';
 }
 
 function renderDaily(bookings) {
@@ -397,7 +396,11 @@ function closeBookingModal() {
   document.getElementById('booking-modal').style.display = 'none';
 }
 
-document.getElementById('admin-view').addEventListener('click', async () => {
+document.getElementById('advanced-toggle').addEventListener('click', async () => {
+  if (currentRole === 'admin') {
+    switchToUser();
+    return;
+  }
   if (!isAdmin) await requestAdmin();
   else {
     currentRole = 'admin';
@@ -405,8 +408,6 @@ document.getElementById('admin-view').addEventListener('click', async () => {
     refresh();
   }
 });
-
-document.getElementById('user-view').addEventListener('click', switchToUser);
 document.getElementById('date').addEventListener('change', refresh);
 document.getElementById('view-mode').addEventListener('change', refresh);
 document.getElementById('open-add-modal').addEventListener('click', openBookingModal);
