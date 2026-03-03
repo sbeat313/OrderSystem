@@ -232,20 +232,20 @@ function renderWeekly(weekData, baseDate, days = 7) {
     dates.push(fmtDate(d));
   }
 
-  let html = '<tr><th>場地</th><th>時段</th>';
-  for (const d of dates) html += `<th>${d.slice(5)}<br>${['一','二','三','四','五','六','日'][((new Date(d+'T00:00:00').getDay()+6)%7)]}</th>`;
+  let html = '<tr><th>日期</th><th>時段</th>';
+  for (const venue of venues) html += `<th>${venue.name}</th>`;
   html += '</tr>';
 
-  for (const venue of venues) {
+  for (const day of dates) {
     for (let h = START_HOUR; h < END_HOUR; h++) {
       html += '<tr>';
       if (h === START_HOUR) {
-        html += `<td class="venue" rowspan="${END_HOUR - START_HOUR}">${venue.name}</td>`;
+        html += `<td class="venue" rowspan="${END_HOUR - START_HOUR}">${day}<br>${['一','二','三','四','五','六','日'][((new Date(day+'T00:00:00').getDay()+6)%7)]}</td>`;
       }
       html += `<td class="slot-time">${String(h).padStart(2, '0')}-${String(h+1).padStart(2, '0')}</td>`;
 
-      for (const day of dates) {
-        const bookings = weekData[day] || [];
+      const bookings = weekData[day] || [];
+      for (const venue of venues) {
         const b = bookingForSlot(venue.venue_id, h, bookings);
         let cls = 'slot';
         let cell = '';
