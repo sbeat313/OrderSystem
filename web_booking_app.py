@@ -269,7 +269,7 @@ function renderDaily(bookings) {
       if (b) {
         if (currentRole === 'admin') {
           cls += ' booked-admin';
-          text = `${b.start_time.slice(11,16)}-${b.end_time.slice(11,16)}\n${b.customer}\n${b.purpose || ''}`;
+          text = `${b.customer}\n${b.purpose || ''}`;
         } else {
           cls += ' booked-user';
           text = '';
@@ -322,7 +322,7 @@ function renderWeekly(weekData, baseDate, days = 7) {
           if (b) {
             cls += currentRole === 'admin' ? ' booked-admin' : ' booked-user';
             cell = currentRole === 'admin'
-              ? `${b.start_time.slice(11,16)}-${b.end_time.slice(11,16)}\n${b.customer}\n${b.purpose || ''}`
+              ? `${b.customer}\n${b.purpose || ''}`
               : '';
           }
           html += `<td class="${cls}"><div class="small">${cell}</div></td>`;
@@ -456,16 +456,49 @@ OPTIONS_PAGE = """<!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>場地與用途設定</title>
 <style>
-body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background: #f8fafc; font-size: 16px; }
-.wrap { max-width: 1100px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-.panel { background:#fff; border:1px solid #d1d5db; border-radius: 12px; padding: 14px; }
-h1 { margin-top: 0; }
-input, button { padding:10px; font-size:15px; }
-button { cursor:pointer; }
-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-th, td { border:1px solid #cbd5e1; padding:10px; text-align:left; font-size:15px; }
+:root {
+  --opt-bg:#f7f7ff;
+  --opt-border:#d6d9ee;
+  --opt-primary:#4f46e5;
+  --opt-primary-strong:#4338ca;
+  --opt-panel:#ffffff;
+}
+body {
+  font-family: "Noto Sans TC", Arial, sans-serif;
+  margin: 0;
+  padding: 22px;
+  background:
+    radial-gradient(circle at 15% 0%, #e9ebff 0%, rgba(233,235,255,0) 45%),
+    radial-gradient(circle at 90% 100%, #e6f5ff 0%, rgba(230,245,255,0) 40%),
+    var(--opt-bg);
+  font-size: 16px;
+  color:#0f172a;
+}
+.wrap { max-width: 1200px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.panel {
+  background:linear-gradient(180deg,#ffffff,#fbfcff);
+  border:1px solid var(--opt-border);
+  border-radius: 14px;
+  padding: 16px;
+  box-shadow: 0 10px 28px rgba(67,56,202,.08);
+}
+h1 { margin-top: 0; color:#1e3a8a; }
+h3 { margin: 0 0 8px; color:#334155; }
+input, button { padding:10px 12px; font-size:15px; border-radius:10px; border:1px solid #cbd5e1; }
+input { width: 100%; background:#fff; }
+button {
+  cursor:pointer;
+  background:linear-gradient(180deg,var(--opt-primary),var(--opt-primary-strong));
+  color:#fff;
+  border:none;
+  box-shadow: 0 6px 14px rgba(79,70,229,.25);
+}
+button:hover { filter:brightness(.98); }
+table { width: 100%; border-collapse: separate; border-spacing: 0; margin-top: 10px; background:#fff; border-radius:10px; overflow:hidden; }
+th, td { border:1px solid #dbe2f0; padding:10px; text-align:left; font-size:15px; }
+th { background:#eef2ff; color:#334155; }
 .actions button { margin-right: 6px; }
-.top { max-width:1100px; margin:0 auto 12px; display:flex; gap:8px; align-items:center; }
+.top { max-width:1200px; margin:0 auto 14px; display:flex; gap:10px; align-items:center; }
 </style>
 </head>
 <body>
