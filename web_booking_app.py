@@ -43,8 +43,6 @@ body { font-family: "Noto Sans TC", Arial, sans-serif; margin: 0; background: li
 .container { width: 100%; max-width: 100vw; margin: 0 auto; padding: 14px; }
 .title { margin: 0 0 10px; font-size: 28px; letter-spacing: .5px; }
 .panel { border: 1px solid var(--border); border-radius: 14px; padding: 14px; background: var(--panel); box-shadow: 0 6px 20px rgba(15,23,42,.06); }
-.top-panel { margin-bottom: 12px; }
-.top-grid { display: grid; grid-template-columns: repeat(5, minmax(180px, 1fr)); gap: 12px; align-items: end; }
 label { display: block; margin-top: 0; font-weight: 700; color: #1f2937; font-size: 14px; }
 input, select, button { width: 100%; padding: 10px; margin-top: 6px; border-radius: 8px; border: 1px solid #cbd5e1; }
 button { background: var(--primary); color: white; border: none; font-weight: 700; cursor: pointer; }
@@ -67,29 +65,16 @@ td.slot.booked-user { background: #0ea5e9; color: #fff; }
 .badge { display:inline-block; padding:2px 6px; border-radius:999px; font-size:11px; font-weight:700; background:#e2e8f0; }
 .small { font-size: 11px; line-height: 1.2; white-space: pre-line; }
 .helper { margin: 6px 0 0; font-size: 12px; color: #475569; }
+.modal-backdrop { position: fixed; inset: 0; background: rgba(15,23,42,0.55); display: none; align-items: center; justify-content: center; z-index: 20; }
+.modal { width: min(640px, 92vw); background: #fff; border-radius: 12px; padding: 16px; border: 1px solid #cbd5e1; }
+.modal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.modal-actions { display: flex; gap: 8px; margin-top: 12px; }
+.btn-secondary { background: #e2e8f0; color: #111827; }
 </style>
 </head>
 <body>
 <div class="container">
   <h2 class="title">暖西羽球館預約系統</h2>
-  <div class="panel top-panel">
-    <h3>新增預約（管理員）</h3>
-    <div class="top-grid">
-      <div><label>場地</label><select id="venue"></select></div>
-      <div><label>預約人</label><input id="customer" placeholder="例如：江江" /></div>
-      <div><label>用途</label><select id="purpose"></select></div>
-      <div><label>開始時間</label><input id="start" type="datetime-local" /></div>
-      <div><label>結束時間</label><input id="end" type="datetime-local" /></div>
-    </div>
-    <div class="top-grid" style="grid-template-columns: 240px 1fr; margin-top:8px;">
-      <button id="add-btn">新增預約</button>
-      <div>
-        <div id="msg" class="note"></div>
-        <p class="helper">※ 只有通過管理員驗證後可新增預約。</p>
-      </div>
-    </div>
-  </div>
-
   <div class="panel">
     <div class="toolbar">
       <div class="field">
@@ -107,11 +92,31 @@ td.slot.booked-user { background: #0ea5e9; color: #fff; }
       <button class="chip" id="user-view">使用者檢視</button>
       <button class="chip" id="admin-view">管理員檢視</button>
       <button class="chip" id="options-link" style="display:none;" onclick="location.href='/options'">場地/用途設定</button>
+      <button class="chip" id="open-add-modal" style="display:none;">新增預約</button>
       <span id="auth-state" class="badge">目前：使用者</span>
     </div>
+    <div id="msg" class="note"></div>
     <div class="grid-wrap">
       <table id="grid"></table>
     </div>
+  </div>
+</div>
+
+<div id="booking-modal" class="modal-backdrop">
+  <div class="modal">
+    <h3 style="margin-top:0;">新增預約（管理員）</h3>
+    <div class="modal-grid">
+      <div><label>場地</label><select id="venue"></select></div>
+      <div><label>預約人</label><input id="customer" placeholder="例如：江江" /></div>
+      <div><label>用途</label><select id="purpose"></select></div>
+      <div><label>開始時間</label><input id="start" type="datetime-local" /></div>
+      <div><label>結束時間</label><input id="end" type="datetime-local" /></div>
+    </div>
+    <div class="modal-actions">
+      <button id="add-btn">送出預約</button>
+      <button id="close-add-modal" class="btn-secondary">取消</button>
+    </div>
+    <p class="helper">※ 只有通過管理員驗證後可新增預約。</p>
   </div>
 </div>
 
@@ -192,6 +197,7 @@ function setAuthBadge() {
   document.getElementById('admin-view').classList.toggle('active', currentRole === 'admin');
   document.getElementById('user-view').classList.toggle('active', currentRole === 'user');
   document.getElementById('options-link').style.display = isAdmin ? 'inline-block' : 'none';
+  document.getElementById('open-add-modal').style.display = isAdmin ? 'inline-block' : 'none';
 }
 
 function renderDaily(bookings) {
@@ -297,7 +303,17 @@ async function requestAdmin() {
 function switchToUser() {
   currentRole = 'user';
   setAuthBadge();
+  closeBookingModal();
   refresh();
+}
+
+function openBookingModal() {
+  if (!isAdmin) return;
+  document.getElementById('booking-modal').style.display = 'flex';
+}
+
+function closeBookingModal() {
+  document.getElementById('booking-modal').style.display = 'none';
 }
 
 document.getElementById('admin-view').addEventListener('click', async () => {
@@ -312,6 +328,8 @@ document.getElementById('admin-view').addEventListener('click', async () => {
 document.getElementById('user-view').addEventListener('click', switchToUser);
 document.getElementById('date').addEventListener('change', refresh);
 document.getElementById('view-mode').addEventListener('change', refresh);
+document.getElementById('open-add-modal').addEventListener('click', openBookingModal);
+document.getElementById('close-add-modal').addEventListener('click', closeBookingModal);
 
 document.getElementById('add-btn').addEventListener('click', async () => {
   const msg = document.getElementById('msg');
@@ -344,6 +362,7 @@ document.getElementById('add-btn').addEventListener('click', async () => {
   msg.style.color = '#16a34a';
   msg.textContent = `新增成功 #${data.booking_id}`;
   bookingsCache = {};
+  closeBookingModal();
   refresh();
 });
 
