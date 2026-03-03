@@ -103,10 +103,80 @@ class BookingManager:
             rows = conn.execute("SELECT id, name FROM venues ORDER BY id").fetchall()
         return [Venue(venue_id=row["id"], name=row["name"]) for row in rows]
 
+    def add_venue(self, name: str) -> Venue:
+        venue_name = name.strip()
+        if not venue_name:
+            raise ValueError("場地名稱不可為空")
+        try:
+            with self._connect() as conn:
+                cursor = conn.execute("INSERT INTO venues(name) VALUES (?)", (venue_name,))
+                venue_id = cursor.lastrowid
+            return Venue(venue_id=venue_id, name=venue_name)
+        except sqlite3.IntegrityError as exc:
+            raise ValueError("場地名稱不可重複") from exc
+
+    def update_venue(self, venue_id: int, name: str) -> Venue:
+        venue_name = name.strip()
+        if not venue_name:
+            raise ValueError("場地名稱不可為空")
+        try:
+            with self._connect() as conn:
+                cur = conn.execute("UPDATE venues SET name = ? WHERE id = ?", (venue_name, venue_id))
+                if cur.rowcount == 0:
+                    raise ValueError("場地不存在")
+            return Venue(venue_id=venue_id, name=venue_name)
+        except sqlite3.IntegrityError as exc:
+            raise ValueError("場地名稱不可重複") from exc
+
+    def delete_venue(self, venue_id: int) -> bool:
+        with self._connect() as conn:
+            used = conn.execute("SELECT COUNT(*) FROM bookings WHERE venue_id = ?", (venue_id,)).fetchone()[0]
+            if used > 0:
+                raise ValueError("此場地已有預約資料，無法刪除")
+            cur = conn.execute("DELETE FROM venues WHERE id = ?", (venue_id,))
+            return cur.rowcount > 0
+
     def list_purposes(self) -> List[Purpose]:
         with self._connect() as conn:
             rows = conn.execute("SELECT id, name FROM purposes ORDER BY id").fetchall()
         return [Purpose(purpose_id=row["id"], name=row["name"]) for row in rows]
+
+    def add_purpose(self, name: str) -> Purpose:
+        purpose_name = name.strip()
+        if not purpose_name:
+            raise ValueError("用途名稱不可為空")
+        try:
+            with self._connect() as conn:
+                cursor = conn.execute("INSERT INTO purposes(name) VALUES (?)", (purpose_name,))
+                purpose_id = cursor.lastrowid
+            return Purpose(purpose_id=purpose_id, name=purpose_name)
+        except sqlite3.IntegrityError as exc:
+            raise ValueError("用途名稱不可重複") from exc
+
+    def update_purpose(self, purpose_id: int, name: str) -> Purpose:
+        purpose_name = name.strip()
+        if not purpose_name:
+            raise ValueError("用途名稱不可為空")
+        try:
+            with self._connect() as conn:
+                cur = conn.execute("UPDATE purposes SET name = ? WHERE id = ?", (purpose_name, purpose_id))
+                if cur.rowcount == 0:
+                    raise ValueError("用途不存在")
+            return Purpose(purpose_id=purpose_id, name=purpose_name)
+        except sqlite3.IntegrityError as exc:
+            raise ValueError("用途名稱不可重複") from exc
+
+    def delete_purpose(self, purpose_id: int) -> bool:
+        with self._connect() as conn:
+            row = conn.execute("SELECT name FROM purposes WHERE id = ?", (purpose_id,)).fetchone()
+            if row is None:
+                return False
+            purpose_name = row["name"]
+            used = conn.execute("SELECT COUNT(*) FROM bookings WHERE purpose = ?", (purpose_name,)).fetchone()[0]
+            if used > 0:
+                raise ValueError("此用途已有預約資料，無法刪除")
+            cur = conn.execute("DELETE FROM purposes WHERE id = ?", (purpose_id,))
+            return cur.rowcount > 0
 
     def add_booking(
         self,

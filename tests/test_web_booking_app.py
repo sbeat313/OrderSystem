@@ -63,6 +63,11 @@ class TestWebBookingApp(unittest.TestCase):
         purposes = json.loads(body)
         self.assertIn({"purpose_id": 1, "name": "單月租"}, purposes)
 
+    def test_options_page_exists(self):
+        status, body = self.request("GET", "/options")
+        self.assertEqual(status, 200)
+        self.assertIn("場地 / 用途 管理", body)
+
     def test_create_and_list_booking(self):
         status, body = self.request(
             "POST",
@@ -116,6 +121,51 @@ class TestWebBookingApp(unittest.TestCase):
         status, body = self.request("POST", "/api/admin/login", {"password": "admin123"})
         self.assertEqual(status, 200)
         self.assertTrue(json.loads(body)["ok"])
+
+    def test_manage_venues_and_purposes_via_api(self):
+        status, body = self.request(
+            "POST",
+            "/api/venues",
+            {"admin_password": "admin123", "name": "7號場"},
+        )
+        self.assertEqual(status, 201)
+        venue_id = json.loads(body)["venue_id"]
+
+        status, _ = self.request(
+            "PUT",
+            "/api/venues",
+            {"admin_password": "admin123", "venue_id": venue_id, "name": "7號場-更新"},
+        )
+        self.assertEqual(status, 200)
+
+        status, _ = self.request(
+            "DELETE",
+            "/api/venues",
+            {"admin_password": "admin123", "venue_id": venue_id},
+        )
+        self.assertEqual(status, 200)
+
+        status, body = self.request(
+            "POST",
+            "/api/purposes",
+            {"admin_password": "admin123", "name": "測試用途"},
+        )
+        self.assertEqual(status, 201)
+        purpose_id = json.loads(body)["purpose_id"]
+
+        status, _ = self.request(
+            "PUT",
+            "/api/purposes",
+            {"admin_password": "admin123", "purpose_id": purpose_id, "name": "測試用途2"},
+        )
+        self.assertEqual(status, 200)
+
+        status, _ = self.request(
+            "DELETE",
+            "/api/purposes",
+            {"admin_password": "admin123", "purpose_id": purpose_id},
+        )
+        self.assertEqual(status, 200)
 
 
 if __name__ == "__main__":

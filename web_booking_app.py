@@ -342,6 +342,120 @@ document.getElementById('add-btn').addEventListener('click', async () => {
 </html>
 """
 
+OPTIONS_PAGE = """<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>場地與用途設定</title>
+<style>
+body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background: #f8fafc; }
+.wrap { max-width: 1100px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.panel { background:#fff; border:1px solid #d1d5db; border-radius: 12px; padding: 14px; }
+h1 { margin-top: 0; }
+input, button { padding:8px; }
+button { cursor:pointer; }
+table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+th, td { border:1px solid #cbd5e1; padding:8px; text-align:left; }
+.actions button { margin-right: 6px; }
+.top { max-width:1100px; margin:0 auto 12px; display:flex; gap:8px; align-items:center; }
+</style>
+</head>
+<body>
+<div class="top">
+  <h1 style="margin:0;">場地 / 用途 管理</h1>
+  <button onclick="location.href='/'">回預約頁</button>
+</div>
+<div class="wrap">
+  <div class="panel">
+    <h3>場地管理</h3>
+    <input id="new-venue" placeholder="新增場地名稱" />
+    <button onclick="createVenue()">新增場地</button>
+    <table id="venue-table"></table>
+  </div>
+  <div class="panel">
+    <h3>用途管理</h3>
+    <input id="new-purpose" placeholder="新增用途名稱" />
+    <button onclick="createPurpose()">新增用途</button>
+    <table id="purpose-table"></table>
+  </div>
+</div>
+<script>
+let adminPassword = '';
+
+async function login() {
+  const pw = prompt('請輸入管理員密碼：');
+  if (pw === null) return false;
+  const resp = await fetch('/api/admin/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({password: pw})});
+  if (!resp.ok) { alert('密碼錯誤'); return false; }
+  adminPassword = pw;
+  return true;
+}
+
+async function ensureLogin() {
+  if (adminPassword) return true;
+  return await login();
+}
+
+async function api(method, path, payload = {}) {
+  const ok = await ensureLogin();
+  if (!ok) throw new Error('need login');
+  payload.admin_password = adminPassword;
+  const resp = await fetch(path, { method, headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+  const data = await resp.json();
+  if (!resp.ok) throw new Error(data.error || '操作失敗');
+  return data;
+}
+
+async function refresh() {
+  const venues = await (await fetch('/api/venues')).json();
+  const purposes = await (await fetch('/api/purposes')).json();
+
+  const vt = document.getElementById('venue-table');
+  vt.innerHTML = '<tr><th>ID</th><th>名稱</th><th>操作</th></tr>' + venues.map(v =>
+    `<tr><td>${v.venue_id}</td><td><input value="${v.name}" id="venue-${v.venue_id}"/></td><td class="actions"><button onclick="updateVenue(${v.venue_id})">儲存</button><button onclick="deleteVenue(${v.venue_id})">刪除</button></td></tr>`
+  ).join('');
+
+  const pt = document.getElementById('purpose-table');
+  pt.innerHTML = '<tr><th>ID</th><th>名稱</th><th>操作</th></tr>' + purposes.map(p =>
+    `<tr><td>${p.purpose_id}</td><td><input value="${p.name}" id="purpose-${p.purpose_id}"/></td><td class="actions"><button onclick="updatePurpose(${p.purpose_id})">儲存</button><button onclick="deletePurpose(${p.purpose_id})">刪除</button></td></tr>`
+  ).join('');
+}
+
+async function createVenue() {
+  try { await api('POST', '/api/venues', {name: document.getElementById('new-venue').value}); await refresh(); }
+  catch (e) { alert(e.message); }
+}
+async function updateVenue(id) {
+  try { await api('PUT', '/api/venues', {venue_id: id, name: document.getElementById(`venue-${id}`).value}); await refresh(); }
+  catch (e) { alert(e.message); }
+}
+async function deleteVenue(id) {
+  if (!confirm('確定刪除場地？')) return;
+  try { await api('DELETE', '/api/venues', {venue_id: id}); await refresh(); }
+  catch (e) { alert(e.message); }
+}
+
+async function createPurpose() {
+  try { await api('POST', '/api/purposes', {name: document.getElementById('new-purpose').value}); await refresh(); }
+  catch (e) { alert(e.message); }
+}
+async function updatePurpose(id) {
+  try { await api('PUT', '/api/purposes', {purpose_id: id, name: document.getElementById(`purpose-${id}`).value}); await refresh(); }
+  catch (e) { alert(e.message); }
+}
+async function deletePurpose(id) {
+  if (!confirm('確定刪除用途？')) return;
+  try { await api('DELETE', '/api/purposes', {purpose_id: id}); await refresh(); }
+  catch (e) { alert(e.message); }
+}
+
+refresh();
+</script>
+</body>
+</html>
+"""
+
 
 class BookingWebHandler(BaseHTTPRequestHandler):
     def _send_json(self, payload: Union[Dict[str, Any], List[Any]], status: int = HTTPStatus.OK) -> None:
@@ -364,6 +478,9 @@ class BookingWebHandler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         if parsed.path == "/":
             self._send_html(HTML_PAGE)
+            return
+        if parsed.path == "/options":
+            self._send_html(OPTIONS_PAGE)
             return
         if parsed.path == "/api/venues":
             with manager_lock:
@@ -406,6 +523,22 @@ class BookingWebHandler(BaseHTTPRequestHandler):
                 self._send_json({"error": "密碼錯誤"}, status=HTTPStatus.UNAUTHORIZED)
             return
 
+        if parsed.path in ["/api/venues", "/api/purposes"]:
+            try:
+                self._check_admin_password(payload)
+                name = str(payload.get("name", "")).strip()
+                with manager_lock:
+                    if parsed.path == "/api/venues":
+                        item = manager.add_venue(name)
+                        self._send_json(item.__dict__, status=HTTPStatus.CREATED)
+                    else:
+                        item = manager.add_purpose(name)
+                        self._send_json(item.__dict__, status=HTTPStatus.CREATED)
+                return
+            except ValueError as exc:
+                self._send_json({"error": str(exc)}, status=HTTPStatus.BAD_REQUEST)
+                return
+
         if parsed.path != "/api/bookings":
             self._send_json({"error": "Not Found"}, status=HTTPStatus.NOT_FOUND)
             return
@@ -425,6 +558,51 @@ class BookingWebHandler(BaseHTTPRequestHandler):
             self._send_json(booking_to_dict(booking), status=HTTPStatus.CREATED)
         except ValueError as exc:
             self._send_json({"error": str(exc)}, status=HTTPStatus.BAD_REQUEST)
+
+    def do_PUT(self) -> None:
+        parsed = urlparse(self.path)
+        try:
+            content_len = int(self.headers.get("Content-Length", "0"))
+            payload = json.loads(self.rfile.read(content_len) or "{}")
+            self._check_admin_password(payload)
+            with manager_lock:
+                if parsed.path == "/api/venues":
+                    item = manager.update_venue(int(payload.get("venue_id", 0)), str(payload.get("name", "")))
+                elif parsed.path == "/api/purposes":
+                    item = manager.update_purpose(int(payload.get("purpose_id", 0)), str(payload.get("name", "")))
+                else:
+                    self._send_json({"error": "Not Found"}, status=HTTPStatus.NOT_FOUND)
+                    return
+            self._send_json(item.__dict__)
+        except (ValueError, json.JSONDecodeError) as exc:
+            self._send_json({"error": str(exc) or "JSON 格式錯誤"}, status=HTTPStatus.BAD_REQUEST)
+
+    def do_DELETE(self) -> None:
+        parsed = urlparse(self.path)
+        try:
+            content_len = int(self.headers.get("Content-Length", "0"))
+            payload = json.loads(self.rfile.read(content_len) or "{}")
+            self._check_admin_password(payload)
+            with manager_lock:
+                if parsed.path == "/api/venues":
+                    ok = manager.delete_venue(int(payload.get("venue_id", 0)))
+                elif parsed.path == "/api/purposes":
+                    ok = manager.delete_purpose(int(payload.get("purpose_id", 0)))
+                else:
+                    self._send_json({"error": "Not Found"}, status=HTTPStatus.NOT_FOUND)
+                    return
+            if not ok:
+                self._send_json({"error": "資料不存在"}, status=HTTPStatus.NOT_FOUND)
+                return
+            self._send_json({"ok": True})
+        except (ValueError, json.JSONDecodeError) as exc:
+            self._send_json({"error": str(exc) or "JSON 格式錯誤"}, status=HTTPStatus.BAD_REQUEST)
+
+    @staticmethod
+    def _check_admin_password(payload: Dict[str, Any]) -> None:
+        password = str(payload.get("admin_password", ""))
+        if not secrets.compare_digest(password, ADMIN_PASSWORD):
+            raise ValueError("管理員密碼錯誤")
 
 
 def run_web_app(host: str = "0.0.0.0", port: int = 8000) -> None:
