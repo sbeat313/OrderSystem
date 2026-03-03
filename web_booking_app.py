@@ -62,7 +62,7 @@ def _cell_text(bookings: list, venue_id: int, hour: int, role: str) -> str:
             if role == "admin":
                 return f"{b.start_time.strftime('%H:%M')}-{b.end_time.strftime('%H:%M')}"
             return "RESERVED"
-    return ""
+    return "-"
 
 
 def _bitmap_for_char(ch: str) -> list:
@@ -90,7 +90,7 @@ def _bitmap_for_char(ch: str) -> list:
     return font.get(ch, font["?"])
 
 
-def _draw_text(pixels: bytearray, width: int, height: int, x: int, y: int, text: str) -> None:
+def _draw_text(pixels: bytearray, width: int, height: int, x: int, y: int, text: str, scale: int = 1) -> None:
     color = (30, 41, 59)
     cursor_x = x
     for ch in _to_ascii(text.upper()):
@@ -99,12 +99,14 @@ def _draw_text(pixels: bytearray, width: int, height: int, x: int, y: int, text:
             for col, bit in enumerate(bits):
                 if bit != "1":
                     continue
-                px = cursor_x + col
-                py = y + row
-                if 0 <= px < width and 0 <= py < height:
-                    idx = (py * width + px) * 3
-                    pixels[idx:idx + 3] = bytes(color)
-        cursor_x += len(bitmap[0]) + 1
+                for sy in range(scale):
+                    for sx in range(scale):
+                        px = cursor_x + col * scale + sx
+                        py = y + row * scale + sy
+                        if 0 <= px < width and 0 <= py < height:
+                            idx = (py * width + px) * 3
+                            pixels[idx:idx + 3] = bytes(color)
+        cursor_x += (len(bitmap[0]) + 1) * scale
 
 
 def _draw_rect(pixels: bytearray, width: int, height: int, x: int, y: int, w: int, h: int, color: tuple) -> None:
@@ -121,37 +123,65 @@ def _make_png_export(base_date: str, role: str) -> bytes:
     hours = data["hours"]
     daily = data["daily"]
 
-    cell_w = 92
-    row_h = 14
+    day_w = 140
+    time_w = 110
+    venue_w = 140
+    top_h = 56
+    row_h = 28
     cols = 2 + len(venues)
-    rows = 1 + len(days) * len(hours)
-    width = cols * cell_w
-    height = rows * row_h
+    width = day_w + time_w + len(venues) * venue_w
+    rows = len(days) * len(hours)
+    height = top_h + rows * row_h
 
     pixels = bytearray([255] * (width * height * 3))
 
-    for c in range(cols + 1):
-        x = c * cell_w
-        _draw_rect(pixels, width, height, x, 0, 1, height, (148, 163, 184))
+    _draw_rect(pixels, width, height, 0, 0, width, top_h, (226, 232, 240))
+
+    col_x = [0, day_w, day_w + time_w]
+    for i in range(len(venues)):
+        col_x.append(day_w + time_w + i * venue_w)
+
+    for x in col_x + [width]:
+        _draw_rect(pixels, width, height, x, 0, 1, height, (100, 116, 139))
+
     for r in range(rows + 1):
-        y = r * row_h
+        y = top_h + r * row_h
         _draw_rect(pixels, width, height, 0, y, width, 1, (148, 163, 184))
 
-    _draw_text(pixels, width, height, 4, 4, "DATE")
-    _draw_text(pixels, width, height, cell_w + 4, 4, "TIME")
+    _draw_text(pixels, width, height, 10, 10, "BIWEEKLY BOOKING", scale=2)
+    _draw_text(pixels, width, height, 10, 34, f"START {days[0]} ROLE {role.upper()}", scale=1)
+    _draw_text(pixels, width, height, 10, top_h - 18, "DATE", scale=1)
+    _draw_text(pixels, width, height, day_w + 10, top_h - 18, "TIME", scale=1)
     for i, v in enumerate(venues):
-        _draw_text(pixels, width, height, (i + 2) * cell_w + 4, 4, f"V{v.venue_id}")
+        _draw_text(
+            pixels,
+            width,
+            height,
+            day_w + time_w + i * venue_w + 10,
+            top_h - 18,
+            f"VENUE-{v.venue_id}",
+            scale=1,
+        )
 
-    row = 1
+    row = 0
     for day in days:
         for hour in hours:
+            y = top_h + row * row_h
             if hour == hours[0]:
-                _draw_text(pixels, width, height, 4, row * row_h + 4, day[5:])
-            _draw_text(pixels, width, height, cell_w + 4, row * row_h + 4, f"{hour:02d}-{hour+1:02d}")
+                _draw_rect(pixels, width, height, 0, y, width, row_h, (248, 250, 252))
+            _draw_text(pixels, width, height, 10, y + 8, day[5:] if hour == hours[0] else "", scale=1)
+            _draw_text(pixels, width, height, day_w + 10, y + 8, f"{hour:02d}-{hour+1:02d}", scale=1)
             for i, v in enumerate(venues):
                 text = _cell_text(daily[day], v.venue_id, hour, role)
-                if text:
-                    _draw_text(pixels, width, height, (i + 2) * cell_w + 4, row * row_h + 4, text[:12])
+                _draw_text(
+                    pixels,
+                    width,
+                    height,
+                    day_w + time_w + i * venue_w + 10,
+                    y + 8,
+                    text[:13],
+                    scale=1,
+                )
             row += 1
 
     raw = bytearray()
@@ -184,20 +214,47 @@ def _make_pdf_export(base_date: str, role: str) -> bytes:
                 row.append(f"V{v.venue_id}:{txt or '-'}")
             lines.append(" | ".join(row))
 
-    text_lines = [_to_ascii(line).replace("(", "[").replace(")", "]") for line in lines[:85]]
-    content = "BT\n/F1 8 Tf\n36 800 Td\n10 TL\n" + "\n".join([f"({ln}) Tj T*" for ln in text_lines]) + "\nET"
-    content_bytes = content.encode("latin-1", "replace")
+    def esc(line: str) -> str:
+        return _to_ascii(line).replace("\\", "\\\\").replace("(", "[").replace(")", "]")
 
-    objs = []
-    objs.append(b"1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj\n")
-    objs.append(b"2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj\n")
-    objs.append(b"3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >> endobj\n")
-    objs.append(b"4 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> endobj\n")
-    objs.append(f"5 0 obj << /Length {len(content_bytes)} >> stream\n".encode() + content_bytes + b"\nendstream endobj\n")
+    per_page = 52
+    pages = [lines[i:i + per_page] for i in range(0, len(lines), per_page)]
+
+    objects: List[bytes] = []
+    objects.append(b"1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj\n")
+
+    page_obj_nums = []
+    content_obj_nums = []
+    font_obj_num = 3 + len(pages) * 2
+
+    current_obj = 3
+    for _ in pages:
+        page_obj_nums.append(current_obj)
+        content_obj_nums.append(current_obj + 1)
+        current_obj += 2
+
+    kids = " ".join([f"{n} 0 R" for n in page_obj_nums])
+    objects.append(f"2 0 obj << /Type /Pages /Kids [{kids}] /Count {len(page_obj_nums)} >> endobj\n".encode())
+
+    for idx, chunk in enumerate(pages):
+        page_obj = page_obj_nums[idx]
+        content_obj = content_obj_nums[idx]
+
+        content = "BT\n/F1 9 Tf\n36 806 Td\n14 TL\n" + "\n".join([f"({esc(line)}) Tj T*" for line in chunk]) + "\nET"
+        content_bytes = content.encode("latin-1", "replace")
+
+        objects.append(
+            f"{page_obj} 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 842 595] /Resources << /Font << /F1 {font_obj_num} 0 R >> >> /Contents {content_obj} 0 R >> endobj\n".encode()
+        )
+        objects.append(
+            f"{content_obj} 0 obj << /Length {len(content_bytes)} >> stream\n".encode() + content_bytes + b"\nendstream endobj\n"
+        )
+
+    objects.append(f"{font_obj_num} 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Courier >> endobj\n".encode())
 
     pdf = bytearray(b"%PDF-1.4\n")
     offsets = [0]
-    for obj in objs:
+    for obj in objects:
         offsets.append(len(pdf))
         pdf.extend(obj)
     xref_pos = len(pdf)
@@ -216,7 +273,7 @@ HTML_PAGE = """<!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>場地預約管理</title>
 <style>
-:root { --border:#d1d5db; --primary:#2563eb; --bg:#f3f6fb; --panel:#ffffff; }
+:root { --border:#d1d5db; --primary:#2563eb; --bg:#f3f6fb; --panel:#ffffff; --sticky-venue:120px; --sticky-time:90px; }
 *{ box-sizing:border-box; }
 body { font-family: "Noto Sans TC", Arial, sans-serif; margin: 0; background: linear-gradient(160deg,#eef2ff,#f8fafc); color: #111827; }
 .container { width: 100%; max-width: 100vw; margin: 0 auto; padding: 14px; }
@@ -233,11 +290,13 @@ button:hover { filter: brightness(.96); }
 .chip { width:auto; padding:7px 12px; border-radius:999px; border:1px solid #cbd5e1; background:#eef2ff; color:#1e3a8a; font-weight:700; }
 .chip.active { background:#1d4ed8; color:#fff; }
 .grid-wrap { overflow: auto; max-height: calc(100vh - 260px); }
-table { border-collapse: collapse; width: 100%; background: #fff; }
+table { border-collapse: collapse; width: max-content; min-width: 100%; background: #fff; }
 th, td { border: 1px solid #0f172a; text-align: center; font-size: 12px; padding: 4px; min-width: 48px; }
-th { background: #f8fafc; height: 30px; position: sticky; top: 0; z-index: 1; }
-td.venue { min-width: 76px; font-weight: 700; background: #fff; position: sticky; left: 0; z-index: 1; }
-td.slot-time { min-width: 64px; font-weight: 600; background: #f8fafc; }
+th { background: #f8fafc; height: 30px; position: sticky; top: 0; z-index: 6; }
+th.sticky-left-1 { left: 0; min-width: var(--sticky-venue); z-index: 9; }
+th.sticky-left-2 { left: var(--sticky-venue); min-width: var(--sticky-time); z-index: 9; }
+td.venue { min-width: var(--sticky-venue); font-weight: 700; background: #fff; position: sticky; left: 0; z-index: 4; }
+td.slot-time { min-width: var(--sticky-time); font-weight: 600; background: #f8fafc; position: sticky; left: var(--sticky-venue); z-index: 3; }
 td.slot { height: 48px; background: #f8fafc; }
 td.slot.booked-admin { background: #dcfce7; }
 td.slot.booked-user { background: #0ea5e9; color: #fff; }
@@ -419,7 +478,7 @@ function renderWeekly(weekData, baseDate, days = 7) {
     dates.push(fmtDate(d));
   }
 
-  let html = '<tr><th>日期</th><th>時段</th>';
+  let html = '<tr><th class="sticky-left-1">日期</th><th class="sticky-left-2">時段</th>';
   for (const venue of venues) html += `<th>${venue.name}</th>`;
   html += '</tr>';
 
