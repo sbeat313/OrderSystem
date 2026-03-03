@@ -212,7 +212,7 @@ function setAuthBadge() {
 function renderDaily(bookings) {
   const grid = document.getElementById('grid');
   let html = '<tr><th>場地\\時段</th>';
-  for (let h = START_HOUR; h < END_HOUR; h++) html += `<th>${String(h).padStart(2, '0')}<br>${String(h+1).padStart(2, '0')}</th>`;
+  for (let h = START_HOUR; h < END_HOUR; h++) html += `<th>${String(h).padStart(2, '0')}-${String(h+1).padStart(2, '0')}</th>`;
   html += '</tr>';
 
   for (const venue of venues) {
@@ -248,26 +248,27 @@ function renderWeekly(weekData, baseDate, days = 7) {
   }
 
   const weekdayNames = ['一', '二', '三', '四', '五', '六', '日'];
-  const weeks = days > 7 ? [dates.slice(0, 7), dates.slice(7, 14)] : [dates];
+  const dayChunks = [];
+  for (let i = 0; i < dates.length; i += 2) dayChunks.push(dates.slice(i, i + 2));
 
   let html = '';
-  weeks.forEach((weekDates, weekIdx) => {
+  dayChunks.forEach((chunk, chunkIdx) => {
     html += `<tr><th class="sticky-left-1 top-row" rowspan="2">場地</th>`;
-    for (const day of weekDates) {
+    for (const day of chunk) {
       const weekday = weekdayNames[(new Date(day + 'T00:00:00').getDay() + 6) % 7];
       html += `<th class="top-row" colspan="${END_HOUR - START_HOUR}">${day.slice(5)} (${weekday})</th>`;
     }
     html += '</tr><tr>';
-    for (let d = 0; d < weekDates.length; d++) {
+    for (let d = 0; d < chunk.length; d++) {
       for (let h = START_HOUR; h < END_HOUR; h++) {
-        html += `<th class="second-row">${String(h).padStart(2, '0')}<br>${String(h + 1).padStart(2, '0')}</th>`;
+        html += `<th class="second-row">${String(h).padStart(2, '0')}-${String(h + 1).padStart(2, '0')}</th>`;
       }
     }
     html += '</tr>';
 
     for (const venue of venues) {
       html += `<tr><td class="venue">${venue.name}</td>`;
-      for (const day of weekDates) {
+      for (const day of chunk) {
         const bookings = weekData[day] || [];
         for (let h = START_HOUR; h < END_HOUR; h++) {
           const b = bookingForSlot(venue.venue_id, h, bookings);
@@ -285,8 +286,8 @@ function renderWeekly(weekData, baseDate, days = 7) {
       html += '</tr>';
     }
 
-    if (weekIdx < weeks.length - 1) {
-      html += `<tr><td colspan="${1 + weekDates.length * (END_HOUR - START_HOUR)}" style="height:12px;background:#eef2ff;border:0;"></td></tr>`;
+    if (chunkIdx < dayChunks.length - 1) {
+      html += `<tr><td colspan="${1 + chunk.length * (END_HOUR - START_HOUR)}" style="height:12px;background:#eef2ff;border:0;"></td></tr>`;
     }
   });
 
