@@ -212,7 +212,7 @@ function setAuthBadge() {
 function renderDaily(bookings) {
   const grid = document.getElementById('grid');
   let html = '<tr><th>場地\\時段</th>';
-  for (let h = START_HOUR; h < END_HOUR; h++) html += `<th>${String(h).padStart(2, '0')}-${String(h+1).padStart(2, '0')}</th>`;
+  for (let h = START_HOUR; h < END_HOUR; h++) html += `<th>${String(h).padStart(2, '0')}<br>${String(h+1).padStart(2, '0')}</th>`;
   html += '</tr>';
 
   for (const venue of venues) {
@@ -260,7 +260,7 @@ function renderWeekly(weekData, baseDate, days = 7) {
     html += '</tr><tr>';
     for (let d = 0; d < weekDates.length; d++) {
       for (let h = START_HOUR; h < END_HOUR; h++) {
-        html += `<th class="second-row">${String(h).padStart(2, '0')}-${String(h + 1).padStart(2, '0')}</th>`;
+        html += `<th class="second-row">${String(h).padStart(2, '0')}<br>${String(h + 1).padStart(2, '0')}</th>`;
       }
     }
     html += '</tr>';
