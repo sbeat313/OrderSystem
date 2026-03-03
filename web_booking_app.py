@@ -240,37 +240,44 @@ function renderWeekly(weekData, baseDate, days = 7) {
     dates.push(fmtDate(d));
   }
 
-  let html = '<tr><th class="sticky-left-1">日期</th><th class="sticky-left-2">時段</th>';
-  for (const venue of venues) html += `<th>${venue.name}</th>`;
+  const weekdayNames = ['一', '二', '三', '四', '五', '六', '日'];
+  const slots = [];
+  for (const day of dates) {
+    const weekday = weekdayNames[(new Date(day + 'T00:00:00').getDay() + 6) % 7];
+    for (let h = START_HOUR; h < END_HOUR; h++) {
+      slots.push({
+        day,
+        hour: h,
+        label: `${day.slice(5)}(${weekday})<br>${String(h).padStart(2, '0')}-${String(h + 1).padStart(2, '0')}`,
+      });
+    }
+  }
+
+  let html = '<tr><th class="sticky-left-1">場地</th>';
+  for (const slot of slots) html += `<th>${slot.label}</th>`;
   html += '</tr>';
 
-  for (const day of dates) {
-    for (let h = START_HOUR; h < END_HOUR; h++) {
-      html += '<tr>';
-      if (h === START_HOUR) {
-        html += `<td class="venue" rowspan="${END_HOUR - START_HOUR}">${day}<br>${['一','二','三','四','五','六','日'][((new Date(day+'T00:00:00').getDay()+6)%7)]}</td>`;
+  for (const venue of venues) {
+    html += `<tr><td class="venue">${venue.name}</td>`;
+    for (const slot of slots) {
+      const bookings = weekData[slot.day] || [];
+      const b = bookingForSlot(venue.venue_id, slot.hour, bookings);
+      let cls = 'slot';
+      let cell = '';
+      if (b) {
+        cls += currentRole === 'admin' ? ' booked-admin' : ' booked-user';
+        cell = currentRole === 'admin'
+          ? `${b.start_time.slice(11,16)}-${b.end_time.slice(11,16)}\n${b.customer}\n${b.purpose || ''}`
+          : '已預約';
       }
-      html += `<td class="slot-time">${String(h).padStart(2, '0')}-${String(h+1).padStart(2, '0')}</td>`;
-
-      const bookings = weekData[day] || [];
-      for (const venue of venues) {
-        const b = bookingForSlot(venue.venue_id, h, bookings);
-        let cls = 'slot';
-        let cell = '';
-        if (b) {
-          cls += currentRole === 'admin' ? ' booked-admin' : ' booked-user';
-          cell = currentRole === 'admin'
-            ? `${b.start_time.slice(11,16)}-${b.end_time.slice(11,16)}\n${b.customer}\n${b.purpose || ''}`
-            : '已預約';
-        }
-        html += `<td class="${cls}"><div class="small">${cell}</div></td>`;
-      }
-      html += '</tr>';
+      html += `<td class="${cls}"><div class="small">${cell}</div></td>`;
     }
+    html += '</tr>';
   }
 
   grid.innerHTML = html;
 }
+
 
 async function refresh() {
   const date = document.getElementById('date').value;
