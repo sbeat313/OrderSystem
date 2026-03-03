@@ -40,11 +40,12 @@ HTML_PAGE = """<!doctype html>
 :root { --border:#d1d5db; --primary:#2563eb; --bg:#f3f6fb; --panel:#ffffff; }
 *{ box-sizing:border-box; }
 body { font-family: "Noto Sans TC", Arial, sans-serif; margin: 0; background: linear-gradient(160deg,#eef2ff,#f8fafc); color: #111827; }
-.container { max-width: 96vw; margin: 0 auto; padding: 20px; }
-.title { margin: 0 0 14px; font-size: 28px; letter-spacing: .5px; }
-.layout { display: grid; grid-template-columns: 360px 1fr; gap: 18px; }
+.container { width: 100%; max-width: 100vw; margin: 0 auto; padding: 14px; }
+.title { margin: 0 0 10px; font-size: 28px; letter-spacing: .5px; }
 .panel { border: 1px solid var(--border); border-radius: 14px; padding: 14px; background: var(--panel); box-shadow: 0 6px 20px rgba(15,23,42,.06); }
-label { display: block; margin-top: 9px; font-weight: 700; color: #1f2937; }
+.top-panel { margin-bottom: 12px; }
+.top-grid { display: grid; grid-template-columns: repeat(5, minmax(180px, 1fr)); gap: 12px; align-items: end; }
+label { display: block; margin-top: 0; font-weight: 700; color: #1f2937; font-size: 14px; }
 input, select, button { width: 100%; padding: 10px; margin-top: 6px; border-radius: 8px; border: 1px solid #cbd5e1; }
 button { background: var(--primary); color: white; border: none; font-weight: 700; cursor: pointer; }
 button:hover { filter: brightness(.96); }
@@ -54,12 +55,12 @@ button:hover { filter: brightness(.96); }
 .toolbar input,.toolbar select { width: auto; min-width: 160px; }
 .chip { width:auto; padding:7px 12px; border-radius:999px; border:1px solid #cbd5e1; background:#eef2ff; color:#1e3a8a; font-weight:700; }
 .chip.active { background:#1d4ed8; color:#fff; }
-.grid-wrap { overflow: auto; }
+.grid-wrap { overflow: auto; max-height: calc(100vh - 260px); }
 table { border-collapse: collapse; width: 100%; background: #fff; }
 th, td { border: 1px solid #0f172a; text-align: center; font-size: 12px; padding: 4px; min-width: 48px; }
 th { background: #f8fafc; height: 30px; position: sticky; top: 0; z-index: 1; }
 td.venue { min-width: 76px; font-weight: 700; background: #fff; position: sticky; left: 0; z-index: 1; }
-td.slot { height: 42px; background: #f8fafc; }
+td.slot { height: 48px; background: #f8fafc; }
 td.slot.booked-admin { background: #dcfce7; }
 td.slot.booked-user { background: #0ea5e9; color: #fff; }
 td.slot.school { background: #f5e8c5; }
@@ -71,41 +72,45 @@ td.slot.school { background: #f5e8c5; }
 <body>
 <div class="container">
   <h2 class="title">暖西羽球館預約系統</h2>
-  <div class="layout">
-    <div class="panel">
-      <h3>新增預約（管理員）</h3>
-      <label>場地</label><select id="venue"></select>
-      <label>預約人</label><input id="customer" placeholder="例如：江江" />
-      <label>用途</label><select id="purpose"></select>
-      <label>開始時間</label><input id="start" type="datetime-local" />
-      <label>結束時間</label><input id="end" type="datetime-local" />
-      <button id="add-btn">新增預約</button>
-      <div id="msg" class="note"></div>
-      <p class="helper">※ 只有通過管理員驗證後可新增預約。</p>
+  <div class="panel top-panel">
+    <h3>新增預約（管理員）</h3>
+    <div class="top-grid">
+      <div><label>場地</label><select id="venue"></select></div>
+      <div><label>預約人</label><input id="customer" placeholder="例如：江江" /></div>
+      <div><label>用途</label><select id="purpose"></select></div>
+      <div><label>開始時間</label><input id="start" type="datetime-local" /></div>
+      <div><label>結束時間</label><input id="end" type="datetime-local" /></div>
     </div>
+    <div class="top-grid" style="grid-template-columns: 240px 1fr; margin-top:8px;">
+      <button id="add-btn">新增預約</button>
+      <div>
+        <div id="msg" class="note"></div>
+        <p class="helper">※ 只有通過管理員驗證後可新增預約。</p>
+      </div>
+    </div>
+  </div>
 
-    <div class="panel">
-      <div class="toolbar">
-        <div class="field">
-          <label>日期</label>
-          <input id="date" type="date" />
-        </div>
-        <div class="field">
-          <label>顯示模式</label>
-          <select id="view-mode">
-            <option value="daily">每日</option>
-            <option value="weekly">每週</option>
-            <option value="biweekly">雙週</option>
-          </select>
-        </div>
-        <button class="chip" id="user-view">使用者檢視</button>
-        <button class="chip" id="admin-view">管理員檢視</button>
-        <button class="chip" id="options-link" style="display:none;" onclick="location.href='/options'">場地/用途設定</button>
-        <span id="auth-state" class="badge">目前：使用者</span>
+  <div class="panel">
+    <div class="toolbar">
+      <div class="field">
+        <label>日期</label>
+        <input id="date" type="date" />
       </div>
-      <div class="grid-wrap">
-        <table id="grid"></table>
+      <div class="field">
+        <label>顯示模式</label>
+        <select id="view-mode">
+          <option value="daily">每日</option>
+          <option value="weekly">每週</option>
+          <option value="biweekly" selected>雙週</option>
+        </select>
       </div>
+      <button class="chip" id="user-view">使用者檢視</button>
+      <button class="chip" id="admin-view">管理員檢視</button>
+      <button class="chip" id="options-link" style="display:none;" onclick="location.href='/options'">場地/用途設定</button>
+      <span id="auth-state" class="badge">目前：使用者</span>
+    </div>
+    <div class="grid-wrap">
+      <table id="grid"></table>
     </div>
   </div>
 </div>
