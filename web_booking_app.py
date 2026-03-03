@@ -57,9 +57,11 @@ button:hover { filter: brightness(.96); }
 table { border-collapse: collapse; width: max-content; min-width: 100%; background: #fff; }
 th, td { border: 1px solid #0f172a; text-align: center; font-size: 14px; padding: 6px; min-width: 48px; }
 th { background: #f8fafc; height: 30px; position: sticky; top: 0; z-index: 6; }
+th.top-row { top: 0; }
+th.second-row { top: 42px; z-index: 7; }
 th.sticky-left-1 { left: 0; min-width: var(--sticky-venue); z-index: 9; }
 th.sticky-left-2 { left: var(--sticky-venue); min-width: var(--sticky-time); z-index: 9; }
-td.venue { min-width: var(--sticky-venue); font-weight: 700; background: #fff; position: sticky; left: 0; z-index: 4; }
+td.venue { min-width: var(--sticky-venue); font-weight: 700; background: #fff; position: sticky; left: 0; z-index: 4; border-right: 1px solid #0f172a; box-shadow: inset -1px 0 0 #0f172a; }
 td.slot-time { min-width: var(--sticky-time); font-weight: 600; background: #f8fafc; position: sticky; left: var(--sticky-venue); z-index: 3; }
 td.slot { height: 48px; background: #f8fafc; }
 td.slot.booked-admin { background: #dcfce7; }
@@ -67,6 +69,10 @@ td.slot.booked-user { background: #0ea5e9; color: #fff; }
 .badge { display:inline-block; padding:4px 10px; border-radius:999px; font-size:13px; font-weight:700; background:#e2e8f0; }
 .small { font-size: 13px; line-height: 1.3; white-space: pre-line; }
 .helper { margin: 6px 0 0; font-size: 14px; color: #475569; }
+.legend { margin: 4px 0 8px; font-size: 14px; color: #334155; }
+.legend .dot { display:inline-block; width:12px; height:12px; border-radius:3px; margin:0 6px 0 12px; vertical-align:middle; border:1px solid #0f172a; }
+.legend .dot.admin { background:#dcfce7; }
+.legend .dot.user { background:#0ea5e9; }
 .modal-backdrop { position: fixed; inset: 0; background: rgba(15,23,42,0.55); display: none; align-items: center; justify-content: center; z-index: 20; }
 .modal { width: min(640px, 92vw); background: #fff; border-radius: 12px; padding: 16px; border: 1px solid #cbd5e1; }
 .modal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
@@ -98,6 +104,7 @@ td.slot.booked-user { background: #0ea5e9; color: #fff; }
       <span id="auth-state" class="badge">目前：使用者</span>
     </div>
     <div id="msg" class="note"></div>
+    <div class="legend"><span class="dot admin"></span>管理員檢視：已預約 <span class="dot user"></span>藍色代表已預約（使用者檢視不顯示文字）</div>
     <div class="grid-wrap">
       <table id="grid"></table>
     </div>
@@ -220,7 +227,7 @@ function renderDaily(bookings) {
           text = `${b.start_time.slice(11,16)}-${b.end_time.slice(11,16)}\n${b.customer}\n${b.purpose || ''}`;
         } else {
           cls += ' booked-user';
-          text = '已預約';
+          text = '';
         }
       }
       html += `<td class="${cls}"><div class="small">${text}</div></td>`;
@@ -241,36 +248,35 @@ function renderWeekly(weekData, baseDate, days = 7) {
   }
 
   const weekdayNames = ['一', '二', '三', '四', '五', '六', '日'];
-  const slots = [];
+  let html = '<tr><th class="sticky-left-1 top-row" rowspan="2">場地</th>';
   for (const day of dates) {
     const weekday = weekdayNames[(new Date(day + 'T00:00:00').getDay() + 6) % 7];
+    html += `<th class="top-row" colspan="${END_HOUR - START_HOUR}">${day.slice(5)} (${weekday})</th>`;
+  }
+  html += '</tr><tr>';
+  for (let d = 0; d < dates.length; d++) {
     for (let h = START_HOUR; h < END_HOUR; h++) {
-      slots.push({
-        day,
-        hour: h,
-        label: `${day.slice(5)}(${weekday})<br>${String(h).padStart(2, '0')}-${String(h + 1).padStart(2, '0')}`,
-      });
+      html += `<th class="second-row">${String(h).padStart(2, '0')}-${String(h + 1).padStart(2, '0')}</th>`;
     }
   }
-
-  let html = '<tr><th class="sticky-left-1">場地</th>';
-  for (const slot of slots) html += `<th>${slot.label}</th>`;
   html += '</tr>';
 
   for (const venue of venues) {
     html += `<tr><td class="venue">${venue.name}</td>`;
-    for (const slot of slots) {
-      const bookings = weekData[slot.day] || [];
-      const b = bookingForSlot(venue.venue_id, slot.hour, bookings);
-      let cls = 'slot';
-      let cell = '';
-      if (b) {
-        cls += currentRole === 'admin' ? ' booked-admin' : ' booked-user';
-        cell = currentRole === 'admin'
-          ? `${b.start_time.slice(11,16)}-${b.end_time.slice(11,16)}\n${b.customer}\n${b.purpose || ''}`
-          : '已預約';
+    for (const day of dates) {
+      const bookings = weekData[day] || [];
+      for (let h = START_HOUR; h < END_HOUR; h++) {
+        const b = bookingForSlot(venue.venue_id, h, bookings);
+        let cls = 'slot';
+        let cell = '';
+        if (b) {
+          cls += currentRole === 'admin' ? ' booked-admin' : ' booked-user';
+          cell = currentRole === 'admin'
+            ? `${b.start_time.slice(11,16)}-${b.end_time.slice(11,16)}\n${b.customer}\n${b.purpose || ''}`
+            : '';
+        }
+        html += `<td class="${cls}"><div class="small">${cell}</div></td>`;
       }
-      html += `<td class="${cls}"><div class="small">${cell}</div></td>`;
     }
     html += '</tr>';
   }
