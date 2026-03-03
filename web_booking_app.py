@@ -41,21 +41,21 @@ HTML_PAGE = """<!doctype html>
 *{ box-sizing:border-box; }
 body { font-family: "Noto Sans TC", Arial, sans-serif; margin: 0; background: linear-gradient(160deg,#eef2ff,#f8fafc); color: #111827; }
 .container { width: 100%; max-width: none; margin: 0; padding: 16px 18px 24px; }
-.title { margin: 0 0 10px; font-size: 28px; letter-spacing: .5px; }
+.title { margin: 0 0 12px; font-size: 34px; letter-spacing: .5px; }
 .panel { border: 1px solid var(--border); border-radius: 14px; padding: 14px; background: var(--panel); box-shadow: 0 6px 20px rgba(15,23,42,.06); min-height: calc(100vh - 90px); }
-label { display: block; margin-top: 0; font-weight: 700; color: #1f2937; font-size: 14px; }
-input, select, button { width: 100%; padding: 10px; margin-top: 6px; border-radius: 8px; border: 1px solid #cbd5e1; }
+label { display: block; margin-top: 0; font-weight: 700; color: #1f2937; font-size: 16px; }
+input, select, button { width: 100%; padding: 12px; margin-top: 6px; border-radius: 8px; border: 1px solid #cbd5e1; font-size: 16px; }
 button { background: var(--primary); color: white; border: none; font-weight: 700; cursor: pointer; }
 button:hover { filter: brightness(.96); }
-.note { margin-top: 8px; min-height: 20px; font-size: 14px; }
+.note { margin-top: 8px; min-height: 22px; font-size: 16px; }
 .toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; margin-bottom: 10px; }
 .toolbar .field { min-width: 150px; }
 .toolbar input,.toolbar select { width: auto; min-width: 160px; }
-.chip { width:auto; padding:7px 12px; border-radius:999px; border:1px solid #cbd5e1; background:#eef2ff; color:#1e3a8a; font-weight:700; }
+.chip { width:auto; padding:10px 16px; border-radius:999px; border:1px solid #cbd5e1; background:#eef2ff; color:#1e3a8a; font-weight:700; font-size:15px; }
 .chip.active { background:#1d4ed8; color:#fff; }
 .grid-wrap { overflow: visible; max-height: none; }
 table { border-collapse: collapse; width: max-content; min-width: 100%; background: #fff; }
-th, td { border: 1px solid #0f172a; text-align: center; font-size: 12px; padding: 4px; min-width: 48px; }
+th, td { border: 1px solid #0f172a; text-align: center; font-size: 14px; padding: 6px; min-width: 48px; }
 th { background: #f8fafc; height: 30px; position: sticky; top: 0; z-index: 6; }
 th.sticky-left-1 { left: 0; min-width: var(--sticky-venue); z-index: 9; }
 th.sticky-left-2 { left: var(--sticky-venue); min-width: var(--sticky-time); z-index: 9; }
@@ -64,9 +64,9 @@ td.slot-time { min-width: var(--sticky-time); font-weight: 600; background: #f8f
 td.slot { height: 48px; background: #f8fafc; }
 td.slot.booked-admin { background: #dcfce7; }
 td.slot.booked-user { background: #0ea5e9; color: #fff; }
-.badge { display:inline-block; padding:2px 6px; border-radius:999px; font-size:11px; font-weight:700; background:#e2e8f0; }
-.small { font-size: 11px; line-height: 1.2; white-space: pre-line; }
-.helper { margin: 6px 0 0; font-size: 12px; color: #475569; }
+.badge { display:inline-block; padding:4px 10px; border-radius:999px; font-size:13px; font-weight:700; background:#e2e8f0; }
+.small { font-size: 13px; line-height: 1.3; white-space: pre-line; }
+.helper { margin: 6px 0 0; font-size: 14px; color: #475569; }
 .modal-backdrop { position: fixed; inset: 0; background: rgba(15,23,42,0.55); display: none; align-items: center; justify-content: center; z-index: 20; }
 .modal { width: min(640px, 92vw); background: #fff; border-radius: 12px; padding: 16px; border: 1px solid #cbd5e1; }
 .modal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
@@ -388,14 +388,14 @@ OPTIONS_PAGE = """<!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>場地與用途設定</title>
 <style>
-body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background: #f8fafc; }
+body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background: #f8fafc; font-size: 16px; }
 .wrap { max-width: 1100px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .panel { background:#fff; border:1px solid #d1d5db; border-radius: 12px; padding: 14px; }
 h1 { margin-top: 0; }
-input, button { padding:8px; }
+input, button { padding:10px; font-size:15px; }
 button { cursor:pointer; }
 table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-th, td { border:1px solid #cbd5e1; padding:8px; text-align:left; }
+th, td { border:1px solid #cbd5e1; padding:10px; text-align:left; font-size:15px; }
 .actions button { margin-right: 6px; }
 .top { max-width:1100px; margin:0 auto 12px; display:flex; gap:8px; align-items:center; }
 </style>
