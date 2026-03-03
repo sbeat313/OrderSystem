@@ -41,7 +41,7 @@ HTML_PAGE = """<!doctype html>
   --border:#dbe4f0;
   --primary:#2563eb;
   --primary-strong:#1d4ed8;
-  --bg:#f4f7ff;
+  --bg:#f8f6ff;
   --panel:#ffffff;
   --text:#0f172a;
   --muted:#475569;
@@ -54,8 +54,9 @@ body {
   margin: 0;
   color: var(--text);
   background:
-    radial-gradient(circle at 15% 10%, #e9efff 0%, rgba(233,239,255,0) 40%),
-    radial-gradient(circle at 90% 0%, #e8f4ff 0%, rgba(232,244,255,0) 35%),
+    radial-gradient(circle at 12% 8%, #e8ecff 0%, rgba(232,236,255,0) 42%),
+    radial-gradient(circle at 92% 4%, #e8f9ff 0%, rgba(232,249,255,0) 36%),
+    radial-gradient(circle at 55% 100%, #f9edff 0%, rgba(249,237,255,0) 40%),
     var(--bg);
 }
 .container { width: 100%; max-width: none; margin: 0; padding: 20px 24px 28px; }
@@ -64,8 +65,8 @@ body {
   border: 1px solid var(--border);
   border-radius: 18px;
   padding: 16px;
-  background: linear-gradient(180deg, #ffffff, #fbfdff);
-  box-shadow: 0 12px 36px rgba(15,23,42,.08);
+  background: linear-gradient(180deg, #ffffff, #f8fbff);
+  box-shadow: 0 14px 40px rgba(76,29,149,.10);
   min-height: calc(100vh - 96px);
 }
 label { display: block; margin-top: 0; font-weight: 700; color: #1f2937; font-size: 16px; }
@@ -86,10 +87,10 @@ button:hover { filter: brightness(.98); transform: translateY(-1px); }
 .toolbar input,.toolbar select { width: auto; min-width: 170px; }
 .chip {
   width:auto; padding:10px 16px; border-radius:999px;
-  border:1px solid #c9d6ea; background:#edf4ff; color:#1e3a8a;
+  border:1px solid #c9d6ea; background:linear-gradient(180deg,#eef2ff,#e0ecff); color:#1e3a8a;
   font-weight:700; font-size:14px; box-shadow:none;
 }
-.chip.active { background: linear-gradient(180deg, #2563eb, #1d4ed8); color:#fff; }
+.chip.active { background: linear-gradient(180deg, #4f46e5, #2563eb); color:#fff; }
 .grid-wrap {
   overflow-x: auto; overflow-y: visible; max-width: 100%; max-height: none;
   border: 1px solid var(--border); border-radius: 12px; background:#fff;
@@ -98,7 +99,7 @@ button:hover { filter: brightness(.98); transform: translateY(-1px); }
 table { border-collapse: separate; border-spacing: 0; width: max-content; min-width: 100%; background: #fff; }
 th, td { border: 1px solid #d3deef; text-align: center; font-size: 13px; padding: 6px; min-width: 48px; }
 th {
-  background: linear-gradient(180deg, #f8fbff, #eef4ff);
+  background: linear-gradient(180deg, #f5f7ff, #eaf1ff);
   height: 32px; position: sticky; top: 0; z-index: 6;
   color:#0f2f66;
 }
@@ -116,8 +117,8 @@ td.venue {
 }
 td.slot-time { min-width: var(--sticky-time); font-weight: 600; background: #f8fafc; position: sticky; left: var(--sticky-venue); z-index: 3; }
 td.slot { height: 48px; background: #fcfdff; }
-td.slot.booked-admin { background: #dcfce7; }
-td.slot.booked-user { background: #0ea5e9; color: #fff; }
+td.slot.booked-admin { background: linear-gradient(180deg,#dcfce7,#bbf7d0); }
+td.slot.booked-user { background: linear-gradient(180deg,#06b6d4,#3b82f6); color: #fff; }
 .badge { display:inline-block; padding:5px 10px; border-radius:999px; font-size:12px; font-weight:700; background:#e5edf9; color:#12408d; }
 .small { font-size: 12px; line-height: 1.3; white-space: pre-line; }
 .helper { margin: 6px 0 0; font-size: 14px; color: var(--muted); }
@@ -126,8 +127,8 @@ td.slot.booked-user { background: #0ea5e9; color: #fff; }
   background:#f8fbff; border:1px dashed #c4d3ea; padding:8px 10px; border-radius:10px;
 }
 .legend .dot { display:inline-block; width:12px; height:12px; border-radius:3px; margin:0 6px 0 12px; vertical-align:middle; border:1px solid #0f172a; }
-.legend .dot.admin { background:#dcfce7; }
-.legend .dot.user { background:#0ea5e9; }
+.legend .dot.admin { background:linear-gradient(180deg,#dcfce7,#bbf7d0); }
+.legend .dot.user { background:linear-gradient(180deg,#06b6d4,#3b82f6); }
 .modal-backdrop { position: fixed; inset: 0; background: rgba(15,23,42,0.55); display: none; align-items: center; justify-content: center; z-index: 20; }
 .modal { width: min(680px, 92vw); background: #fff; border-radius: 14px; padding: 18px; border: 1px solid #cbd5e1; box-shadow: 0 20px 50px rgba(15,23,42,.2); }
 .modal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
