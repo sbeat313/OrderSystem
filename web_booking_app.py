@@ -95,6 +95,7 @@ td.slot.school { background: #f5e8c5; }
           <select id="view-mode">
             <option value="daily">每日</option>
             <option value="weekly">每週</option>
+            <option value="biweekly">雙週</option>
           </select>
         </div>
         <button class="chip" id="user-view">使用者檢視</button>
@@ -152,10 +153,10 @@ async function loadBookings(date) {
   return await resp.json();
 }
 
-async function loadWeekBookings(baseDate) {
+async function loadRangeBookings(baseDate, days) {
   const start = weekStart(baseDate);
   const data = {};
-  for (let i = 0; i < 7; i++) {
+  for (let i = 0; i < days; i++) {
     const d = new Date(start);
     d.setDate(start.getDate() + i);
     const key = fmtDate(d);
@@ -210,11 +211,11 @@ function renderDaily(bookings) {
   grid.innerHTML = html;
 }
 
-function renderWeekly(weekData, baseDate) {
+function renderWeekly(weekData, baseDate, days = 7) {
   const grid = document.getElementById('grid');
   const start = weekStart(baseDate);
   const dates = [];
-  for (let i = 0; i < 7; i++) {
+  for (let i = 0; i < days; i++) {
     const d = new Date(start);
     d.setDate(start.getDate() + i);
     dates.push(fmtDate(d));
@@ -233,7 +234,7 @@ function renderWeekly(weekData, baseDate) {
       if (list.length > 0) {
         cls += currentRole === 'admin' ? ' booked-admin' : ' booked-user';
         cell = currentRole === 'admin'
-          ? list.map(b => `${b.start_time.slice(11,16)} ${b.customer}`).join('\\n')
+          ? list.map(b => `${b.start_time.slice(11,16)}-${b.end_time.slice(11,16)} ${b.customer}`).join('\\n')
           : `已預約 ${list.length} 筆`;
       } else if (currentRole === 'user') {
         cls += ' school';
@@ -251,8 +252,10 @@ async function refresh() {
   const mode = document.getElementById('view-mode').value;
   if (mode === 'daily') {
     renderDaily(await loadBookings(date));
+  } else if (mode === 'weekly') {
+    renderWeekly(await loadRangeBookings(date, 7), date, 7);
   } else {
-    renderWeekly(await loadWeekBookings(date), date);
+    renderWeekly(await loadRangeBookings(date, 14), date, 14);
   }
 }
 
