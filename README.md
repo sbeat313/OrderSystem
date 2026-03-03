@@ -1,29 +1,31 @@
 # 場地預定管理程式
 
-這是一個使用 Python 撰寫的場地預定系統，提供：
+此版本提供：
 
-- CLI 終端機互動管理（新增 / 查詢 / 取消）
-- Web 表單輸入（瀏覽器新增預約）
-- 月曆視圖顯示每月預約資訊
-- 同場地時段衝突檢查
+- SQLite 本地資料庫持久化（預設 `booking.db`）
+- 場地由資料庫管理（預設建立 1~6 號場）
+- 管理員 Web 檢視（顯示預約人與用途）
+- 一般使用者 Web 檢視（資訊遮蔽）
+- CLI 管理模式
 
-## 1) CLI 版本
-
-```bash
-python booking_manager.py
-```
-
-## 2) Web 版本（含月曆）
+## 啟動 Web
 
 ```bash
 python web_booking_app.py
 ```
 
-啟動後開啟 `http://localhost:8000`。
+開啟 `http://localhost:8000`。
 
-## 時間格式
+## 啟動 CLI
 
-請使用：`YYYY-MM-DD HH:MM`，例如 `2026-04-01 09:30`。
+```bash
+python booking_manager.py
+```
+
+## 資料庫
+
+- 預設資料庫檔案：`booking.db`
+- 首次啟動會自動建立資料表與場地資料（1號場~6號場）
 
 ## 測試
 

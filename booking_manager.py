@@ -1,63 +1,171 @@
 from __future__ import annotations
 
+import sqlite3
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Dict, List
+from pathlib import Path
+from typing import List
 
 TIME_FORMAT = "%Y-%m-%d %H:%M"
+DEFAULT_DB_PATH = "booking.db"
+
+
+@dataclass
+class Venue:
+    venue_id: int
+    name: str
 
 
 @dataclass
 class Booking:
     booking_id: int
-    venue: str
+    venue_id: int
+    venue_name: str
     customer: str
+    purpose: str
     start_time: datetime
     end_time: datetime
 
-    def overlaps(self, other: "Booking") -> bool:
-        if self.venue != other.venue:
-            return False
-        return self.start_time < other.end_time and other.start_time < self.end_time
-
 
 class BookingManager:
-    def __init__(self) -> None:
-        self._bookings: Dict[int, Booking] = {}
-        self._next_id = 1
+    def __init__(self, db_path: str = DEFAULT_DB_PATH) -> None:
+        self.db_path = db_path
+        self._init_db()
 
-    def add_booking(self, venue: str, customer: str, start: str, end: str) -> Booking:
+    def _connect(self) -> sqlite3.Connection:
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        return conn
+
+    def _init_db(self) -> None:
+        Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
+        with self._connect() as conn:
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS venues (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL UNIQUE
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS bookings (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    venue_id INTEGER NOT NULL,
+                    customer TEXT NOT NULL,
+                    purpose TEXT NOT NULL DEFAULT '',
+                    start_time TEXT NOT NULL,
+                    end_time TEXT NOT NULL,
+                    FOREIGN KEY (venue_id) REFERENCES venues(id)
+                )
+                """
+            )
+            count = conn.execute("SELECT COUNT(*) FROM venues").fetchone()[0]
+            if count == 0:
+                conn.executemany(
+                    "INSERT INTO venues(name) VALUES (?)",
+                    [(f"{index}號場",) for index in range(1, 7)],
+                )
+
+    def list_venues(self) -> List[Venue]:
+        with self._connect() as conn:
+            rows = conn.execute("SELECT id, name FROM venues ORDER BY id").fetchall()
+        return [Venue(venue_id=row["id"], name=row["name"]) for row in rows]
+
+    def add_booking(
+        self,
+        venue_id: int,
+        customer: str,
+        start: str,
+        end: str,
+        purpose: str = "",
+    ) -> Booking:
         start_time, end_time = self._parse_time_range(start, end)
-        new_booking = Booking(
-            booking_id=self._next_id,
-            venue=venue.strip(),
+        with self._connect() as conn:
+            venue = conn.execute(
+                "SELECT id, name FROM venues WHERE id = ?", (venue_id,)
+            ).fetchone()
+            if venue is None:
+                raise ValueError("場地不存在")
+
+            conflict = conn.execute(
+                """
+                SELECT b.id, b.start_time, b.end_time
+                FROM bookings b
+                WHERE b.venue_id = ?
+                  AND b.start_time < ?
+                  AND b.end_time > ?
+                LIMIT 1
+                """,
+                (
+                    venue_id,
+                    end_time.strftime(TIME_FORMAT),
+                    start_time.strftime(TIME_FORMAT),
+                ),
+            ).fetchone()
+            if conflict:
+                raise ValueError(
+                    f"時段衝突：{venue['name']} 已有預約 "
+                    f"({conflict['start_time']} - {conflict['end_time']})"
+                )
+
+            cursor = conn.execute(
+                """
+                INSERT INTO bookings(venue_id, customer, purpose, start_time, end_time)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (
+                    venue_id,
+                    customer.strip(),
+                    purpose.strip(),
+                    start_time.strftime(TIME_FORMAT),
+                    end_time.strftime(TIME_FORMAT),
+                ),
+            )
+            booking_id = cursor.lastrowid
+
+        return Booking(
+            booking_id=booking_id,
+            venue_id=venue["id"],
+            venue_name=venue["name"],
             customer=customer.strip(),
+            purpose=purpose.strip(),
             start_time=start_time,
             end_time=end_time,
         )
-        self._assert_no_conflict(new_booking)
-        self._bookings[new_booking.booking_id] = new_booking
-        self._next_id += 1
-        return new_booking
 
     def cancel_booking(self, booking_id: int) -> bool:
-        return self._bookings.pop(booking_id, None) is not None
+        with self._connect() as conn:
+            cur = conn.execute("DELETE FROM bookings WHERE id = ?", (booking_id,))
+            return cur.rowcount > 0
 
-    def list_bookings(self, venue: str | None = None) -> List[Booking]:
-        items = list(self._bookings.values())
-        if venue:
-            items = [booking for booking in items if booking.venue == venue]
-        return sorted(items, key=lambda booking: booking.start_time)
+    def list_bookings(self, date: str | None = None) -> List[Booking]:
+        query = (
+            "SELECT b.id, b.venue_id, v.name AS venue_name, b.customer, b.purpose, b.start_time, b.end_time "
+            "FROM bookings b JOIN venues v ON b.venue_id = v.id"
+        )
+        params: tuple = ()
+        if date:
+            query += " WHERE date(b.start_time) = date(?)"
+            params = (date,)
+        query += " ORDER BY b.start_time, b.venue_id"
 
-    def _assert_no_conflict(self, candidate: Booking) -> None:
-        for existing in self._bookings.values():
-            if existing.overlaps(candidate):
-                raise ValueError(
-                    "時段衝突："
-                    f"{existing.venue} 已有預約 "
-                    f"({existing.start_time.strftime(TIME_FORMAT)} - "
-                    f"{existing.end_time.strftime(TIME_FORMAT)})"
-                )
+        with self._connect() as conn:
+            rows = conn.execute(query, params).fetchall()
+
+        return [
+            Booking(
+                booking_id=row["id"],
+                venue_id=row["venue_id"],
+                venue_name=row["venue_name"],
+                customer=row["customer"],
+                purpose=row["purpose"],
+                start_time=datetime.strptime(row["start_time"], TIME_FORMAT),
+                end_time=datetime.strptime(row["end_time"], TIME_FORMAT),
+            )
+            for row in rows
+        ]
 
     @staticmethod
     def _parse_time_range(start: str, end: str) -> tuple[datetime, datetime]:
@@ -69,70 +177,46 @@ class BookingManager:
 
         if end_time <= start_time:
             raise ValueError("結束時間必須晚於開始時間")
-
         return start_time, end_time
-
-
-def print_bookings(bookings: List[Booking]) -> None:
-    if not bookings:
-        print("目前沒有預約資料。")
-        return
-
-    print("\n=== 預約清單 ===")
-    for booking in bookings:
-        print(
-            f"#{booking.booking_id} | {booking.venue} | {booking.customer} | "
-            f"{booking.start_time.strftime(TIME_FORMAT)} -> "
-            f"{booking.end_time.strftime(TIME_FORMAT)}"
-        )
 
 
 def run_cli() -> None:
     manager = BookingManager()
-    menu = """
-場地預定管理系統
-1) 新增預約
-2) 查看全部預約
-3) 依場地查詢
-4) 取消預約
-5) 離開
-"""
-
     while True:
-        print(menu)
+        print("\n場地預定管理系統\n1) 新增預約\n2) 查看今日預約\n3) 取消預約\n4) 離開")
         choice = input("請輸入選項：").strip()
 
         if choice == "1":
+            venues = manager.list_venues()
+            print("可用場地：")
+            for v in venues:
+                print(f"{v.venue_id}) {v.name}")
             try:
-                venue = input("場地名稱：")
-                customer = input("預約人：")
-                start = input(f"開始時間 ({TIME_FORMAT})：")
-                end = input(f"結束時間 ({TIME_FORMAT})：")
-                booking = manager.add_booking(venue, customer, start, end)
-                print(f"新增成功！預約編號：{booking.booking_id}")
+                booking = manager.add_booking(
+                    venue_id=int(input("場地編號：").strip()),
+                    customer=input("預約人：").strip(),
+                    purpose=input("用途：").strip(),
+                    start=input(f"開始時間 ({TIME_FORMAT})：").strip(),
+                    end=input(f"結束時間 ({TIME_FORMAT})：").strip(),
+                )
+                print(f"新增成功，預約編號 #{booking.booking_id}")
             except ValueError as exc:
                 print(f"新增失敗：{exc}")
-
         elif choice == "2":
-            print_bookings(manager.list_bookings())
-
+            today = datetime.now().strftime("%Y-%m-%d")
+            bookings = manager.list_bookings(date=today)
+            if not bookings:
+                print("今日無預約")
+            for b in bookings:
+                print(
+                    f"#{b.booking_id} {b.venue_name} {b.start_time.strftime(TIME_FORMAT)}"
+                    f"~{b.end_time.strftime(TIME_FORMAT)} {b.customer}/{b.purpose}"
+                )
         elif choice == "3":
-            venue = input("請輸入場地名稱：").strip()
-            print_bookings(manager.list_bookings(venue=venue))
-
+            booking_id = input("預約編號：").strip()
+            print("取消成功" if booking_id.isdigit() and manager.cancel_booking(int(booking_id)) else "找不到編號")
         elif choice == "4":
-            booking_id = input("請輸入要取消的預約編號：").strip()
-            if booking_id.isdigit() and manager.cancel_booking(int(booking_id)):
-                print("取消成功。")
-            else:
-                print("找不到該預約編號。")
-
-        elif choice == "5":
-            print("感謝使用，再見！")
             break
-
-        else:
-            print("無效選項，請重新輸入。")
 
 
 if __name__ == "__main__":
