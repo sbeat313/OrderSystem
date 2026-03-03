@@ -51,14 +51,6 @@ class TestWebBookingApp(unittest.TestCase):
         conn.close()
         return resp.status, content
 
-    def request_raw(self, method, path):
-        conn = HTTPConnection("127.0.0.1", self.port, timeout=5)
-        conn.request(method, path)
-        resp = conn.getresponse()
-        content = resp.read()
-        headers = dict(resp.getheaders())
-        conn.close()
-        return resp.status, headers, content
 
     def test_get_venues(self):
         status, body = self.request("GET", "/api/venues")
@@ -77,16 +69,9 @@ class TestWebBookingApp(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertIn("場地 / 用途 管理", body)
 
-    def test_export_endpoints(self):
-        status, headers, body = self.request_raw("GET", "/api/export?format=png&date=2026-04-01&role=user")
-        self.assertEqual(status, 200)
-        self.assertEqual(headers.get("Content-Type"), "image/png")
-        self.assertTrue(body.startswith(b"\x89PNG"))
-
-        status, headers, body = self.request_raw("GET", "/api/export?format=pdf&date=2026-04-01&role=admin")
-        self.assertEqual(status, 200)
-        self.assertEqual(headers.get("Content-Type"), "application/pdf")
-        self.assertTrue(body.startswith(b"%PDF"))
+    def test_export_endpoint_removed(self):
+        status, _ = self.request("GET", "/api/export?format=png&date=2026-04-01&role=user")
+        self.assertEqual(status, 404)
 
     def test_create_and_list_booking(self):
         status, body = self.request(
