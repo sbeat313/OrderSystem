@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 import os
 import secrets
+import struct
+import zlib
 from datetime import datetime, timedelta
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -28,6 +30,183 @@ def booking_to_dict(booking: Booking) -> dict:
         "start_time": booking.start_time.strftime(TIME_FORMAT),
         "end_time": booking.end_time.strftime(TIME_FORMAT),
     }
+
+
+def _to_ascii(text: str) -> str:
+    return text.encode("ascii", "replace").decode("ascii")
+
+
+def _start_of_week(date_str: str) -> datetime:
+    day = datetime.strptime(date_str, "%Y-%m-%d")
+    return day - timedelta(days=(day.weekday()))
+
+
+def _build_biweekly_export_data(base_date: str) -> dict:
+    start = _start_of_week(base_date)
+    days = [(start + timedelta(days=i)).strftime("%Y-%m-%d") for i in range(14)]
+    hours = list(range(8, 22))
+    venues = manager.list_venues()
+
+    daily = {}
+    for day in days:
+        daily[day] = manager.list_bookings(date=day)
+
+    return {"days": days, "hours": hours, "venues": venues, "daily": daily}
+
+
+def _cell_text(bookings: list, venue_id: int, hour: int, role: str) -> str:
+    for b in bookings:
+        if b.venue_id != venue_id:
+            continue
+        if b.start_time.hour <= hour < b.end_time.hour:
+            if role == "admin":
+                return f"{b.start_time.strftime('%H:%M')}-{b.end_time.strftime('%H:%M')}"
+            return "RESERVED"
+    return ""
+
+
+def _bitmap_for_char(ch: str) -> list:
+    font = {
+        "0": ["111", "101", "101", "101", "111"],
+        "1": ["010", "110", "010", "010", "111"],
+        "2": ["111", "001", "111", "100", "111"],
+        "3": ["111", "001", "111", "001", "111"],
+        "4": ["101", "101", "111", "001", "001"],
+        "5": ["111", "100", "111", "001", "111"],
+        "6": ["111", "100", "111", "101", "111"],
+        "7": ["111", "001", "001", "001", "001"],
+        "8": ["111", "101", "111", "101", "111"],
+        "9": ["111", "101", "111", "001", "111"],
+        "-": ["000", "000", "111", "000", "000"],
+        ":": ["0", "1", "0", "1", "0"],
+        "V": ["101", "101", "101", "101", "010"],
+        "R": ["110", "101", "110", "101", "101"],
+        "E": ["111", "100", "110", "100", "111"],
+        "S": ["111", "100", "111", "001", "111"],
+        "D": ["110", "101", "101", "101", "110"],
+        " ": ["0", "0", "0", "0", "0"],
+        "?": ["111", "001", "010", "000", "010"],
+    }
+    return font.get(ch, font["?"])
+
+
+def _draw_text(pixels: bytearray, width: int, height: int, x: int, y: int, text: str) -> None:
+    color = (30, 41, 59)
+    cursor_x = x
+    for ch in _to_ascii(text.upper()):
+        bitmap = _bitmap_for_char(ch)
+        for row, bits in enumerate(bitmap):
+            for col, bit in enumerate(bits):
+                if bit != "1":
+                    continue
+                px = cursor_x + col
+                py = y + row
+                if 0 <= px < width and 0 <= py < height:
+                    idx = (py * width + px) * 3
+                    pixels[idx:idx + 3] = bytes(color)
+        cursor_x += len(bitmap[0]) + 1
+
+
+def _draw_rect(pixels: bytearray, width: int, height: int, x: int, y: int, w: int, h: int, color: tuple) -> None:
+    for yy in range(max(0, y), min(height, y + h)):
+        for xx in range(max(0, x), min(width, x + w)):
+            idx = (yy * width + xx) * 3
+            pixels[idx:idx + 3] = bytes(color)
+
+
+def _make_png_export(base_date: str, role: str) -> bytes:
+    data = _build_biweekly_export_data(base_date)
+    venues = data["venues"]
+    days = data["days"]
+    hours = data["hours"]
+    daily = data["daily"]
+
+    cell_w = 92
+    row_h = 14
+    cols = 2 + len(venues)
+    rows = 1 + len(days) * len(hours)
+    width = cols * cell_w
+    height = rows * row_h
+
+    pixels = bytearray([255] * (width * height * 3))
+
+    for c in range(cols + 1):
+        x = c * cell_w
+        _draw_rect(pixels, width, height, x, 0, 1, height, (148, 163, 184))
+    for r in range(rows + 1):
+        y = r * row_h
+        _draw_rect(pixels, width, height, 0, y, width, 1, (148, 163, 184))
+
+    _draw_text(pixels, width, height, 4, 4, "DATE")
+    _draw_text(pixels, width, height, cell_w + 4, 4, "TIME")
+    for i, v in enumerate(venues):
+        _draw_text(pixels, width, height, (i + 2) * cell_w + 4, 4, f"V{v.venue_id}")
+
+    row = 1
+    for day in days:
+        for hour in hours:
+            if hour == hours[0]:
+                _draw_text(pixels, width, height, 4, row * row_h + 4, day[5:])
+            _draw_text(pixels, width, height, cell_w + 4, row * row_h + 4, f"{hour:02d}-{hour+1:02d}")
+            for i, v in enumerate(venues):
+                text = _cell_text(daily[day], v.venue_id, hour, role)
+                if text:
+                    _draw_text(pixels, width, height, (i + 2) * cell_w + 4, row * row_h + 4, text[:12])
+            row += 1
+
+    raw = bytearray()
+    for y in range(height):
+        raw.append(0)
+        raw.extend(pixels[y * width * 3:(y + 1) * width * 3])
+    compressed = zlib.compress(bytes(raw), level=9)
+
+    def chunk(tag: bytes, payload: bytes) -> bytes:
+        return struct.pack("!I", len(payload)) + tag + payload + struct.pack("!I", zlib.crc32(tag + payload) & 0xFFFFFFFF)
+
+    ihdr = struct.pack("!IIBBBBB", width, height, 8, 2, 0, 0, 0)
+    return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", ihdr) + chunk(b"IDAT", compressed) + chunk(b"IEND", b"")
+
+
+def _make_pdf_export(base_date: str, role: str) -> bytes:
+    data = _build_biweekly_export_data(base_date)
+    venues = data["venues"]
+    days = data["days"]
+    hours = data["hours"]
+    daily = data["daily"]
+
+    lines = [f"Biweekly Booking Export ({base_date}) role={role}"]
+    for day in days:
+        lines.append(f"Date: {day}")
+        for hour in hours:
+            row = [f"{hour:02d}-{hour+1:02d}"]
+            for v in venues:
+                txt = _cell_text(daily[day], v.venue_id, hour, role)
+                row.append(f"V{v.venue_id}:{txt or '-'}")
+            lines.append(" | ".join(row))
+
+    text_lines = [_to_ascii(line).replace("(", "[").replace(")", "]") for line in lines[:85]]
+    content = "BT\n/F1 8 Tf\n36 800 Td\n10 TL\n" + "\n".join([f"({ln}) Tj T*" for ln in text_lines]) + "\nET"
+    content_bytes = content.encode("latin-1", "replace")
+
+    objs = []
+    objs.append(b"1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj\n")
+    objs.append(b"2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj\n")
+    objs.append(b"3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >> endobj\n")
+    objs.append(b"4 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> endobj\n")
+    objs.append(f"5 0 obj << /Length {len(content_bytes)} >> stream\n".encode() + content_bytes + b"\nendstream endobj\n")
+
+    pdf = bytearray(b"%PDF-1.4\n")
+    offsets = [0]
+    for obj in objs:
+        offsets.append(len(pdf))
+        pdf.extend(obj)
+    xref_pos = len(pdf)
+    pdf.extend(f"xref\n0 {len(offsets)}\n".encode())
+    pdf.extend(b"0000000000 65535 f \n")
+    for off in offsets[1:]:
+        pdf.extend(f"{off:010d} 00000 n \n".encode())
+    pdf.extend(f"trailer << /Size {len(offsets)} /Root 1 0 R >>\nstartxref\n{xref_pos}\n%%EOF\n".encode())
+    return bytes(pdf)
 
 
 HTML_PAGE = """<!doctype html>
@@ -93,6 +272,8 @@ td.slot.booked-user { background: #0ea5e9; color: #fff; }
       <button class="chip" id="admin-view">管理員檢視</button>
       <button class="chip" id="options-link" style="display:none;" onclick="location.href='/options'">場地/用途設定</button>
       <button class="chip" id="open-add-modal" style="display:none;">新增預約</button>
+      <button class="chip" id="export-png">匯出2週 PNG</button>
+      <button class="chip" id="export-pdf">匯出2週 PDF</button>
       <span id="auth-state" class="badge">目前：使用者</span>
     </div>
     <div id="msg" class="note"></div>
@@ -330,6 +511,14 @@ document.getElementById('date').addEventListener('change', refresh);
 document.getElementById('view-mode').addEventListener('change', refresh);
 document.getElementById('open-add-modal').addEventListener('click', openBookingModal);
 document.getElementById('close-add-modal').addEventListener('click', closeBookingModal);
+document.getElementById('export-png').addEventListener('click', () => {
+  const date = document.getElementById('date').value;
+  window.open(`/api/export?format=png&date=${date}&role=${currentRole}`, '_blank');
+});
+document.getElementById('export-pdf').addEventListener('click', () => {
+  const date = document.getElementById('date').value;
+  window.open(`/api/export?format=pdf&date=${date}&role=${currentRole}`, '_blank');
+});
 
 document.getElementById('add-btn').addEventListener('click', async () => {
   const msg = document.getElementById('msg');
@@ -540,6 +729,33 @@ class BookingWebHandler(BaseHTTPRequestHandler):
             with manager_lock:
                 bookings = [booking_to_dict(b) for b in manager.list_bookings(date=date or None)]
             self._send_json(bookings)
+            return
+        if parsed.path == "/api/export":
+            query = parse_qs(parsed.query)
+            date = query.get("date", [datetime.now().strftime("%Y-%m-%d")])[0]
+            role = query.get("role", ["user"])[0]
+            fmt = query.get("format", ["png"])[0]
+            try:
+                datetime.strptime(date, "%Y-%m-%d")
+            except ValueError:
+                self._send_json({"error": "日期格式錯誤，請使用 YYYY-MM-DD"}, status=HTTPStatus.BAD_REQUEST)
+                return
+            with manager_lock:
+                if fmt == "pdf":
+                    payload = _make_pdf_export(base_date=date, role=role)
+                    content_type = "application/pdf"
+                    filename = f"booking-2weeks-{date}.pdf"
+                else:
+                    payload = _make_png_export(base_date=date, role=role)
+                    content_type = "image/png"
+                    filename = f"booking-2weeks-{date}.png"
+
+            self.send_response(HTTPStatus.OK)
+            self.send_header("Content-Type", content_type)
+            self.send_header("Content-Length", str(len(payload)))
+            self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
+            self.end_headers()
+            self.wfile.write(payload)
             return
         self._send_json({"error": "Not Found"}, status=HTTPStatus.NOT_FOUND)
 
