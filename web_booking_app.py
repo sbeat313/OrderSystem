@@ -59,7 +59,7 @@ th, td { border: 1px solid #0f172a; text-align: center; font-size: 14px; padding
 th { background: #f8fafc; height: 30px; position: sticky; top: 0; z-index: 6; }
 th.top-row { top: 0; }
 th.second-row { top: 42px; z-index: 7; }
-th.sticky-left-1 { left: 0; min-width: var(--sticky-venue); z-index: 9; }
+th.sticky-left-1 { left: 0; min-width: var(--sticky-venue); z-index: 9; border-right: 1px solid #0f172a; box-shadow: inset -1px 0 0 #0f172a; }
 th.sticky-left-2 { left: var(--sticky-venue); min-width: var(--sticky-time); z-index: 9; }
 td.venue { min-width: var(--sticky-venue); font-weight: 700; background: #fff; position: sticky; left: 0; z-index: 4; border-right: 1px solid #0f172a; box-shadow: inset -1px 0 0 #0f172a; }
 td.slot-time { min-width: var(--sticky-time); font-weight: 600; background: #f8fafc; position: sticky; left: var(--sticky-venue); z-index: 3; }
@@ -248,38 +248,47 @@ function renderWeekly(weekData, baseDate, days = 7) {
   }
 
   const weekdayNames = ['一', '二', '三', '四', '五', '六', '日'];
-  let html = '<tr><th class="sticky-left-1 top-row" rowspan="2">場地</th>';
-  for (const day of dates) {
-    const weekday = weekdayNames[(new Date(day + 'T00:00:00').getDay() + 6) % 7];
-    html += `<th class="top-row" colspan="${END_HOUR - START_HOUR}">${day.slice(5)} (${weekday})</th>`;
-  }
-  html += '</tr><tr>';
-  for (let d = 0; d < dates.length; d++) {
-    for (let h = START_HOUR; h < END_HOUR; h++) {
-      html += `<th class="second-row">${String(h).padStart(2, '0')}-${String(h + 1).padStart(2, '0')}</th>`;
-    }
-  }
-  html += '</tr>';
+  const weeks = days > 7 ? [dates.slice(0, 7), dates.slice(7, 14)] : [dates];
 
-  for (const venue of venues) {
-    html += `<tr><td class="venue">${venue.name}</td>`;
-    for (const day of dates) {
-      const bookings = weekData[day] || [];
+  let html = '';
+  weeks.forEach((weekDates, weekIdx) => {
+    html += `<tr><th class="sticky-left-1 top-row" rowspan="2">場地</th>`;
+    for (const day of weekDates) {
+      const weekday = weekdayNames[(new Date(day + 'T00:00:00').getDay() + 6) % 7];
+      html += `<th class="top-row" colspan="${END_HOUR - START_HOUR}">${day.slice(5)} (${weekday})</th>`;
+    }
+    html += '</tr><tr>';
+    for (let d = 0; d < weekDates.length; d++) {
       for (let h = START_HOUR; h < END_HOUR; h++) {
-        const b = bookingForSlot(venue.venue_id, h, bookings);
-        let cls = 'slot';
-        let cell = '';
-        if (b) {
-          cls += currentRole === 'admin' ? ' booked-admin' : ' booked-user';
-          cell = currentRole === 'admin'
-            ? `${b.start_time.slice(11,16)}-${b.end_time.slice(11,16)}\n${b.customer}\n${b.purpose || ''}`
-            : '';
-        }
-        html += `<td class="${cls}"><div class="small">${cell}</div></td>`;
+        html += `<th class="second-row">${String(h).padStart(2, '0')}-${String(h + 1).padStart(2, '0')}</th>`;
       }
     }
     html += '</tr>';
-  }
+
+    for (const venue of venues) {
+      html += `<tr><td class="venue">${venue.name}</td>`;
+      for (const day of weekDates) {
+        const bookings = weekData[day] || [];
+        for (let h = START_HOUR; h < END_HOUR; h++) {
+          const b = bookingForSlot(venue.venue_id, h, bookings);
+          let cls = 'slot';
+          let cell = '';
+          if (b) {
+            cls += currentRole === 'admin' ? ' booked-admin' : ' booked-user';
+            cell = currentRole === 'admin'
+              ? `${b.start_time.slice(11,16)}-${b.end_time.slice(11,16)}\n${b.customer}\n${b.purpose || ''}`
+              : '';
+          }
+          html += `<td class="${cls}"><div class="small">${cell}</div></td>`;
+        }
+      }
+      html += '</tr>';
+    }
+
+    if (weekIdx < weeks.length - 1) {
+      html += `<tr><td colspan="${1 + weekDates.length * (END_HOUR - START_HOUR)}" style="height:12px;background:#eef2ff;border:0;"></td></tr>`;
+    }
+  });
 
   grid.innerHTML = html;
 }
