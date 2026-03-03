@@ -53,7 +53,7 @@ button:hover { filter: brightness(.96); }
 .toolbar input,.toolbar select { width: auto; min-width: 160px; }
 .chip { width:auto; padding:10px 16px; border-radius:999px; border:1px solid #cbd5e1; background:#eef2ff; color:#1e3a8a; font-weight:700; font-size:15px; }
 .chip.active { background:#1d4ed8; color:#fff; }
-.grid-wrap { overflow: visible; max-height: none; }
+.grid-wrap { overflow-x: auto; overflow-y: visible; max-width: 100%; max-height: none; }
 table { border-collapse: collapse; width: max-content; min-width: 100%; background: #fff; }
 th, td { border: 1px solid #0f172a; text-align: center; font-size: 14px; padding: 6px; min-width: 48px; }
 th { background: #f8fafc; height: 30px; position: sticky; top: 0; z-index: 6; }
