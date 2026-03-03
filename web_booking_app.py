@@ -6,6 +6,7 @@ from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from threading import Lock
 from urllib.parse import parse_qs, urlparse
+from typing import Any, Dict, List, Union
 
 from booking_manager import Booking, BookingManager, TIME_FORMAT
 
@@ -199,7 +200,7 @@ document.getElementById('add-btn').addEventListener('click', async () => {
 
 
 class BookingWebHandler(BaseHTTPRequestHandler):
-    def _send_json(self, payload: dict | list, status: int = HTTPStatus.OK) -> None:
+    def _send_json(self, payload: Union[Dict[str, Any], List[Any]], status: int = HTTPStatus.OK) -> None:
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")

@@ -4,7 +4,7 @@ import sqlite3
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 TIME_FORMAT = "%Y-%m-%d %H:%M"
 DEFAULT_DB_PATH = "booking.db"
@@ -140,7 +140,7 @@ class BookingManager:
             cur = conn.execute("DELETE FROM bookings WHERE id = ?", (booking_id,))
             return cur.rowcount > 0
 
-    def list_bookings(self, date: str | None = None) -> List[Booking]:
+    def list_bookings(self, date: Optional[str] = None) -> List[Booking]:
         query = (
             "SELECT b.id, b.venue_id, v.name AS venue_name, b.customer, b.purpose, b.start_time, b.end_time "
             "FROM bookings b JOIN venues v ON b.venue_id = v.id"

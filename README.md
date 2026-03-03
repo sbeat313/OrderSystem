@@ -8,13 +8,25 @@
 - 一般使用者 Web 檢視（資訊遮蔽）
 - CLI 管理模式
 
+## Python 版本
+
+建議使用 **Python 3.8+**。
+
 ## 啟動 Web
+
+### 方法 A：命令列
 
 ```bash
 python web_booking_app.py
 ```
 
-開啟 `http://localhost:8000`。
+### 方法 B：Windows 直接雙擊
+
+直接雙擊 `start_web.bat`。
+
+> 若啟動失敗，視窗會停留並顯示錯誤訊息，不會立刻關閉。
+
+啟動後開啟 `http://localhost:8000`。
 
 ## 啟動 CLI
 
