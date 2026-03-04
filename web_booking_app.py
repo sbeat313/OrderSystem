@@ -711,6 +711,7 @@ th { background:#eef2ff; }
     <div class="filters">
       <div><div>開始日期</div><input id="start-date" type="date"/></div>
       <div><div>結束日期</div><input id="end-date" type="date"/></div>
+      <div><div>預約人</div><input id="customer-filter" placeholder="留空=全部"/></div>
       <button id="query-btn">查詢</button>
     </div>
     <table id="report-table"></table>
@@ -738,10 +739,11 @@ async function refreshReport() {
   }
   const start = document.getElementById('start-date').value;
   const end = document.getElementById('end-date').value;
+  const customer = document.getElementById('customer-filter').value.trim();
   const resp = await fetch('/api/reports/fees', {
     method:'POST',
     headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({ admin_password: adminPassword, start_date: start, end_date: end }),
+    body: JSON.stringify({ admin_password: adminPassword, start_date: start, end_date: end, customer }),
   });
   const data = await resp.json();
   if (!resp.ok) { alert(data.error || '查詢失敗'); return; }
@@ -857,8 +859,9 @@ class BookingWebHandler(BaseHTTPRequestHandler):
                 end_date = str(payload.get("end_date", "")).strip()
                 if not start_date or not end_date:
                     raise ValueError("請提供開始與結束日期")
+                customer = str(payload.get("customer", "")).strip()
                 with manager_lock:
-                    items = manager.summarize_fees(start_date, end_date)
+                    items = manager.summarize_fees(start_date, end_date, customer)
                 grand_total = sum(item["total_fee"] for item in items)
                 self._send_json({"items": items, "grand_total": grand_total})
             except ValueError as exc:

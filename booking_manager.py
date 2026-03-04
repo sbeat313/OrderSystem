@@ -382,7 +382,7 @@ class BookingManager:
             for row in rows
         ]
 
-    def summarize_fees(self, start_date: str, end_date: str) -> List[dict]:
+    def summarize_fees(self, start_date: str, end_date: str, customer: str = "") -> List[dict]:
         try:
             datetime.strptime(start_date, "%Y-%m-%d")
             datetime.strptime(end_date, "%Y-%m-%d")
@@ -391,17 +391,20 @@ class BookingManager:
         if end_date < start_date:
             raise ValueError("結束日期不可早於開始日期")
 
+        customer_name = customer.strip()
+        query = """
+            SELECT b.customer, COUNT(*) AS booking_count, SUM(b.price) AS total_fee
+            FROM bookings b
+            WHERE date(b.start_time) BETWEEN date(?) AND date(?)
+        """
+        params: tuple = (start_date, end_date)
+        if customer_name:
+            query += " AND b.customer = ?"
+            params = (start_date, end_date, customer_name)
+        query += " GROUP BY b.customer ORDER BY total_fee DESC, b.customer"
+
         with self._connect() as conn:
-            rows = conn.execute(
-                """
-                SELECT b.customer, COUNT(*) AS booking_count, SUM(b.price) AS total_fee
-                FROM bookings b
-                WHERE date(b.start_time) BETWEEN date(?) AND date(?)
-                GROUP BY b.customer
-                ORDER BY total_fee DESC, b.customer
-                """,
-                (start_date, end_date),
-            ).fetchall()
+            rows = conn.execute(query, params).fetchall()
 
         return [
             {

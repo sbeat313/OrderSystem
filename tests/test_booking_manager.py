@@ -63,6 +63,9 @@ class BookingManagerTests(unittest.TestCase):
         items = self.manager.summarize_fees("2026-04-01", "2026-04-30")
         self.assertEqual(items[0]["customer"], "王小明")
         self.assertEqual(items[0]["total_fee"], 1200)
+        filtered = self.manager.summarize_fees("2026-04-01", "2026-04-30", "王小明")
+        self.assertEqual(len(filtered), 1)
+        self.assertEqual(filtered[0]["total_fee"], 1200)
 
     def test_persistence(self):
         self.manager.add_booking(2, "王小明", "2026-04-01 09:00", "2026-04-01 10:00", "臨租")

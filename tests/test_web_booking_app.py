@@ -205,6 +205,18 @@ class TestWebBookingApp(unittest.TestCase):
                 "end": "2026-04-02 20:00",
             },
         )
+        self.request(
+            "POST",
+            "/api/bookings",
+            {
+                "venue_id": 3,
+                "customer": "李小華",
+                "purpose": "臨租",
+                "price": 400,
+                "start": "2026-04-03 18:00",
+                "end": "2026-04-03 19:00",
+            },
+        )
 
         status, body = self.request(
             "POST",
@@ -217,7 +229,23 @@ class TestWebBookingApp(unittest.TestCase):
         )
         self.assertEqual(status, 200)
         data = json.loads(body)
+        self.assertEqual(data["grand_total"], 1600)
+        self.assertEqual(data["items"][0]["customer"], "王小明")
+
+        status, body = self.request(
+            "POST",
+            "/api/reports/fees",
+            {
+                "admin_password": "admin123",
+                "start_date": "2026-04-01",
+                "end_date": "2026-04-30",
+                "customer": "王小明",
+            },
+        )
+        self.assertEqual(status, 200)
+        data = json.loads(body)
         self.assertEqual(data["grand_total"], 1200)
+        self.assertEqual(len(data["items"]), 1)
         self.assertEqual(data["items"][0]["customer"], "王小明")
 
     def test_manage_venues_and_purposes_via_api(self):
