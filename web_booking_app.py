@@ -264,7 +264,8 @@ function makeSlotCell(day, hour, venueId, booking, text, rowspan = 1) {
   if (booking && selectedBookingId === booking.booking_id) cls += ' selected';
   const bookingId = booking ? booking.booking_id : '';
   const rowspanAttr = rowspan > 1 ? ` rowspan="${rowspan}"` : '';
-  return `<td class="${cls}"${rowspanAttr} data-day="${day}" data-hour="${hour}" data-venue-id="${venueId}" data-booking-id="${bookingId}"><div class="small">${text}</div></td>`;
+  const draggableAttr = booking && isAdmin ? ' draggable="true"' : '';
+  return `<td class="${cls}"${rowspanAttr}${draggableAttr} data-day="${day}" data-hour="${hour}" data-venue-id="${venueId}" data-booking-id="${bookingId}"><div class="small">${text}</div></td>`;
 }
 
 function bindGridEvents() {
@@ -284,7 +285,106 @@ function bindGridEvents() {
       const bookingId = Number(cell.dataset.bookingId || 0);
       openBookingModalFromCell(cell, bookingId || null);
     });
+
+    cell.addEventListener('dragstart', (event) => {
+      if (!isAdmin) return;
+      const bookingId = Number(cell.dataset.bookingId || 0);
+      if (!bookingId) return;
+      event.dataTransfer.setData('text/plain', JSON.stringify({ booking_id: bookingId }));
+      event.dataTransfer.effectAllowed = 'copyMove';
+    });
+
+    cell.addEventListener('dragover', (event) => {
+      if (!isAdmin) return;
+      event.preventDefault();
+      event.dataTransfer.dropEffect = event.ctrlKey ? 'copy' : 'move';
+    });
+
+    cell.addEventListener('drop', async (event) => {
+      if (!isAdmin) return;
+      event.preventDefault();
+      try {
+        const payload = JSON.parse(event.dataTransfer.getData('text/plain') || '{}');
+        await handleBookingDrop(cell, payload, event.ctrlKey);
+      } catch (_err) {
+        const msg = document.getElementById('msg');
+        msg.style.color = '#dc2626';
+        msg.textContent = '拖移失敗：資料格式錯誤';
+      }
+    });
   });
+}
+
+function findBookingByIdInCache(bookingId) {
+  for (const day of Object.keys(bookingsCache)) {
+    const found = (bookingsCache[day] || []).find(item => item.booking_id === bookingId);
+    if (found) return found;
+  }
+  return null;
+}
+
+function toServerDateObj(dt) {
+  const y = dt.getFullYear();
+  const m = String(dt.getMonth() + 1).padStart(2, '0');
+  const d = String(dt.getDate()).padStart(2, '0');
+  const h = String(dt.getHours()).padStart(2, '0');
+  const min = String(dt.getMinutes()).padStart(2, '0');
+  return `${y}-${m}-${d} ${h}:${min}`;
+}
+
+async function handleBookingDrop(targetCell, dragData, copyMode) {
+  const msg = document.getElementById('msg');
+  const bookingId = Number(dragData.booking_id || 0);
+  if (!bookingId) return;
+
+  const source = findBookingByIdInCache(bookingId);
+  if (!source) {
+    msg.style.color = '#dc2626';
+    msg.textContent = '拖移失敗：找不到來源預約';
+    return;
+  }
+
+  const targetDay = targetCell.dataset.day;
+  const targetHour = Number(targetCell.dataset.hour || 0);
+  const targetVenueId = Number(targetCell.dataset.venueId || 0);
+  if (!targetDay || !targetVenueId) return;
+
+  const sourceStart = toDateObj(source.start_time);
+  const sourceEnd = toDateObj(source.end_time);
+  const durationMs = sourceEnd.getTime() - sourceStart.getTime();
+
+  const newStart = new Date(`${targetDay}T00:00:00`);
+  newStart.setHours(targetHour, sourceStart.getMinutes(), 0, 0);
+  const newEnd = new Date(newStart.getTime() + durationMs);
+
+  const basePayload = {
+    venue_id: targetVenueId,
+    customer: source.customer,
+    purpose: source.purpose,
+    price: Number(source.price || 0),
+    start: toServerDateObj(newStart),
+    end: toServerDateObj(newEnd),
+    admin_password: adminPassword,
+  };
+
+  const resp = await fetch('/api/bookings', {
+    method: copyMode ? 'POST' : 'PUT',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(copyMode ? basePayload : { ...basePayload, booking_id: bookingId }),
+  });
+  const data = await resp.json();
+
+  if (!resp.ok) {
+    msg.style.color = '#dc2626';
+    msg.textContent = data.error || (copyMode ? '複製失敗' : '拖移失敗');
+    return;
+  }
+
+  msg.style.color = '#16a34a';
+  msg.textContent = copyMode ? `複製成功 #${data.booking_id}` : `拖移成功 #${bookingId}`;
+  bookingsCache = {};
+  if (!copyMode) selectedBookingId = null;
+  await refresh();
 }
 
 function renderDaily(bookings) {
