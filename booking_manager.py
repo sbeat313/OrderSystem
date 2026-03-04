@@ -255,6 +255,92 @@ class BookingManager:
             cur = conn.execute("DELETE FROM bookings WHERE id = ?", (booking_id,))
             return cur.rowcount > 0
 
+    def update_booking(
+        self,
+        booking_id: int,
+        venue_id: int,
+        customer: str,
+        start: str,
+        end: str,
+        purpose: str = "",
+    ) -> Booking:
+        start_time, end_time = self._parse_time_range(start, end)
+        with self._connect() as conn:
+            existing = conn.execute(
+                "SELECT id FROM bookings WHERE id = ?",
+                (booking_id,),
+            ).fetchone()
+            if existing is None:
+                raise ValueError("預約不存在")
+
+            venue = conn.execute(
+                "SELECT id, name FROM venues WHERE id = ?",
+                (venue_id,),
+            ).fetchone()
+            if venue is None:
+                raise ValueError("場地不存在")
+
+            purpose_name = purpose.strip()
+            if not purpose_name:
+                raise ValueError("用途不可為空")
+            purpose_row = conn.execute(
+                "SELECT 1 FROM purposes WHERE name = ?",
+                (purpose_name,),
+            ).fetchone()
+            if purpose_row is None:
+                raise ValueError("用途不存在，請從選單選擇")
+
+            conflict = conn.execute(
+                """
+                SELECT b.id, b.start_time, b.end_time
+                FROM bookings b
+                WHERE b.venue_id = ?
+                  AND b.id != ?
+                  AND b.start_time < ?
+                  AND b.end_time > ?
+                LIMIT 1
+                """,
+                (
+                    venue_id,
+                    booking_id,
+                    end_time.strftime(TIME_FORMAT),
+                    start_time.strftime(TIME_FORMAT),
+                ),
+            ).fetchone()
+            if conflict:
+                raise ValueError(
+                    f"時段衝突：{venue['name']} 已有預約 "
+                    f"({conflict['start_time']} - {conflict['end_time']})"
+                )
+
+            cur = conn.execute(
+                """
+                UPDATE bookings
+                SET venue_id = ?, customer = ?, purpose = ?, start_time = ?, end_time = ?
+                WHERE id = ?
+                """,
+                (
+                    venue_id,
+                    customer.strip(),
+                    purpose_name,
+                    start_time.strftime(TIME_FORMAT),
+                    end_time.strftime(TIME_FORMAT),
+                    booking_id,
+                ),
+            )
+            if cur.rowcount == 0:
+                raise ValueError("預約不存在")
+
+        return Booking(
+            booking_id=booking_id,
+            venue_id=venue["id"],
+            venue_name=venue["name"],
+            customer=customer.strip(),
+            purpose=purpose_name,
+            start_time=start_time,
+            end_time=end_time,
+        )
+
     def list_bookings(self, date: Optional[str] = None) -> List[Booking]:
         query = (
             "SELECT b.id, b.venue_id, v.name AS venue_name, b.customer, b.purpose, b.start_time, b.end_time "

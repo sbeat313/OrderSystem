@@ -97,7 +97,7 @@ button:hover { filter: brightness(.98); transform: translateY(-1px); }
   box-shadow: inset 0 1px 0 rgba(255,255,255,.6);
 }
 table { border-collapse: separate; border-spacing: 0; width: max-content; min-width: 100%; background: #fff; }
-th, td { border: 1px solid #d3deef; text-align: center; font-size: 13px; padding: 6px; min-width: 48px; }
+th, td { border: 1px solid #d3deef; text-align: center; font-size: 16px; padding: 8px; min-width: 48px; }
 th {
   background: linear-gradient(180deg, #f5f7ff, #eaf1ff);
   height: 32px; position: sticky; top: 0; z-index: 6;
@@ -116,10 +116,11 @@ td.venue {
   border-right: 1px solid #b6c7e5; box-shadow: inset -1px 0 0 #b6c7e5;
 }
 td.slot-time { min-width: var(--sticky-time); font-weight: 600; background: #f8fafc; position: sticky; left: var(--sticky-venue); z-index: 3; }
-td.slot { height: 48px; background: #fcfdff; }
+td.slot { height: 56px; background: #fcfdff; }
 td.slot.booked-admin { background: linear-gradient(180deg,#dcfce7,#bbf7d0); }
 td.slot.booked-user { background: linear-gradient(180deg,#06b6d4,#3b82f6); color: #fff; }
-.small { font-size: 12px; line-height: 1.3; white-space: pre-line; }
+.small { font-size: 15px; line-height: 1.35; white-space: pre-line; }
+.slot.selected { outline: 3px solid #f59e0b; outline-offset: -3px; }
 .helper { margin: 6px 0 0; font-size: 14px; color: var(--muted); }
 .modal-backdrop { position: fixed; inset: 0; background: rgba(15,23,42,0.55); display: none; align-items: center; justify-content: center; z-index: 20; }
 .modal { width: min(680px, 92vw); background: #fff; border-radius: 14px; padding: 18px; border: 1px solid #cbd5e1; box-shadow: 0 20px 50px rgba(15,23,42,.2); }
@@ -145,8 +146,7 @@ td.slot.booked-user { background: linear-gradient(180deg,#06b6d4,#3b82f6); color
           <option value="biweekly" selected>雙週</option>
         </select>
       </div>
-      <button class="chip" id="user-view">使用者檢視</button>
-      <button class="chip" id="admin-view">管理員檢視</button>
+      <button class="chip" id="admin-view">進階檢視</button>
       <button class="chip" id="options-link" style="display:none;" onclick="location.href='/options'">場地/用途設定</button>
       <button class="chip" id="open-add-modal" style="display:none;">新增預約</button>
     </div>
@@ -178,11 +178,13 @@ td.slot.booked-user { background: linear-gradient(180deg,#06b6d4,#3b82f6); color
 <script>
 const START_HOUR = 8;
 const END_HOUR = 22;
-let currentRole = 'user';
 let isAdmin = false;
+let adminPassword = '';
 let venues = [];
 let purposes = [];
 let bookingsCache = {};
+let selectedBookingId = null;
+let modalEditingBookingId = null;
 
 function toServerDateTime(v) { return v.replace('T', ' '); }
 function toDateObj(s) { return new Date(s.replace(' ', 'T') + ':00'); }
@@ -248,39 +250,58 @@ function bookingForSlot(venueId, slotHour, bookings) {
 }
 
 function setAuthBadge() {
-  document.getElementById('admin-view').classList.toggle('active', currentRole === 'admin');
-  document.getElementById('user-view').classList.toggle('active', currentRole === 'user');
+  document.getElementById('admin-view').classList.toggle('active', isAdmin);
   document.getElementById('options-link').style.display = isAdmin ? 'inline-block' : 'none';
   document.getElementById('open-add-modal').style.display = isAdmin ? 'inline-block' : 'none';
 }
 
+function makeSlotCell(day, hour, venueId, booking, text) {
+  let cls = 'slot';
+  if (booking) cls += isAdmin ? ' booked-admin' : ' booked-user';
+  if (booking && selectedBookingId === booking.booking_id) cls += ' selected';
+  const bookingId = booking ? booking.booking_id : '';
+  return `<td class="${cls}" data-day="${day}" data-hour="${hour}" data-venue-id="${venueId}" data-booking-id="${bookingId}"><div class="small">${text}</div></td>`;
+}
+
+function bindGridEvents() {
+  const grid = document.getElementById('grid');
+  const slots = grid.querySelectorAll('td.slot');
+  slots.forEach(cell => {
+    cell.addEventListener('click', () => {
+      if (!isAdmin) return;
+      const bookingId = Number(cell.dataset.bookingId || 0);
+      selectedBookingId = bookingId || null;
+      grid.querySelectorAll('td.slot.selected').forEach(node => node.classList.remove('selected'));
+      if (selectedBookingId) cell.classList.add('selected');
+    });
+
+    cell.addEventListener('dblclick', () => {
+      if (!isAdmin) return;
+      const bookingId = Number(cell.dataset.bookingId || 0);
+      openBookingModalFromCell(cell, bookingId || null);
+    });
+  });
+}
+
 function renderDaily(bookings) {
   const grid = document.getElementById('grid');
+  const day = document.getElementById('date').value;
   let html = '<tr><th class="sticky-left-1">時段</th>';
   for (const venue of venues) html += `<th>${venue.name}</th>`;
   html += '</tr>';
 
   for (let h = START_HOUR; h < END_HOUR; h++) {
-    html += `<tr><td class="venue">${String(h).padStart(2, '0')}-${String(h+1).padStart(2, '0')}</td>`;
+    html += `<tr><td class="venue">${String(h).padStart(2, '0')}-${String(h + 1).padStart(2, '0')}</td>`;
     for (const venue of venues) {
       const b = bookingForSlot(venue.venue_id, h, bookings);
-      let cls = 'slot';
-      let text = '';
-      if (b) {
-        if (currentRole === 'admin') {
-          cls += ' booked-admin';
-          text = `${b.customer}
-${b.purpose || ''}`;
-        } else {
-          cls += ' booked-user';
-          text = '';
-        }
-      }
-      html += `<td class="${cls}"><div class="small">${text}</div></td>`;
+      const text = b && isAdmin ? `${b.customer}
+${b.purpose || ''}` : '';
+      html += makeSlotCell(day, h, venue.venue_id, b, text);
     }
     html += '</tr>';
   }
   grid.innerHTML = html;
+  bindGridEvents();
 }
 
 function renderWeekly(weekData, baseDate, days = 7) {
@@ -310,24 +331,17 @@ function renderWeekly(weekData, baseDate, days = 7) {
       const bookings = weekData[day] || [];
       for (const venue of venues) {
         const b = bookingForSlot(venue.venue_id, h, bookings);
-        let cls = 'slot';
-        let cell = '';
-        if (b) {
-          cls += currentRole === 'admin' ? ' booked-admin' : ' booked-user';
-          cell = currentRole === 'admin'
-            ? `${b.customer}
-${b.purpose || ''}`
-            : '';
-        }
-        html += `<td class="${cls}"><div class="small">${cell}</div></td>`;
+        const text = b && isAdmin ? `${b.customer}
+${b.purpose || ''}` : '';
+        html += makeSlotCell(day, h, venue.venue_id, b, text);
       }
       html += '</tr>';
     }
   }
 
   grid.innerHTML = html;
+  bindGridEvents();
 }
-
 
 async function refresh() {
   const date = document.getElementById('date').value;
@@ -343,58 +357,106 @@ async function refresh() {
 
 async function requestAdmin() {
   const password = prompt('請輸入管理員密碼：');
-  if (password === null) return;
+  if (password === null) return false;
   const resp = await fetch('/api/admin/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ password }),
   });
   if (!resp.ok) {
-    alert('密碼錯誤，無法切換管理員檢視');
-    return;
+    alert('密碼錯誤，無法切換進階檢視');
+    return false;
   }
   isAdmin = true;
-  currentRole = 'admin';
+  adminPassword = password;
   setAuthBadge();
   refresh();
+  return true;
 }
 
-function switchToUser() {
-  currentRole = 'user';
-  setAuthBadge();
-  closeBookingModal();
-  refresh();
-}
-
-function openBookingModal() {
+function openBookingModal(data = null) {
   if (!isAdmin) return;
+  modalEditingBookingId = data?.booking_id || null;
   document.getElementById('booking-modal').style.display = 'flex';
+  document.getElementById('add-btn').textContent = modalEditingBookingId ? '儲存修改' : '送出預約';
+  if (data) {
+    document.getElementById('venue').value = String(data.venue_id);
+    document.getElementById('customer').value = data.customer || '';
+    document.getElementById('purpose').value = data.purpose || '';
+    document.getElementById('start').value = data.start_time.replace(' ', 'T');
+    document.getElementById('end').value = data.end_time.replace(' ', 'T');
+  }
+}
+
+function openBookingModalFromCell(cell, bookingId) {
+  const day = cell.dataset.day;
+  const hour = Number(cell.dataset.hour);
+  const venueId = Number(cell.dataset.venueId);
+
+  if (bookingId) {
+    const dateBookings = bookingsCache[day] || [];
+    const booking = dateBookings.find(item => item.booking_id === bookingId);
+    if (booking) openBookingModal(booking);
+    return;
+  }
+
+  const start = `${day}T${String(hour).padStart(2, '0')}:00`;
+  const end = `${day}T${String(hour + 1).padStart(2, '0')}:00`;
+  modalEditingBookingId = null;
+  document.getElementById('venue').value = String(venueId);
+  document.getElementById('customer').value = '';
+  document.getElementById('purpose').value = purposes[0]?.name || '';
+  document.getElementById('start').value = start;
+  document.getElementById('end').value = end;
+  openBookingModal();
 }
 
 function closeBookingModal() {
   document.getElementById('booking-modal').style.display = 'none';
+  modalEditingBookingId = null;
+}
+
+async function deleteSelectedBooking() {
+  if (!isAdmin || !selectedBookingId) return;
+  if (!confirm(`確定刪除預約 #${selectedBookingId}？`)) return;
+
+  const resp = await fetch('/api/bookings', {
+    method: 'DELETE',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ booking_id: selectedBookingId, admin_password: adminPassword }),
+  });
+  const data = await resp.json();
+  const msg = document.getElementById('msg');
+  if (!resp.ok) {
+    msg.style.color = '#dc2626';
+    msg.textContent = data.error || '刪除失敗';
+    return;
+  }
+
+  msg.style.color = '#16a34a';
+  msg.textContent = `已刪除預約 #${selectedBookingId}`;
+  selectedBookingId = null;
+  bookingsCache = {};
+  refresh();
 }
 
 document.getElementById('admin-view').addEventListener('click', async () => {
   if (!isAdmin) await requestAdmin();
-  else {
-    currentRole = 'admin';
-    setAuthBadge();
-    refresh();
-  }
 });
 
-document.getElementById('user-view').addEventListener('click', switchToUser);
 document.getElementById('date').addEventListener('change', refresh);
 document.getElementById('view-mode').addEventListener('change', refresh);
-document.getElementById('open-add-modal').addEventListener('click', openBookingModal);
+document.getElementById('open-add-modal').addEventListener('click', () => openBookingModal());
 document.getElementById('close-add-modal').addEventListener('click', closeBookingModal);
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Delete') deleteSelectedBooking();
+});
 
 document.getElementById('add-btn').addEventListener('click', async () => {
   const msg = document.getElementById('msg');
   if (!isAdmin) {
     msg.style.color = '#dc2626';
-    msg.textContent = '請先切換為管理員並通過密碼驗證';
+    msg.textContent = '請先切換進階檢視並通過密碼驗證';
     return;
   }
 
@@ -404,22 +466,24 @@ document.getElementById('add-btn').addEventListener('click', async () => {
     purpose: document.getElementById('purpose').value.trim(),
     start: toServerDateTime(document.getElementById('start').value),
     end: toServerDateTime(document.getElementById('end').value),
+    admin_password: adminPassword,
   };
 
   const resp = await fetch('/api/bookings', {
-    method: 'POST',
+    method: modalEditingBookingId ? 'PUT' : 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify(payload),
+    body: JSON.stringify(modalEditingBookingId ? { ...payload, booking_id: modalEditingBookingId } : payload),
   });
   const data = await resp.json();
 
   if (!resp.ok) {
     msg.style.color = '#dc2626';
-    msg.textContent = data.error || '新增失敗';
+    msg.textContent = data.error || (modalEditingBookingId ? '更新失敗' : '新增失敗');
     return;
   }
+
   msg.style.color = '#16a34a';
-  msg.textContent = `新增成功 #${data.booking_id}`;
+  msg.textContent = modalEditingBookingId ? `更新成功 #${data.booking_id}` : `新增成功 #${data.booking_id}`;
   bookingsCache = {};
   closeBookingModal();
   refresh();
@@ -697,12 +761,24 @@ class BookingWebHandler(BaseHTTPRequestHandler):
             with manager_lock:
                 if parsed.path == "/api/venues":
                     item = manager.update_venue(int(payload.get("venue_id", 0)), str(payload.get("name", "")))
-                elif parsed.path == "/api/purposes":
-                    item = manager.update_purpose(int(payload.get("purpose_id", 0)), str(payload.get("name", "")))
-                else:
-                    self._send_json({"error": "Not Found"}, status=HTTPStatus.NOT_FOUND)
+                    self._send_json(item.__dict__)
                     return
-            self._send_json(item.__dict__)
+                if parsed.path == "/api/purposes":
+                    item = manager.update_purpose(int(payload.get("purpose_id", 0)), str(payload.get("name", "")))
+                    self._send_json(item.__dict__)
+                    return
+                if parsed.path == "/api/bookings":
+                    item = manager.update_booking(
+                        booking_id=int(payload.get("booking_id", 0)),
+                        venue_id=int(payload.get("venue_id", 0)),
+                        customer=str(payload.get("customer", "")),
+                        purpose=str(payload.get("purpose", "")),
+                        start=str(payload.get("start", "")),
+                        end=str(payload.get("end", "")),
+                    )
+                    self._send_json(booking_to_dict(item))
+                    return
+                self._send_json({"error": "Not Found"}, status=HTTPStatus.NOT_FOUND)
         except (ValueError, json.JSONDecodeError) as exc:
             self._send_json({"error": str(exc) or "JSON 格式錯誤"}, status=HTTPStatus.BAD_REQUEST)
 
@@ -717,6 +793,8 @@ class BookingWebHandler(BaseHTTPRequestHandler):
                     ok = manager.delete_venue(int(payload.get("venue_id", 0)))
                 elif parsed.path == "/api/purposes":
                     ok = manager.delete_purpose(int(payload.get("purpose_id", 0)))
+                elif parsed.path == "/api/bookings":
+                    ok = manager.cancel_booking(int(payload.get("booking_id", 0)))
                 else:
                     self._send_json({"error": "Not Found"}, status=HTTPStatus.NOT_FOUND)
                     return

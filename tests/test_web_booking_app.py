@@ -127,6 +127,44 @@ class TestWebBookingApp(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertTrue(json.loads(body)["ok"])
 
+    def test_booking_update_and_delete_with_admin_password(self):
+        status, body = self.request(
+            "POST",
+            "/api/bookings",
+            {
+                "venue_id": 1,
+                "customer": "王小明",
+                "purpose": "臨租",
+                "start": "2026-04-01 18:00",
+                "end": "2026-04-01 20:00",
+            },
+        )
+        self.assertEqual(status, 201)
+        booking_id = json.loads(body)["booking_id"]
+
+        status, body = self.request(
+            "PUT",
+            "/api/bookings",
+            {
+                "admin_password": "admin123",
+                "booking_id": booking_id,
+                "venue_id": 2,
+                "customer": "王小明-改",
+                "purpose": "臨租",
+                "start": "2026-04-01 19:00",
+                "end": "2026-04-01 21:00",
+            },
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(body)["venue_id"], 2)
+
+        status, _ = self.request(
+            "DELETE",
+            "/api/bookings",
+            {"admin_password": "admin123", "booking_id": booking_id},
+        )
+        self.assertEqual(status, 200)
+
     def test_manage_venues_and_purposes_via_api(self):
         status, body = self.request(
             "POST",
