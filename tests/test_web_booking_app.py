@@ -64,10 +64,10 @@ class TestWebBookingApp(unittest.TestCase):
         purposes = json.loads(body)
         self.assertIn({"purpose_id": 1, "name": "單月租"}, purposes)
 
-    def test_homepage_helper_text_updated(self):
+    def test_homepage_helper_text_removed(self):
         status, body = self.request("GET", "/")
         self.assertEqual(status, 200)
-        self.assertIn("在欲新增的「場地/時段空白格」雙擊可快速新增", body)
+        self.assertNotIn("在欲新增的「場地/時段空白格」雙擊可快速新增", body)
         self.assertNotIn("只有通過管理員驗證後可新增預約", body)
 
     def test_options_page_exists(self):

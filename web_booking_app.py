@@ -151,7 +151,6 @@ td.slot.booked-user { background: linear-gradient(180deg,#06b6d4,#3b82f6); color
       <button class="chip" id="open-add-modal" style="display:none;">新增預約</button>
     </div>
     <div id="msg" class="note"></div>
-    <p class="helper">進階檢視下：在欲新增的「場地/時段空白格」雙擊可快速新增，開始/結束時間會自動帶入該格時段；雙擊已預約格可編輯。</p>
     <div class="grid-wrap">
       <table id="grid"></table>
     </div>
