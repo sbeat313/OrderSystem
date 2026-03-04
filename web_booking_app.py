@@ -299,7 +299,7 @@ function renderDaily(bookings) {
         const endHour = toDateObj(b.end_time).getHours();
         if (h > startHour) continue;
         const span = Math.max(1, endHour - startHour);
-        const text = '已預約';
+        const text = isAdmin ? `${b.customer}\n${b.purpose || ''}` : '已預約';
         html += makeSlotCell(day, h, venue.venue_id, b, text, span);
         continue;
       }
@@ -343,7 +343,7 @@ function renderWeekly(weekData, baseDate, days = 7) {
           const endHour = toDateObj(b.end_time).getHours();
           if (h > startHour) continue;
           const span = Math.max(1, endHour - startHour);
-          const text = '已預約';
+          const text = isAdmin ? `${b.customer}\n${b.purpose || ''}` : '已預約';
           html += makeSlotCell(day, h, venue.venue_id, b, text, span);
           continue;
         }
