@@ -573,6 +573,7 @@ th:last-child, td:last-child { width: 186px; }
 .actions { display:flex; gap:8px; align-items:center; justify-content:flex-start; flex-wrap:nowrap; white-space:nowrap; }
 .actions button { margin-right: 0; padding:8px 12px; min-width:56px; }
 .top { max-width:1200px; margin:0 auto 14px; display:flex; gap:10px; align-items:center; }
+.create-btn { margin-top: 10px; margin-bottom: 8px; }
 @media (max-width: 1100px) {
   .wrap { grid-template-columns: 1fr; }
 }
@@ -587,13 +588,13 @@ th:last-child, td:last-child { width: 186px; }
   <div class="panel">
     <h3>場地管理</h3>
     <input id="new-venue" placeholder="新增場地名稱" />
-    <button onclick="createVenue()">新增場地</button>
+    <button class="create-btn" onclick="createVenue()">新增場地</button>
     <table id="venue-table"></table>
   </div>
   <div class="panel">
     <h3>用途管理</h3>
     <input id="new-purpose" placeholder="新增用途名稱" />
-    <button onclick="createPurpose()">新增用途</button>
+    <button class="create-btn" onclick="createPurpose()">新增用途</button>
     <table id="purpose-table"></table>
   </div>
 </div>
