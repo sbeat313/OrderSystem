@@ -117,8 +117,8 @@ td.venue {
 }
 td.slot-time { min-width: var(--sticky-time); font-weight: 600; background: #f8fafc; position: sticky; left: var(--sticky-venue); z-index: 3; }
 td.slot { height: 56px; background: #fcfdff; }
-td.slot.booked-admin { background: linear-gradient(180deg,#dcfce7,#bbf7d0); }
-td.slot.booked-user { background: linear-gradient(180deg,#06b6d4,#3b82f6); color: #fff; }
+td.slot.booked-admin { background: #bbf7d0; }
+td.slot.booked-user { background: #93c5fd; color: #0f172a; }
 .small { font-size: 15px; line-height: 1.35; white-space: pre-line; }
 .slot.selected { outline: 3px solid #f59e0b; outline-offset: -3px; }
 .helper { margin: 6px 0 0; font-size: 14px; color: var(--muted); }
@@ -299,8 +299,7 @@ function renderDaily(bookings) {
         const endHour = toDateObj(b.end_time).getHours();
         if (h > startHour) continue;
         const span = Math.max(1, endHour - startHour);
-        const text = isAdmin ? `${b.customer}
-${b.purpose || ''}` : '';
+        const text = '已預約';
         html += makeSlotCell(day, h, venue.venue_id, b, text, span);
         continue;
       }
@@ -322,7 +321,7 @@ function renderWeekly(weekData, baseDate, days = 7) {
     dates.push(fmtDate(d));
   }
 
-  const weekdayNames = ['一', '二', '三', '四', '五', '六', '日'];
+  const weekdayNames = ['星期一', '星期二', '星期三', '星期四', '星期五', '星期六', '星期日'];
   let html = '<tr><th class="sticky-left-1">日期</th><th class="sticky-left-2">時段</th>';
   for (const venue of venues) html += `<th>${venue.name}</th>`;
   html += '</tr>';
@@ -332,7 +331,7 @@ function renderWeekly(weekData, baseDate, days = 7) {
     for (let h = START_HOUR; h < END_HOUR; h++) {
       html += '<tr>';
       if (h === START_HOUR) {
-        html += `<td class="venue" rowspan="${END_HOUR - START_HOUR}">${day}<br>${weekday}</td>`;
+        html += `<td class="venue" rowspan="${END_HOUR - START_HOUR}">${day}<br>(${weekday})</td>`;
       }
       html += `<td class="slot-time">${String(h).padStart(2, '0')}-${String(h + 1).padStart(2, '0')}</td>`;
 
@@ -344,8 +343,7 @@ function renderWeekly(weekData, baseDate, days = 7) {
           const endHour = toDateObj(b.end_time).getHours();
           if (h > startHour) continue;
           const span = Math.max(1, endHour - startHour);
-          const text = isAdmin ? `${b.customer}
-${b.purpose || ''}` : '';
+          const text = '已預約';
           html += makeSlotCell(day, h, venue.venue_id, b, text, span);
           continue;
         }
