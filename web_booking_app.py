@@ -119,16 +119,8 @@ td.slot-time { min-width: var(--sticky-time); font-weight: 600; background: #f8f
 td.slot { height: 48px; background: #fcfdff; }
 td.slot.booked-admin { background: linear-gradient(180deg,#dcfce7,#bbf7d0); }
 td.slot.booked-user { background: linear-gradient(180deg,#06b6d4,#3b82f6); color: #fff; }
-.badge { display:inline-block; padding:5px 10px; border-radius:999px; font-size:12px; font-weight:700; background:#e5edf9; color:#12408d; }
 .small { font-size: 12px; line-height: 1.3; white-space: pre-line; }
 .helper { margin: 6px 0 0; font-size: 14px; color: var(--muted); }
-.legend {
-  margin: 8px 0 10px; font-size: 13px; color: #334155;
-  background:#f8fbff; border:1px dashed #c4d3ea; padding:8px 10px; border-radius:10px;
-}
-.legend .dot { display:inline-block; width:12px; height:12px; border-radius:3px; margin:0 6px 0 12px; vertical-align:middle; border:1px solid #0f172a; }
-.legend .dot.admin { background:linear-gradient(180deg,#dcfce7,#bbf7d0); }
-.legend .dot.user { background:linear-gradient(180deg,#06b6d4,#3b82f6); }
 .modal-backdrop { position: fixed; inset: 0; background: rgba(15,23,42,0.55); display: none; align-items: center; justify-content: center; z-index: 20; }
 .modal { width: min(680px, 92vw); background: #fff; border-radius: 14px; padding: 18px; border: 1px solid #cbd5e1; box-shadow: 0 20px 50px rgba(15,23,42,.2); }
 .modal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
@@ -153,13 +145,12 @@ td.slot.booked-user { background: linear-gradient(180deg,#06b6d4,#3b82f6); color
           <option value="biweekly" selected>雙週</option>
         </select>
       </div>
-      <button class="chip" id="advanced-toggle">進階顯示（管理功能）</button>
+      <button class="chip" id="user-view">使用者檢視</button>
+      <button class="chip" id="admin-view">管理員檢視</button>
       <button class="chip" id="options-link" style="display:none;" onclick="location.href='/options'">場地/用途設定</button>
       <button class="chip" id="open-add-modal" style="display:none;">新增預約</button>
-      <span id="auth-state" class="badge">目前：一般使用者</span>
     </div>
     <div id="msg" class="note"></div>
-    <div class="legend"><span class="dot admin"></span>進階顯示：可看到完整預約資訊 <span class="dot user"></span>一般使用者僅以藍色顯示已預約</div>
     <div class="grid-wrap">
       <table id="grid"></table>
     </div>
@@ -257,29 +248,29 @@ function bookingForSlot(venueId, slotHour, bookings) {
 }
 
 function setAuthBadge() {
-  const advancedOn = currentRole === 'admin';
-  document.getElementById('auth-state').textContent = advancedOn ? '目前：進階顯示（管理者）' : '目前：一般使用者';
-  document.getElementById('advanced-toggle').classList.toggle('active', advancedOn);
-  document.getElementById('options-link').style.display = advancedOn ? 'inline-block' : 'none';
-  document.getElementById('open-add-modal').style.display = advancedOn ? 'inline-block' : 'none';
+  document.getElementById('admin-view').classList.toggle('active', currentRole === 'admin');
+  document.getElementById('user-view').classList.toggle('active', currentRole === 'user');
+  document.getElementById('options-link').style.display = isAdmin ? 'inline-block' : 'none';
+  document.getElementById('open-add-modal').style.display = isAdmin ? 'inline-block' : 'none';
 }
 
 function renderDaily(bookings) {
   const grid = document.getElementById('grid');
-  let html = '<tr><th>場地\\時段</th>';
-  for (let h = START_HOUR; h < END_HOUR; h++) html += `<th>${String(h).padStart(2, '0')}-${String(h+1).padStart(2, '0')}</th>`;
+  let html = '<tr><th class="sticky-left-1">時段</th>';
+  for (const venue of venues) html += `<th>${venue.name}</th>`;
   html += '</tr>';
 
-  for (const venue of venues) {
-    html += `<tr><td class="venue">${venue.name}</td>`;
-    for (let h = START_HOUR; h < END_HOUR; h++) {
+  for (let h = START_HOUR; h < END_HOUR; h++) {
+    html += `<tr><td class="venue">${String(h).padStart(2, '0')}-${String(h+1).padStart(2, '0')}</td>`;
+    for (const venue of venues) {
       const b = bookingForSlot(venue.venue_id, h, bookings);
       let cls = 'slot';
       let text = '';
       if (b) {
         if (currentRole === 'admin') {
           cls += ' booked-admin';
-          text = `${b.start_time.slice(11,16)}-${b.end_time.slice(11,16)}\n${b.customer}\n${b.purpose || ''}`;
+          text = `${b.customer}
+${b.purpose || ''}`;
         } else {
           cls += ' booked-user';
           text = '';
@@ -303,48 +294,36 @@ function renderWeekly(weekData, baseDate, days = 7) {
   }
 
   const weekdayNames = ['一', '二', '三', '四', '五', '六', '日'];
-  const dayChunks = [];
-  for (let i = 0; i < dates.length; i += 2) dayChunks.push(dates.slice(i, i + 2));
+  let html = '<tr><th class="sticky-left-1">日期</th><th class="sticky-left-2">時段</th>';
+  for (const venue of venues) html += `<th>${venue.name}</th>`;
+  html += '</tr>';
 
-  let html = '';
-  dayChunks.forEach((chunk, chunkIdx) => {
-    html += `<tr><th class="sticky-left-1 top-row" rowspan="2">場地</th>`;
-    for (const day of chunk) {
-      const weekday = weekdayNames[(new Date(day + 'T00:00:00').getDay() + 6) % 7];
-      html += `<th class="top-row" colspan="${END_HOUR - START_HOUR}">${day.slice(5)} (${weekday})</th>`;
-    }
-    html += '</tr><tr>';
-    for (let d = 0; d < chunk.length; d++) {
-      for (let h = START_HOUR; h < END_HOUR; h++) {
-        html += `<th class="second-row">${String(h).padStart(2, '0')}-${String(h + 1).padStart(2, '0')}</th>`;
+  for (const day of dates) {
+    const weekday = weekdayNames[(new Date(day + 'T00:00:00').getDay() + 6) % 7];
+    for (let h = START_HOUR; h < END_HOUR; h++) {
+      html += '<tr>';
+      if (h === START_HOUR) {
+        html += `<td class="venue" rowspan="${END_HOUR - START_HOUR}">${day}<br>${weekday}</td>`;
       }
-    }
-    html += '</tr>';
+      html += `<td class="slot-time">${String(h).padStart(2, '0')}-${String(h + 1).padStart(2, '0')}</td>`;
 
-    for (const venue of venues) {
-      html += `<tr><td class="venue">${venue.name}</td>`;
-      for (const day of chunk) {
-        const bookings = weekData[day] || [];
-        for (let h = START_HOUR; h < END_HOUR; h++) {
-          const b = bookingForSlot(venue.venue_id, h, bookings);
-          let cls = 'slot';
-          let cell = '';
-          if (b) {
-            cls += currentRole === 'admin' ? ' booked-admin' : ' booked-user';
-            cell = currentRole === 'admin'
-              ? `${b.start_time.slice(11,16)}-${b.end_time.slice(11,16)}\n${b.customer}\n${b.purpose || ''}`
-              : '';
-          }
-          html += `<td class="${cls}"><div class="small">${cell}</div></td>`;
+      const bookings = weekData[day] || [];
+      for (const venue of venues) {
+        const b = bookingForSlot(venue.venue_id, h, bookings);
+        let cls = 'slot';
+        let cell = '';
+        if (b) {
+          cls += currentRole === 'admin' ? ' booked-admin' : ' booked-user';
+          cell = currentRole === 'admin'
+            ? `${b.customer}
+${b.purpose || ''}`
+            : '';
         }
+        html += `<td class="${cls}"><div class="small">${cell}</div></td>`;
       }
       html += '</tr>';
     }
-
-    if (chunkIdx < dayChunks.length - 1) {
-      html += `<tr><td colspan="${1 + chunk.length * (END_HOUR - START_HOUR)}" style="height:12px;background:#eef2ff;border:0;"></td></tr>`;
-    }
-  });
+  }
 
   grid.innerHTML = html;
 }
@@ -396,11 +375,7 @@ function closeBookingModal() {
   document.getElementById('booking-modal').style.display = 'none';
 }
 
-document.getElementById('advanced-toggle').addEventListener('click', async () => {
-  if (currentRole === 'admin') {
-    switchToUser();
-    return;
-  }
+document.getElementById('admin-view').addEventListener('click', async () => {
   if (!isAdmin) await requestAdmin();
   else {
     currentRole = 'admin';
@@ -408,6 +383,8 @@ document.getElementById('advanced-toggle').addEventListener('click', async () =>
     refresh();
   }
 });
+
+document.getElementById('user-view').addEventListener('click', switchToUser);
 document.getElementById('date').addEventListener('change', refresh);
 document.getElementById('view-mode').addEventListener('change', refresh);
 document.getElementById('open-add-modal').addEventListener('click', openBookingModal);
@@ -468,16 +445,49 @@ OPTIONS_PAGE = """<!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>場地與用途設定</title>
 <style>
-body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background: #f8fafc; font-size: 16px; }
-.wrap { max-width: 1100px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-.panel { background:#fff; border:1px solid #d1d5db; border-radius: 12px; padding: 14px; }
-h1 { margin-top: 0; }
-input, button { padding:10px; font-size:15px; }
-button { cursor:pointer; }
-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-th, td { border:1px solid #cbd5e1; padding:10px; text-align:left; font-size:15px; }
+:root {
+  --opt-bg:#f7f7ff;
+  --opt-border:#d6d9ee;
+  --opt-primary:#4f46e5;
+  --opt-primary-strong:#4338ca;
+  --opt-panel:#ffffff;
+}
+body {
+  font-family: "Noto Sans TC", Arial, sans-serif;
+  margin: 0;
+  padding: 22px;
+  background:
+    radial-gradient(circle at 15% 0%, #e9ebff 0%, rgba(233,235,255,0) 45%),
+    radial-gradient(circle at 90% 100%, #e6f5ff 0%, rgba(230,245,255,0) 40%),
+    var(--opt-bg);
+  font-size: 16px;
+  color:#0f172a;
+}
+.wrap { max-width: 1200px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.panel {
+  background:linear-gradient(180deg,#ffffff,#fbfcff);
+  border:1px solid var(--opt-border);
+  border-radius: 14px;
+  padding: 16px;
+  box-shadow: 0 10px 28px rgba(67,56,202,.08);
+}
+h1 { margin-top: 0; color:#1e3a8a; }
+h3 { margin: 0 0 8px; color:#334155; }
+input, button { padding:10px 12px; font-size:15px; border-radius:10px; border:1px solid #cbd5e1; }
+input { width: 100%; background:#fff; }
+button {
+  cursor:pointer;
+  background:linear-gradient(180deg,var(--opt-primary),var(--opt-primary-strong));
+  color:#fff;
+  border:none;
+  box-shadow: 0 6px 14px rgba(79,70,229,.25);
+}
+button:hover { filter:brightness(.98); }
+table { width: 100%; border-collapse: separate; border-spacing: 0; margin-top: 10px; background:#fff; border-radius:10px; overflow:hidden; }
+th, td { border:1px solid #dbe2f0; padding:10px; text-align:left; font-size:15px; }
+th { background:#eef2ff; color:#334155; }
 .actions button { margin-right: 6px; }
-.top { max-width:1100px; margin:0 auto 12px; display:flex; gap:8px; align-items:center; }
+.top { max-width:1200px; margin:0 auto 14px; display:flex; gap:10px; align-items:center; }
 </style>
 </head>
 <body>
