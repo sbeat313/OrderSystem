@@ -254,12 +254,13 @@ function setAuthBadge() {
   document.getElementById('open-add-modal').style.display = isAdmin ? 'inline-block' : 'none';
 }
 
-function makeSlotCell(day, hour, venueId, booking, text) {
+function makeSlotCell(day, hour, venueId, booking, text, rowspan = 1) {
   let cls = 'slot';
   if (booking) cls += isAdmin ? ' booked-admin' : ' booked-user';
   if (booking && selectedBookingId === booking.booking_id) cls += ' selected';
   const bookingId = booking ? booking.booking_id : '';
-  return `<td class="${cls}" data-day="${day}" data-hour="${hour}" data-venue-id="${venueId}" data-booking-id="${bookingId}"><div class="small">${text}</div></td>`;
+  const rowspanAttr = rowspan > 1 ? ` rowspan="${rowspan}"` : '';
+  return `<td class="${cls}"${rowspanAttr} data-day="${day}" data-hour="${hour}" data-venue-id="${venueId}" data-booking-id="${bookingId}"><div class="small">${text}</div></td>`;
 }
 
 function bindGridEvents() {
@@ -293,9 +294,17 @@ function renderDaily(bookings) {
     html += `<tr><td class="venue">${String(h).padStart(2, '0')}-${String(h + 1).padStart(2, '0')}</td>`;
     for (const venue of venues) {
       const b = bookingForSlot(venue.venue_id, h, bookings);
-      const text = b && isAdmin ? `${b.customer}
+      if (b) {
+        const startHour = toDateObj(b.start_time).getHours();
+        const endHour = toDateObj(b.end_time).getHours();
+        if (h > startHour) continue;
+        const span = Math.max(1, endHour - startHour);
+        const text = isAdmin ? `${b.customer}
 ${b.purpose || ''}` : '';
-      html += makeSlotCell(day, h, venue.venue_id, b, text);
+        html += makeSlotCell(day, h, venue.venue_id, b, text, span);
+        continue;
+      }
+      html += makeSlotCell(day, h, venue.venue_id, null, '', 1);
     }
     html += '</tr>';
   }
@@ -330,9 +339,17 @@ function renderWeekly(weekData, baseDate, days = 7) {
       const bookings = weekData[day] || [];
       for (const venue of venues) {
         const b = bookingForSlot(venue.venue_id, h, bookings);
-        const text = b && isAdmin ? `${b.customer}
+        if (b) {
+          const startHour = toDateObj(b.start_time).getHours();
+          const endHour = toDateObj(b.end_time).getHours();
+          if (h > startHour) continue;
+          const span = Math.max(1, endHour - startHour);
+          const text = isAdmin ? `${b.customer}
 ${b.purpose || ''}` : '';
-        html += makeSlotCell(day, h, venue.venue_id, b, text);
+          html += makeSlotCell(day, h, venue.venue_id, b, text, span);
+          continue;
+        }
+        html += makeSlotCell(day, h, venue.venue_id, null, '', 1);
       }
       html += '</tr>';
     }
