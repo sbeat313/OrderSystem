@@ -29,6 +29,12 @@ python web_booking_app.py
 
 > 若啟動失敗，視窗會停留並顯示錯誤訊息，不會立刻關閉。
 
+### 方法 C：Windows 開機自動啟動（設定一次即可）
+
+1. 先在專案目錄中雙擊 `install_autostart.bat`（只要一次）。
+2. 之後每次開機會自動在背景啟動，不用再手動點 `start_web.bat`。
+3. 若要取消自動啟動，雙擊 `uninstall_autostart.bat`。
+
 啟動後開啟 `http://localhost:8000`。
 
 ## 啟動 CLI
