@@ -25,6 +25,7 @@ def booking_to_dict(booking: Booking) -> dict:
         "venue_name": booking.venue_name,
         "customer": booking.customer,
         "purpose": booking.purpose,
+        "price": booking.price,
         "start_time": booking.start_time.strftime(TIME_FORMAT),
         "end_time": booking.end_time.strftime(TIME_FORMAT),
     }
@@ -148,6 +149,7 @@ td.slot.booked-user { background: #93c5fd; color: #0f172a; }
       </div>
       <button class="chip" id="admin-view">進階檢視</button>
       <button class="chip" id="options-link" style="display:none;" onclick="location.href='/options'">場地/用途設定</button>
+      <button class="chip" id="report-link" style="display:none;" onclick="location.href='/reports'">費用統計</button>
       <button class="chip" id="open-add-modal" style="display:none;">新增預約</button>
     </div>
     <div id="msg" class="note"></div>
@@ -164,6 +166,7 @@ td.slot.booked-user { background: #93c5fd; color: #0f172a; }
       <div><label>場地</label><select id="venue"></select></div>
       <div><label>預約人</label><input id="customer" placeholder="例如：江江" /></div>
       <div><label>用途</label><select id="purpose"></select></div>
+      <div><label>價錢</label><input id="price" type="number" min="0" step="1" placeholder="例如：500" /></div>
       <div><label>開始時間</label><input id="start" type="datetime-local" /></div>
       <div><label>結束時間</label><input id="end" type="datetime-local" /></div>
     </div>
@@ -251,6 +254,7 @@ function bookingForSlot(venueId, slotHour, bookings) {
 function setAuthBadge() {
   document.getElementById('admin-view').classList.toggle('active', isAdmin);
   document.getElementById('options-link').style.display = isAdmin ? 'inline-block' : 'none';
+  document.getElementById('report-link').style.display = isAdmin ? 'inline-block' : 'none';
   document.getElementById('open-add-modal').style.display = isAdmin ? 'inline-block' : 'none';
 }
 
@@ -299,7 +303,7 @@ function renderDaily(bookings) {
         const endHour = toDateObj(b.end_time).getHours();
         if (h > startHour) continue;
         const span = Math.max(1, endHour - startHour);
-        const text = isAdmin ? `${b.customer}\n${b.purpose || ''}` : '已預約';
+        const text = isAdmin ? `${b.customer}\n${b.purpose || ''}\n$${Number(b.price || 0).toFixed(0)}` : '已預約';
         html += makeSlotCell(day, h, venue.venue_id, b, text, span);
         continue;
       }
@@ -343,7 +347,7 @@ function renderWeekly(weekData, baseDate, days = 7) {
           const endHour = toDateObj(b.end_time).getHours();
           if (h > startHour) continue;
           const span = Math.max(1, endHour - startHour);
-          const text = isAdmin ? `${b.customer}\n${b.purpose || ''}` : '已預約';
+          const text = isAdmin ? `${b.customer}\n${b.purpose || ''}\n$${Number(b.price || 0).toFixed(0)}` : '已預約';
           html += makeSlotCell(day, h, venue.venue_id, b, text, span);
           continue;
         }
@@ -397,6 +401,7 @@ function openBookingModal(data = null) {
     document.getElementById('venue').value = String(data.venue_id);
     document.getElementById('customer').value = data.customer || '';
     document.getElementById('purpose').value = data.purpose || '';
+    document.getElementById('price').value = Number(data.price || 0);
     document.getElementById('start').value = data.start_time.replace(' ', 'T');
     document.getElementById('end').value = data.end_time.replace(' ', 'T');
   }
@@ -420,6 +425,7 @@ function openBookingModalFromCell(cell, bookingId) {
   document.getElementById('venue').value = String(venueId);
   document.getElementById('customer').value = '';
   document.getElementById('purpose').value = purposes[0]?.name || '';
+  document.getElementById('price').value = 0;
   document.getElementById('start').value = start;
   document.getElementById('end').value = end;
   openBookingModal();
@@ -478,6 +484,7 @@ document.getElementById('add-btn').addEventListener('click', async () => {
     venue_id: Number(document.getElementById('venue').value),
     customer: document.getElementById('customer').value.trim(),
     purpose: document.getElementById('purpose').value.trim(),
+    price: Number(document.getElementById('price').value || 0),
     start: toServerDateTime(document.getElementById('start').value),
     end: toServerDateTime(document.getElementById('end').value),
     admin_password: adminPassword,
@@ -673,6 +680,91 @@ refresh();
 """
 
 
+REPORT_PAGE = """<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>預約費用統計</title>
+<style>
+body { font-family: "Noto Sans TC", Arial, sans-serif; margin:0; padding:22px; background:#f4f6ff; color:#0f172a; }
+.wrap { max-width: 980px; margin: 0 auto; }
+.card { background:#fff; border:1px solid #dbe2f0; border-radius:14px; padding:16px; box-shadow:0 10px 25px rgba(30,64,175,.08); }
+.top { display:flex; gap:10px; align-items:center; margin-bottom:12px; }
+h1 { margin:0; color:#1e3a8a; }
+input, button { padding:10px 12px; border-radius:10px; border:1px solid #cbd5e1; font-size:15px; }
+button { background:#4f46e5; color:#fff; border:none; cursor:pointer; }
+.filters { display:flex; flex-wrap:wrap; gap:10px; align-items:end; margin-bottom:12px; }
+table { width:100%; border-collapse:collapse; }
+th, td { border:1px solid #dbe2f0; padding:10px; text-align:left; }
+th { background:#eef2ff; }
+.total { margin-top:10px; font-weight:700; color:#1e3a8a; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <h1>預約費用統計</h1>
+    <button onclick="location.href='/'">回預約頁</button>
+  </div>
+  <div class="card">
+    <div class="filters">
+      <div><div>開始日期</div><input id="start-date" type="date"/></div>
+      <div><div>結束日期</div><input id="end-date" type="date"/></div>
+      <button id="query-btn">查詢</button>
+    </div>
+    <table id="report-table"></table>
+    <div class="total" id="grand-total"></div>
+  </div>
+</div>
+<script>
+let adminPassword = '';
+
+async function login() {
+  const pw = prompt('請輸入管理員密碼：');
+  if (pw === null) return false;
+  const resp = await fetch('/api/admin/login', {
+    method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({password: pw})
+  });
+  if (!resp.ok) { alert('密碼錯誤'); return false; }
+  adminPassword = pw;
+  return true;
+}
+
+async function refreshReport() {
+  if (!adminPassword) {
+    const ok = await login();
+    if (!ok) return;
+  }
+  const start = document.getElementById('start-date').value;
+  const end = document.getElementById('end-date').value;
+  const resp = await fetch('/api/reports/fees', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ admin_password: adminPassword, start_date: start, end_date: end }),
+  });
+  const data = await resp.json();
+  if (!resp.ok) { alert(data.error || '查詢失敗'); return; }
+
+  const table = document.getElementById('report-table');
+  table.innerHTML = '<tr><th>預約人</th><th>預約筆數</th><th>總費用</th></tr>' +
+    data.items.map(item => `<tr><td>${item.customer}</td><td>${item.booking_count}</td><td>$${Number(item.total_fee).toFixed(0)}</td></tr>`).join('');
+  document.getElementById('grand-total').textContent = `總計：$${Number(data.grand_total).toFixed(0)}`;
+}
+
+document.getElementById('query-btn').addEventListener('click', refreshReport);
+(function init() {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth(), 1);
+  const ymd = d => d.toISOString().slice(0, 10);
+  document.getElementById('start-date').value = ymd(start);
+  document.getElementById('end-date').value = ymd(now);
+})();
+</script>
+</body>
+</html>
+"""
+
 class BookingWebHandler(BaseHTTPRequestHandler):
     def _send_json(self, payload: Union[Dict[str, Any], List[Any]], status: int = HTTPStatus.OK) -> None:
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
@@ -697,6 +789,9 @@ class BookingWebHandler(BaseHTTPRequestHandler):
             return
         if parsed.path == "/options":
             self._send_html(OPTIONS_PAGE)
+            return
+        if parsed.path == "/reports":
+            self._send_html(REPORT_PAGE)
             return
         if parsed.path == "/api/venues":
             with manager_lock:
@@ -755,6 +850,21 @@ class BookingWebHandler(BaseHTTPRequestHandler):
                 self._send_json({"error": str(exc)}, status=HTTPStatus.BAD_REQUEST)
                 return
 
+        if parsed.path == "/api/reports/fees":
+            try:
+                self._check_admin_password(payload)
+                start_date = str(payload.get("start_date", "")).strip()
+                end_date = str(payload.get("end_date", "")).strip()
+                if not start_date or not end_date:
+                    raise ValueError("請提供開始與結束日期")
+                with manager_lock:
+                    items = manager.summarize_fees(start_date, end_date)
+                grand_total = sum(item["total_fee"] for item in items)
+                self._send_json({"items": items, "grand_total": grand_total})
+            except ValueError as exc:
+                self._send_json({"error": str(exc)}, status=HTTPStatus.BAD_REQUEST)
+            return
+
         if parsed.path != "/api/bookings":
             self._send_json({"error": "Not Found"}, status=HTTPStatus.NOT_FOUND)
             return
@@ -768,6 +878,7 @@ class BookingWebHandler(BaseHTTPRequestHandler):
                     venue_id=int(payload["venue_id"]),
                     customer=payload["customer"],
                     purpose=payload.get("purpose", ""),
+                    price=payload.get("price", 0),
                     start=payload["start"],
                     end=payload["end"],
                 )
@@ -796,6 +907,7 @@ class BookingWebHandler(BaseHTTPRequestHandler):
                         venue_id=int(payload.get("venue_id", 0)),
                         customer=str(payload.get("customer", "")),
                         purpose=str(payload.get("purpose", "")),
+                        price=payload.get("price", 0),
                         start=str(payload.get("start", "")),
                         end=str(payload.get("end", "")),
                     )

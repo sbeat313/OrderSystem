@@ -75,6 +75,11 @@ class TestWebBookingApp(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertIn("場地 / 用途 管理", body)
 
+    def test_reports_page_exists(self):
+        status, body = self.request("GET", "/reports")
+        self.assertEqual(status, 200)
+        self.assertIn("預約費用統計", body)
+
     def test_export_endpoint_removed(self):
         status, _ = self.request("GET", "/api/export?format=png&date=2026-04-01&role=user")
         self.assertEqual(status, 404)
@@ -87,6 +92,7 @@ class TestWebBookingApp(unittest.TestCase):
                 "venue_id": 1,
                 "customer": "王小明",
                 "purpose": "臨租",
+                "price": 800,
                 "start": "2026-04-01 18:00",
                 "end": "2026-04-01 20:00",
             },
@@ -94,6 +100,7 @@ class TestWebBookingApp(unittest.TestCase):
         self.assertEqual(status, 201)
         created = json.loads(body)
         self.assertEqual(created["venue_name"], "1號場")
+        self.assertEqual(created["price"], 800)
 
         status, body = self.request("GET", "/api/bookings?date=2026-04-01")
         self.assertEqual(status, 200)
@@ -157,12 +164,14 @@ class TestWebBookingApp(unittest.TestCase):
                 "venue_id": 2,
                 "customer": "王小明-改",
                 "purpose": "臨租",
+                "price": 1200,
                 "start": "2026-04-01 19:00",
                 "end": "2026-04-01 21:00",
             },
         )
         self.assertEqual(status, 200)
         self.assertEqual(json.loads(body)["venue_id"], 2)
+        self.assertEqual(json.loads(body)["price"], 1200)
 
         status, _ = self.request(
             "DELETE",
@@ -170,6 +179,46 @@ class TestWebBookingApp(unittest.TestCase):
             {"admin_password": "admin123", "booking_id": booking_id},
         )
         self.assertEqual(status, 200)
+
+    def test_fee_report_endpoint(self):
+        self.request(
+            "POST",
+            "/api/bookings",
+            {
+                "venue_id": 1,
+                "customer": "王小明",
+                "purpose": "臨租",
+                "price": 500,
+                "start": "2026-04-01 18:00",
+                "end": "2026-04-01 20:00",
+            },
+        )
+        self.request(
+            "POST",
+            "/api/bookings",
+            {
+                "venue_id": 2,
+                "customer": "王小明",
+                "purpose": "臨租",
+                "price": 700,
+                "start": "2026-04-02 18:00",
+                "end": "2026-04-02 20:00",
+            },
+        )
+
+        status, body = self.request(
+            "POST",
+            "/api/reports/fees",
+            {
+                "admin_password": "admin123",
+                "start_date": "2026-04-01",
+                "end_date": "2026-04-30",
+            },
+        )
+        self.assertEqual(status, 200)
+        data = json.loads(body)
+        self.assertEqual(data["grand_total"], 1200)
+        self.assertEqual(data["items"][0]["customer"], "王小明")
 
     def test_manage_venues_and_purposes_via_api(self):
         status, body = self.request(
