@@ -504,7 +504,10 @@ document.getElementById('add-btn').addEventListener('click', async () => {
   }
 
   msg.style.color = '#16a34a';
-  msg.textContent = modalEditingBookingId ? `更新成功 #${data.booking_id}` : `新增成功 #${data.booking_id}`;
+  const createdCount = Number(data.created_count || 1);
+  msg.textContent = modalEditingBookingId
+    ? `更新成功 #${data.booking_id}`
+    : (createdCount > 1 ? `新增成功，共建立 ${createdCount} 筆預約` : `新增成功 #${data.booking_id}`);
   bookingsCache = {};
   closeBookingModal();
   refresh();
@@ -877,7 +880,7 @@ class BookingWebHandler(BaseHTTPRequestHandler):
                 if not str(payload.get(field, "")).strip():
                     raise ValueError(f"缺少必要欄位：{field}")
             with manager_lock:
-                booking = manager.add_booking(
+                created = manager.add_bookings_for_purpose(
                     venue_id=int(payload["venue_id"]),
                     customer=payload["customer"],
                     purpose=payload.get("purpose", ""),
@@ -885,7 +888,10 @@ class BookingWebHandler(BaseHTTPRequestHandler):
                     start=payload["start"],
                     end=payload["end"],
                 )
-            self._send_json(booking_to_dict(booking), status=HTTPStatus.CREATED)
+            first = created[0]
+            response = booking_to_dict(first)
+            response["created_count"] = len(created)
+            self._send_json(response, status=HTTPStatus.CREATED)
         except ValueError as exc:
             self._send_json({"error": str(exc)}, status=HTTPStatus.BAD_REQUEST)
 

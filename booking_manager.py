@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import sqlite3
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import List, Optional
 
@@ -259,6 +259,96 @@ class BookingManager:
             end_time=end_time,
         )
 
+    def add_bookings_for_purpose(
+        self,
+        venue_id: int,
+        customer: str,
+        start: str,
+        end: str,
+        purpose: str = "",
+        price: float = 0,
+    ) -> List[Booking]:
+        purpose_name = purpose.strip()
+        if purpose_name not in {"單月租", "雙月租"}:
+            return [self.add_booking(venue_id, customer, start, end, purpose, price)]
+
+        start_time, end_time = self._parse_time_range(start, end)
+        booking_price = self._parse_price(price)
+        duration = end_time - start_time
+        period_end = self._month_end(start_time)
+        if purpose_name == "雙月租":
+            period_end = self._month_end(self._next_month_start(start_time))
+
+        slot_starts: List[datetime] = []
+        cursor = start_time
+        while cursor.date() <= period_end.date():
+            slot_starts.append(cursor)
+            cursor += timedelta(days=7)
+
+        with self._connect() as conn:
+            venue = conn.execute("SELECT id, name FROM venues WHERE id = ?", (venue_id,)).fetchone()
+            if venue is None:
+                raise ValueError("場地不存在")
+
+            purpose_row = conn.execute("SELECT 1 FROM purposes WHERE name = ?", (purpose_name,)).fetchone()
+            if purpose_row is None:
+                raise ValueError("用途不存在，請從選單選擇")
+
+            for slot_start in slot_starts:
+                slot_end = slot_start + duration
+                conflict = conn.execute(
+                    """
+                    SELECT b.id, b.start_time, b.end_time
+                    FROM bookings b
+                    WHERE b.venue_id = ?
+                      AND b.start_time < ?
+                      AND b.end_time > ?
+                    LIMIT 1
+                    """,
+                    (
+                        venue_id,
+                        slot_end.strftime(TIME_FORMAT),
+                        slot_start.strftime(TIME_FORMAT),
+                    ),
+                ).fetchone()
+                if conflict:
+                    raise ValueError(
+                        f"時段衝突：{venue['name']} 已有預約 "
+                        f"({conflict['start_time']} - {conflict['end_time']})"
+                    )
+
+            created: List[Booking] = []
+            for slot_start in slot_starts:
+                slot_end = slot_start + duration
+                cursor = conn.execute(
+                    """
+                    INSERT INTO bookings(venue_id, customer, purpose, price, start_time, end_time)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        venue_id,
+                        customer.strip(),
+                        purpose_name,
+                        booking_price,
+                        slot_start.strftime(TIME_FORMAT),
+                        slot_end.strftime(TIME_FORMAT),
+                    ),
+                )
+                created.append(
+                    Booking(
+                        booking_id=cursor.lastrowid,
+                        venue_id=venue["id"],
+                        venue_name=venue["name"],
+                        customer=customer.strip(),
+                        purpose=purpose_name,
+                        price=booking_price,
+                        start_time=slot_start,
+                        end_time=slot_end,
+                    )
+                )
+
+        return created
+
     def cancel_booking(self, booking_id: int) -> bool:
         with self._connect() as conn:
             cur = conn.execute("DELETE FROM bookings WHERE id = ?", (booking_id,))
@@ -424,6 +514,17 @@ class BookingManager:
         if value < 0:
             raise ValueError("價錢不可為負數")
         return value
+
+    @staticmethod
+    def _month_end(dt: datetime) -> datetime:
+        next_month = BookingManager._next_month_start(dt)
+        return next_month - timedelta(days=1)
+
+    @staticmethod
+    def _next_month_start(dt: datetime) -> datetime:
+        year = dt.year + 1 if dt.month == 12 else dt.year
+        month = 1 if dt.month == 12 else dt.month + 1
+        return datetime(year, month, 1, dt.hour, dt.minute)
 
     @staticmethod
     def _parse_time_range(start: str, end: str) -> tuple[datetime, datetime]:

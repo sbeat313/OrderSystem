@@ -180,6 +180,45 @@ class TestWebBookingApp(unittest.TestCase):
         )
         self.assertEqual(status, 200)
 
+    def test_monthly_rent_auto_fills_same_timeslot(self):
+        status, body = self.request(
+            "POST",
+            "/api/bookings",
+            {
+                "venue_id": 1,
+                "customer": "王小明",
+                "purpose": "單月租",
+                "price": 500,
+                "start": "2026-04-01 09:00",
+                "end": "2026-04-01 11:00",
+            },
+        )
+        self.assertEqual(status, 201)
+        created = json.loads(body)
+        self.assertEqual(created["created_count"], 5)
+
+        status, body = self.request("GET", "/api/bookings")
+        self.assertEqual(status, 200)
+        items = json.loads(body)
+        self.assertEqual(len(items), 5)
+
+    def test_double_monthly_rent_auto_fills_until_next_month_end(self):
+        status, body = self.request(
+            "POST",
+            "/api/bookings",
+            {
+                "venue_id": 1,
+                "customer": "王小明",
+                "purpose": "雙月租",
+                "price": 500,
+                "start": "2026-04-01 09:00",
+                "end": "2026-04-01 11:00",
+            },
+        )
+        self.assertEqual(status, 201)
+        created = json.loads(body)
+        self.assertEqual(created["created_count"], 9)
+
     def test_fee_report_endpoint(self):
         self.request(
             "POST",
