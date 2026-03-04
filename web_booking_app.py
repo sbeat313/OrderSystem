@@ -534,10 +534,11 @@ body {
   padding: 16px;
   box-shadow: 0 10px 28px rgba(67,56,202,.08);
 }
+* { box-sizing: border-box; }
 h1 { margin-top: 0; color:#1e3a8a; }
 h3 { margin: 0 0 8px; color:#334155; }
 input, button { padding:10px 12px; font-size:15px; border-radius:10px; border:1px solid #cbd5e1; }
-input { width: 100%; background:#fff; }
+input { width: 100%; background:#fff; min-width: 0; }
 button {
   cursor:pointer;
   background:linear-gradient(180deg,var(--opt-primary),var(--opt-primary-strong));
@@ -546,11 +547,18 @@ button {
   box-shadow: 0 6px 14px rgba(79,70,229,.25);
 }
 button:hover { filter:brightness(.98); }
-table { width: 100%; border-collapse: separate; border-spacing: 0; margin-top: 10px; background:#fff; border-radius:10px; overflow:hidden; }
-th, td { border:1px solid #dbe2f0; padding:10px; text-align:left; font-size:15px; }
+table { width: 100%; border-collapse: separate; border-spacing: 0; margin-top: 10px; background:#fff; border-radius:10px; overflow:hidden; table-layout: fixed; }
+th, td { border:1px solid #dbe2f0; padding:10px; text-align:left; font-size:15px; vertical-align: middle; }
 th { background:#eef2ff; color:#334155; }
-.actions button { margin-right: 6px; }
+th:first-child, td:first-child { width: 52px; }
+th:last-child, td:last-child { width: 186px; }
+.row-input { width: 100%; min-width: 0; }
+.actions { display:flex; gap:8px; align-items:center; justify-content:flex-start; flex-wrap:nowrap; white-space:nowrap; }
+.actions button { margin-right: 0; padding:8px 12px; min-width:56px; }
 .top { max-width:1200px; margin:0 auto 14px; display:flex; gap:10px; align-items:center; }
+@media (max-width: 1100px) {
+  .wrap { grid-template-columns: 1fr; }
+}
 </style>
 </head>
 <body>
@@ -605,12 +613,12 @@ async function refresh() {
 
   const vt = document.getElementById('venue-table');
   vt.innerHTML = '<tr><th>ID</th><th>名稱</th><th>操作</th></tr>' + venues.map(v =>
-    `<tr><td>${v.venue_id}</td><td><input value="${v.name}" id="venue-${v.venue_id}"/></td><td class="actions"><button onclick="updateVenue(${v.venue_id})">儲存</button><button onclick="deleteVenue(${v.venue_id})">刪除</button></td></tr>`
+    `<tr><td>${v.venue_id}</td><td><input class="row-input" value="${v.name}" id="venue-${v.venue_id}"/></td><td class="actions"><button onclick="updateVenue(${v.venue_id})">儲存</button><button onclick="deleteVenue(${v.venue_id})">刪除</button></td></tr>`
   ).join('');
 
   const pt = document.getElementById('purpose-table');
   pt.innerHTML = '<tr><th>ID</th><th>名稱</th><th>操作</th></tr>' + purposes.map(p =>
-    `<tr><td>${p.purpose_id}</td><td><input value="${p.name}" id="purpose-${p.purpose_id}"/></td><td class="actions"><button onclick="updatePurpose(${p.purpose_id})">儲存</button><button onclick="deletePurpose(${p.purpose_id})">刪除</button></td></tr>`
+    `<tr><td>${p.purpose_id}</td><td><input class="row-input" value="${p.name}" id="purpose-${p.purpose_id}"/></td><td class="actions"><button onclick="updatePurpose(${p.purpose_id})">儲存</button><button onclick="deletePurpose(${p.purpose_id})">刪除</button></td></tr>`
   ).join('');
 }
 
