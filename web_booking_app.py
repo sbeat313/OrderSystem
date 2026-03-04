@@ -256,20 +256,21 @@ function setAuthBadge() {
 
 function renderDaily(bookings) {
   const grid = document.getElementById('grid');
-  let html = '<tr><th>場地\\時段</th>';
-  for (let h = START_HOUR; h < END_HOUR; h++) html += `<th>${String(h).padStart(2, '0')}-${String(h+1).padStart(2, '0')}</th>`;
+  let html = '<tr><th class="sticky-left-1">時段</th>';
+  for (const venue of venues) html += `<th>${venue.name}</th>`;
   html += '</tr>';
 
-  for (const venue of venues) {
-    html += `<tr><td class="venue">${venue.name}</td>`;
-    for (let h = START_HOUR; h < END_HOUR; h++) {
+  for (let h = START_HOUR; h < END_HOUR; h++) {
+    html += `<tr><td class="venue">${String(h).padStart(2, '0')}-${String(h+1).padStart(2, '0')}</td>`;
+    for (const venue of venues) {
       const b = bookingForSlot(venue.venue_id, h, bookings);
       let cls = 'slot';
       let text = '';
       if (b) {
         if (currentRole === 'admin') {
           cls += ' booked-admin';
-          text = `${b.customer}\n${b.purpose || ''}`;
+          text = `${b.customer}
+${b.purpose || ''}`;
         } else {
           cls += ' booked-user';
           text = '';
@@ -293,48 +294,36 @@ function renderWeekly(weekData, baseDate, days = 7) {
   }
 
   const weekdayNames = ['一', '二', '三', '四', '五', '六', '日'];
-  const dayChunks = [];
-  for (let i = 0; i < dates.length; i += 2) dayChunks.push(dates.slice(i, i + 2));
+  let html = '<tr><th class="sticky-left-1">日期</th><th class="sticky-left-2">時段</th>';
+  for (const venue of venues) html += `<th>${venue.name}</th>`;
+  html += '</tr>';
 
-  let html = '';
-  dayChunks.forEach((chunk, chunkIdx) => {
-    html += `<tr><th class="sticky-left-1 top-row" rowspan="2">場地</th>`;
-    for (const day of chunk) {
-      const weekday = weekdayNames[(new Date(day + 'T00:00:00').getDay() + 6) % 7];
-      html += `<th class="top-row" colspan="${END_HOUR - START_HOUR}">${day.slice(5)} (${weekday})</th>`;
-    }
-    html += '</tr><tr>';
-    for (let d = 0; d < chunk.length; d++) {
-      for (let h = START_HOUR; h < END_HOUR; h++) {
-        html += `<th class="second-row">${String(h).padStart(2, '0')}-${String(h + 1).padStart(2, '0')}</th>`;
+  for (const day of dates) {
+    const weekday = weekdayNames[(new Date(day + 'T00:00:00').getDay() + 6) % 7];
+    for (let h = START_HOUR; h < END_HOUR; h++) {
+      html += '<tr>';
+      if (h === START_HOUR) {
+        html += `<td class="venue" rowspan="${END_HOUR - START_HOUR}">${day}<br>${weekday}</td>`;
       }
-    }
-    html += '</tr>';
+      html += `<td class="slot-time">${String(h).padStart(2, '0')}-${String(h + 1).padStart(2, '0')}</td>`;
 
-    for (const venue of venues) {
-      html += `<tr><td class="venue">${venue.name}</td>`;
-      for (const day of chunk) {
-        const bookings = weekData[day] || [];
-        for (let h = START_HOUR; h < END_HOUR; h++) {
-          const b = bookingForSlot(venue.venue_id, h, bookings);
-          let cls = 'slot';
-          let cell = '';
-          if (b) {
-            cls += currentRole === 'admin' ? ' booked-admin' : ' booked-user';
-            cell = currentRole === 'admin'
-              ? `${b.customer}\n${b.purpose || ''}`
-              : '';
-          }
-          html += `<td class="${cls}"><div class="small">${cell}</div></td>`;
+      const bookings = weekData[day] || [];
+      for (const venue of venues) {
+        const b = bookingForSlot(venue.venue_id, h, bookings);
+        let cls = 'slot';
+        let cell = '';
+        if (b) {
+          cls += currentRole === 'admin' ? ' booked-admin' : ' booked-user';
+          cell = currentRole === 'admin'
+            ? `${b.customer}
+${b.purpose || ''}`
+            : '';
         }
+        html += `<td class="${cls}"><div class="small">${cell}</div></td>`;
       }
       html += '</tr>';
     }
-
-    if (chunkIdx < dayChunks.length - 1) {
-      html += `<tr><td colspan="${1 + chunk.length * (END_HOUR - START_HOUR)}" style="height:12px;background:#eef2ff;border:0;"></td></tr>`;
-    }
-  });
+  }
 
   grid.innerHTML = html;
 }
