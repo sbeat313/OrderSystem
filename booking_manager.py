@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import sqlite3
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import List, Optional
 
@@ -29,6 +29,7 @@ class Booking:
     venue_name: str
     customer: str
     purpose: str
+    price: float
     start_time: datetime
     end_time: datetime
 
@@ -69,12 +70,16 @@ class BookingManager:
                     venue_id INTEGER NOT NULL,
                     customer TEXT NOT NULL,
                     purpose TEXT NOT NULL DEFAULT '',
+                    price REAL NOT NULL DEFAULT 0,
                     start_time TEXT NOT NULL,
                     end_time TEXT NOT NULL,
                     FOREIGN KEY (venue_id) REFERENCES venues(id)
                 )
                 """
             )
+            columns = [row["name"] for row in conn.execute("PRAGMA table_info(bookings)").fetchall()]
+            if "price" not in columns:
+                conn.execute("ALTER TABLE bookings ADD COLUMN price REAL NOT NULL DEFAULT 0")
             count = conn.execute("SELECT COUNT(*) FROM venues").fetchone()[0]
             if count == 0:
                 conn.executemany(
@@ -185,8 +190,10 @@ class BookingManager:
         start: str,
         end: str,
         purpose: str = "",
+        price: float = 0,
     ) -> Booking:
         start_time, end_time = self._parse_time_range(start, end)
+        booking_price = self._parse_price(price)
         with self._connect() as conn:
             venue = conn.execute(
                 "SELECT id, name FROM venues WHERE id = ?", (venue_id,)
@@ -227,13 +234,14 @@ class BookingManager:
 
             cursor = conn.execute(
                 """
-                INSERT INTO bookings(venue_id, customer, purpose, start_time, end_time)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO bookings(venue_id, customer, purpose, price, start_time, end_time)
+                VALUES (?, ?, ?, ?, ?, ?)
                 """,
                 (
                     venue_id,
                     customer.strip(),
                     purpose_name,
+                    booking_price,
                     start_time.strftime(TIME_FORMAT),
                     end_time.strftime(TIME_FORMAT),
                 ),
@@ -246,18 +254,199 @@ class BookingManager:
             venue_name=venue["name"],
             customer=customer.strip(),
             purpose=purpose_name,
+            price=booking_price,
             start_time=start_time,
             end_time=end_time,
         )
+
+    def add_bookings_for_purpose(
+        self,
+        venue_id: int,
+        customer: str,
+        start: str,
+        end: str,
+        purpose: str = "",
+        price: float = 0,
+    ) -> List[Booking]:
+        purpose_name = purpose.strip()
+        if purpose_name not in {"單月租", "雙月租"}:
+            return [self.add_booking(venue_id, customer, start, end, purpose, price)]
+
+        start_time, end_time = self._parse_time_range(start, end)
+        booking_price = self._parse_price(price)
+        duration = end_time - start_time
+        period_end = self._month_end(start_time)
+        if purpose_name == "雙月租":
+            period_end = self._month_end(self._next_month_start(start_time))
+
+        slot_starts: List[datetime] = []
+        cursor = start_time
+        while cursor.date() <= period_end.date():
+            slot_starts.append(cursor)
+            cursor += timedelta(days=7)
+
+        with self._connect() as conn:
+            venue = conn.execute("SELECT id, name FROM venues WHERE id = ?", (venue_id,)).fetchone()
+            if venue is None:
+                raise ValueError("場地不存在")
+
+            purpose_row = conn.execute("SELECT 1 FROM purposes WHERE name = ?", (purpose_name,)).fetchone()
+            if purpose_row is None:
+                raise ValueError("用途不存在，請從選單選擇")
+
+            for slot_start in slot_starts:
+                slot_end = slot_start + duration
+                conflict = conn.execute(
+                    """
+                    SELECT b.id, b.start_time, b.end_time
+                    FROM bookings b
+                    WHERE b.venue_id = ?
+                      AND b.start_time < ?
+                      AND b.end_time > ?
+                    LIMIT 1
+                    """,
+                    (
+                        venue_id,
+                        slot_end.strftime(TIME_FORMAT),
+                        slot_start.strftime(TIME_FORMAT),
+                    ),
+                ).fetchone()
+                if conflict:
+                    raise ValueError(
+                        f"時段衝突：{venue['name']} 已有預約 "
+                        f"({conflict['start_time']} - {conflict['end_time']})"
+                    )
+
+            created: List[Booking] = []
+            for slot_start in slot_starts:
+                slot_end = slot_start + duration
+                cursor = conn.execute(
+                    """
+                    INSERT INTO bookings(venue_id, customer, purpose, price, start_time, end_time)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        venue_id,
+                        customer.strip(),
+                        purpose_name,
+                        booking_price,
+                        slot_start.strftime(TIME_FORMAT),
+                        slot_end.strftime(TIME_FORMAT),
+                    ),
+                )
+                created.append(
+                    Booking(
+                        booking_id=cursor.lastrowid,
+                        venue_id=venue["id"],
+                        venue_name=venue["name"],
+                        customer=customer.strip(),
+                        purpose=purpose_name,
+                        price=booking_price,
+                        start_time=slot_start,
+                        end_time=slot_end,
+                    )
+                )
+
+        return created
 
     def cancel_booking(self, booking_id: int) -> bool:
         with self._connect() as conn:
             cur = conn.execute("DELETE FROM bookings WHERE id = ?", (booking_id,))
             return cur.rowcount > 0
 
+    def update_booking(
+        self,
+        booking_id: int,
+        venue_id: int,
+        customer: str,
+        start: str,
+        end: str,
+        purpose: str = "",
+        price: float = 0,
+    ) -> Booking:
+        start_time, end_time = self._parse_time_range(start, end)
+        booking_price = self._parse_price(price)
+        with self._connect() as conn:
+            existing = conn.execute(
+                "SELECT id FROM bookings WHERE id = ?",
+                (booking_id,),
+            ).fetchone()
+            if existing is None:
+                raise ValueError("預約不存在")
+
+            venue = conn.execute(
+                "SELECT id, name FROM venues WHERE id = ?",
+                (venue_id,),
+            ).fetchone()
+            if venue is None:
+                raise ValueError("場地不存在")
+
+            purpose_name = purpose.strip()
+            if not purpose_name:
+                raise ValueError("用途不可為空")
+            purpose_row = conn.execute(
+                "SELECT 1 FROM purposes WHERE name = ?",
+                (purpose_name,),
+            ).fetchone()
+            if purpose_row is None:
+                raise ValueError("用途不存在，請從選單選擇")
+
+            conflict = conn.execute(
+                """
+                SELECT b.id, b.start_time, b.end_time
+                FROM bookings b
+                WHERE b.venue_id = ?
+                  AND b.id != ?
+                  AND b.start_time < ?
+                  AND b.end_time > ?
+                LIMIT 1
+                """,
+                (
+                    venue_id,
+                    booking_id,
+                    end_time.strftime(TIME_FORMAT),
+                    start_time.strftime(TIME_FORMAT),
+                ),
+            ).fetchone()
+            if conflict:
+                raise ValueError(
+                    f"時段衝突：{venue['name']} 已有預約 "
+                    f"({conflict['start_time']} - {conflict['end_time']})"
+                )
+
+            cur = conn.execute(
+                """
+                UPDATE bookings
+                SET venue_id = ?, customer = ?, purpose = ?, price = ?, start_time = ?, end_time = ?
+                WHERE id = ?
+                """,
+                (
+                    venue_id,
+                    customer.strip(),
+                    purpose_name,
+                    booking_price,
+                    start_time.strftime(TIME_FORMAT),
+                    end_time.strftime(TIME_FORMAT),
+                    booking_id,
+                ),
+            )
+            if cur.rowcount == 0:
+                raise ValueError("預約不存在")
+
+        return Booking(
+            booking_id=booking_id,
+            venue_id=venue["id"],
+            venue_name=venue["name"],
+            customer=customer.strip(),
+            purpose=purpose_name,
+            price=booking_price,
+            start_time=start_time,
+            end_time=end_time,
+        )
+
     def list_bookings(self, date: Optional[str] = None) -> List[Booking]:
         query = (
-            "SELECT b.id, b.venue_id, v.name AS venue_name, b.customer, b.purpose, b.start_time, b.end_time "
+            "SELECT b.id, b.venue_id, v.name AS venue_name, b.customer, b.purpose, b.price, b.start_time, b.end_time "
             "FROM bookings b JOIN venues v ON b.venue_id = v.id"
         )
         params: tuple = ()
@@ -276,11 +465,66 @@ class BookingManager:
                 venue_name=row["venue_name"],
                 customer=row["customer"],
                 purpose=row["purpose"],
+                price=float(row["price"]),
                 start_time=datetime.strptime(row["start_time"], TIME_FORMAT),
                 end_time=datetime.strptime(row["end_time"], TIME_FORMAT),
             )
             for row in rows
         ]
+
+    def summarize_fees(self, start_date: str, end_date: str, customer: str = "") -> List[dict]:
+        try:
+            datetime.strptime(start_date, "%Y-%m-%d")
+            datetime.strptime(end_date, "%Y-%m-%d")
+        except ValueError as exc:
+            raise ValueError("日期格式錯誤，請使用 YYYY-MM-DD") from exc
+        if end_date < start_date:
+            raise ValueError("結束日期不可早於開始日期")
+
+        customer_name = customer.strip()
+        query = """
+            SELECT b.customer, COUNT(*) AS booking_count, SUM(b.price) AS total_fee
+            FROM bookings b
+            WHERE date(b.start_time) BETWEEN date(?) AND date(?)
+        """
+        params: tuple = (start_date, end_date)
+        if customer_name:
+            query += " AND b.customer = ?"
+            params = (start_date, end_date, customer_name)
+        query += " GROUP BY b.customer ORDER BY total_fee DESC, b.customer"
+
+        with self._connect() as conn:
+            rows = conn.execute(query, params).fetchall()
+
+        return [
+            {
+                "customer": row["customer"],
+                "booking_count": int(row["booking_count"]),
+                "total_fee": float(row["total_fee"] or 0),
+            }
+            for row in rows
+        ]
+
+    @staticmethod
+    def _parse_price(price: float) -> float:
+        try:
+            value = float(price)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("價錢格式錯誤") from exc
+        if value < 0:
+            raise ValueError("價錢不可為負數")
+        return value
+
+    @staticmethod
+    def _month_end(dt: datetime) -> datetime:
+        next_month = BookingManager._next_month_start(dt)
+        return next_month - timedelta(days=1)
+
+    @staticmethod
+    def _next_month_start(dt: datetime) -> datetime:
+        year = dt.year + 1 if dt.month == 12 else dt.year
+        month = 1 if dt.month == 12 else dt.month + 1
+        return datetime(year, month, 1, dt.hour, dt.minute)
 
     @staticmethod
     def _parse_time_range(start: str, end: str) -> tuple[datetime, datetime]:
@@ -317,6 +561,7 @@ def run_cli() -> None:
                     purpose=input("用途（請輸入完整名稱）：").strip(),
                     start=input(f"開始時間 ({TIME_FORMAT})：").strip(),
                     end=input(f"結束時間 ({TIME_FORMAT})：").strip(),
+                    price=input("價錢：").strip() or 0,
                 )
                 print(f"新增成功，預約編號 #{booking.booking_id}")
             except ValueError as exc:
@@ -329,7 +574,7 @@ def run_cli() -> None:
             for b in bookings:
                 print(
                     f"#{b.booking_id} {b.venue_name} {b.start_time.strftime(TIME_FORMAT)}"
-                    f"~{b.end_time.strftime(TIME_FORMAT)} {b.customer}/{b.purpose}"
+                    f"~{b.end_time.strftime(TIME_FORMAT)} {b.customer}/{b.purpose}/$ {b.price:.0f}"
                 )
         elif choice == "3":
             booking_id = input("預約編號：").strip()

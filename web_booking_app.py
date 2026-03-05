@@ -25,6 +25,7 @@ def booking_to_dict(booking: Booking) -> dict:
         "venue_name": booking.venue_name,
         "customer": booking.customer,
         "purpose": booking.purpose,
+        "price": booking.price,
         "start_time": booking.start_time.strftime(TIME_FORMAT),
         "end_time": booking.end_time.strftime(TIME_FORMAT),
     }
@@ -97,7 +98,7 @@ button:hover { filter: brightness(.98); transform: translateY(-1px); }
   box-shadow: inset 0 1px 0 rgba(255,255,255,.6);
 }
 table { border-collapse: separate; border-spacing: 0; width: max-content; min-width: 100%; background: #fff; }
-th, td { border: 1px solid #d3deef; text-align: center; font-size: 13px; padding: 6px; min-width: 48px; }
+th, td { border: 1px solid #d3deef; text-align: center; font-size: 16px; padding: 8px; min-width: 48px; }
 th {
   background: linear-gradient(180deg, #f5f7ff, #eaf1ff);
   height: 32px; position: sticky; top: 0; z-index: 6;
@@ -116,10 +117,11 @@ td.venue {
   border-right: 1px solid #b6c7e5; box-shadow: inset -1px 0 0 #b6c7e5;
 }
 td.slot-time { min-width: var(--sticky-time); font-weight: 600; background: #f8fafc; position: sticky; left: var(--sticky-venue); z-index: 3; }
-td.slot { height: 48px; background: #fcfdff; }
-td.slot.booked-admin { background: linear-gradient(180deg,#dcfce7,#bbf7d0); }
-td.slot.booked-user { background: linear-gradient(180deg,#06b6d4,#3b82f6); color: #fff; }
-.small { font-size: 12px; line-height: 1.3; white-space: pre-line; }
+td.slot { height: 56px; background: #fcfdff; }
+td.slot.booked-admin { background: #bbf7d0; }
+td.slot.booked-user { background: #93c5fd; color: #0f172a; }
+.small { font-size: 15px; line-height: 1.35; white-space: pre-line; }
+.slot.selected { outline: 3px solid #f59e0b; outline-offset: -3px; }
 .helper { margin: 6px 0 0; font-size: 14px; color: var(--muted); }
 .modal-backdrop { position: fixed; inset: 0; background: rgba(15,23,42,0.55); display: none; align-items: center; justify-content: center; z-index: 20; }
 .modal { width: min(680px, 92vw); background: #fff; border-radius: 14px; padding: 18px; border: 1px solid #cbd5e1; box-shadow: 0 20px 50px rgba(15,23,42,.2); }
@@ -145,9 +147,9 @@ td.slot.booked-user { background: linear-gradient(180deg,#06b6d4,#3b82f6); color
           <option value="biweekly" selected>雙週</option>
         </select>
       </div>
-      <button class="chip" id="user-view">使用者檢視</button>
-      <button class="chip" id="admin-view">管理員檢視</button>
+      <button class="chip" id="admin-view">進階檢視</button>
       <button class="chip" id="options-link" style="display:none;" onclick="location.href='/options'">場地/用途設定</button>
+      <button class="chip" id="report-link" style="display:none;" onclick="location.href='/reports'">費用統計</button>
       <button class="chip" id="open-add-modal" style="display:none;">新增預約</button>
     </div>
     <div id="msg" class="note"></div>
@@ -164,6 +166,7 @@ td.slot.booked-user { background: linear-gradient(180deg,#06b6d4,#3b82f6); color
       <div><label>場地</label><select id="venue"></select></div>
       <div><label>預約人</label><input id="customer" placeholder="例如：江江" /></div>
       <div><label>用途</label><select id="purpose"></select></div>
+      <div><label>價錢</label><input id="price" type="number" min="0" step="1" placeholder="例如：500" /></div>
       <div><label>開始時間</label><input id="start" type="datetime-local" /></div>
       <div><label>結束時間</label><input id="end" type="datetime-local" /></div>
     </div>
@@ -171,18 +174,19 @@ td.slot.booked-user { background: linear-gradient(180deg,#06b6d4,#3b82f6); color
       <button id="add-btn">送出預約</button>
       <button id="close-add-modal" class="btn-secondary">取消</button>
     </div>
-    <p class="helper">※ 只有通過管理員驗證後可新增預約。</p>
   </div>
 </div>
 
 <script>
 const START_HOUR = 8;
 const END_HOUR = 22;
-let currentRole = 'user';
 let isAdmin = false;
+let adminPassword = '';
 let venues = [];
 let purposes = [];
 let bookingsCache = {};
+let selectedBookingId = null;
+let modalEditingBookingId = null;
 
 function toServerDateTime(v) { return v.replace('T', ' '); }
 function toDateObj(s) { return new Date(s.replace(' ', 'T') + ':00'); }
@@ -248,39 +252,167 @@ function bookingForSlot(venueId, slotHour, bookings) {
 }
 
 function setAuthBadge() {
-  document.getElementById('admin-view').classList.toggle('active', currentRole === 'admin');
-  document.getElementById('user-view').classList.toggle('active', currentRole === 'user');
+  document.getElementById('admin-view').classList.toggle('active', isAdmin);
   document.getElementById('options-link').style.display = isAdmin ? 'inline-block' : 'none';
+  document.getElementById('report-link').style.display = isAdmin ? 'inline-block' : 'none';
   document.getElementById('open-add-modal').style.display = isAdmin ? 'inline-block' : 'none';
+}
+
+function makeSlotCell(day, hour, venueId, booking, text, rowspan = 1) {
+  let cls = 'slot';
+  if (booking) cls += isAdmin ? ' booked-admin' : ' booked-user';
+  if (booking && selectedBookingId === booking.booking_id) cls += ' selected';
+  const bookingId = booking ? booking.booking_id : '';
+  const rowspanAttr = rowspan > 1 ? ` rowspan="${rowspan}"` : '';
+  const draggableAttr = booking && isAdmin ? ' draggable="true"' : '';
+  return `<td class="${cls}"${rowspanAttr}${draggableAttr} data-day="${day}" data-hour="${hour}" data-venue-id="${venueId}" data-booking-id="${bookingId}"><div class="small">${text}</div></td>`;
+}
+
+function bindGridEvents() {
+  const grid = document.getElementById('grid');
+  const slots = grid.querySelectorAll('td.slot');
+  slots.forEach(cell => {
+    cell.addEventListener('click', () => {
+      if (!isAdmin) return;
+      const bookingId = Number(cell.dataset.bookingId || 0);
+      selectedBookingId = bookingId || null;
+      grid.querySelectorAll('td.slot.selected').forEach(node => node.classList.remove('selected'));
+      if (selectedBookingId) cell.classList.add('selected');
+    });
+
+    cell.addEventListener('dblclick', () => {
+      if (!isAdmin) return;
+      const bookingId = Number(cell.dataset.bookingId || 0);
+      openBookingModalFromCell(cell, bookingId || null);
+    });
+
+    cell.addEventListener('dragstart', (event) => {
+      if (!isAdmin) return;
+      const bookingId = Number(cell.dataset.bookingId || 0);
+      if (!bookingId) return;
+      event.dataTransfer.setData('text/plain', JSON.stringify({ booking_id: bookingId }));
+      event.dataTransfer.effectAllowed = 'copyMove';
+    });
+
+    cell.addEventListener('dragover', (event) => {
+      if (!isAdmin) return;
+      event.preventDefault();
+      event.dataTransfer.dropEffect = event.ctrlKey ? 'copy' : 'move';
+    });
+
+    cell.addEventListener('drop', async (event) => {
+      if (!isAdmin) return;
+      event.preventDefault();
+      try {
+        const payload = JSON.parse(event.dataTransfer.getData('text/plain') || '{}');
+        await handleBookingDrop(cell, payload, event.ctrlKey);
+      } catch (_err) {
+        const msg = document.getElementById('msg');
+        msg.style.color = '#dc2626';
+        msg.textContent = '拖移失敗：資料格式錯誤';
+      }
+    });
+  });
+}
+
+function findBookingByIdInCache(bookingId) {
+  for (const day of Object.keys(bookingsCache)) {
+    const found = (bookingsCache[day] || []).find(item => item.booking_id === bookingId);
+    if (found) return found;
+  }
+  return null;
+}
+
+function toServerDateObj(dt) {
+  const y = dt.getFullYear();
+  const m = String(dt.getMonth() + 1).padStart(2, '0');
+  const d = String(dt.getDate()).padStart(2, '0');
+  const h = String(dt.getHours()).padStart(2, '0');
+  const min = String(dt.getMinutes()).padStart(2, '0');
+  return `${y}-${m}-${d} ${h}:${min}`;
+}
+
+async function handleBookingDrop(targetCell, dragData, copyMode) {
+  const msg = document.getElementById('msg');
+  const bookingId = Number(dragData.booking_id || 0);
+  if (!bookingId) return;
+
+  const source = findBookingByIdInCache(bookingId);
+  if (!source) {
+    msg.style.color = '#dc2626';
+    msg.textContent = '拖移失敗：找不到來源預約';
+    return;
+  }
+
+  const targetDay = targetCell.dataset.day;
+  const targetHour = Number(targetCell.dataset.hour || 0);
+  const targetVenueId = Number(targetCell.dataset.venueId || 0);
+  if (!targetDay || !targetVenueId) return;
+
+  const sourceStart = toDateObj(source.start_time);
+  const sourceEnd = toDateObj(source.end_time);
+  const durationMs = sourceEnd.getTime() - sourceStart.getTime();
+
+  const newStart = new Date(`${targetDay}T00:00:00`);
+  newStart.setHours(targetHour, sourceStart.getMinutes(), 0, 0);
+  const newEnd = new Date(newStart.getTime() + durationMs);
+
+  const basePayload = {
+    venue_id: targetVenueId,
+    customer: source.customer,
+    purpose: source.purpose,
+    price: Number(source.price || 0),
+    start: toServerDateObj(newStart),
+    end: toServerDateObj(newEnd),
+    admin_password: adminPassword,
+  };
+
+  const resp = await fetch('/api/bookings', {
+    method: copyMode ? 'POST' : 'PUT',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(copyMode ? basePayload : { ...basePayload, booking_id: bookingId }),
+  });
+  const data = await resp.json();
+
+  if (!resp.ok) {
+    msg.style.color = '#dc2626';
+    msg.textContent = data.error || (copyMode ? '複製失敗' : '拖移失敗');
+    return;
+  }
+
+  msg.style.color = '#16a34a';
+  msg.textContent = copyMode ? `複製成功 #${data.booking_id}` : `拖移成功 #${bookingId}`;
+  bookingsCache = {};
+  if (!copyMode) selectedBookingId = null;
+  await refresh();
 }
 
 function renderDaily(bookings) {
   const grid = document.getElementById('grid');
+  const day = document.getElementById('date').value;
   let html = '<tr><th class="sticky-left-1">時段</th>';
   for (const venue of venues) html += `<th>${venue.name}</th>`;
   html += '</tr>';
 
   for (let h = START_HOUR; h < END_HOUR; h++) {
-    html += `<tr><td class="venue">${String(h).padStart(2, '0')}-${String(h+1).padStart(2, '0')}</td>`;
+    html += `<tr><td class="venue">${String(h).padStart(2, '0')}-${String(h + 1).padStart(2, '0')}</td>`;
     for (const venue of venues) {
       const b = bookingForSlot(venue.venue_id, h, bookings);
-      let cls = 'slot';
-      let text = '';
       if (b) {
-        if (currentRole === 'admin') {
-          cls += ' booked-admin';
-          text = `${b.customer}
-${b.purpose || ''}`;
-        } else {
-          cls += ' booked-user';
-          text = '';
-        }
+        const startHour = toDateObj(b.start_time).getHours();
+        const endHour = toDateObj(b.end_time).getHours();
+        if (h > startHour) continue;
+        const span = Math.max(1, endHour - startHour);
+        const text = isAdmin ? `${b.customer}\n${b.purpose || ''}\n$${Number(b.price || 0).toFixed(0)}` : '已預約';
+        html += makeSlotCell(day, h, venue.venue_id, b, text, span);
+        continue;
       }
-      html += `<td class="${cls}"><div class="small">${text}</div></td>`;
+      html += makeSlotCell(day, h, venue.venue_id, null, '', 1);
     }
     html += '</tr>';
   }
   grid.innerHTML = html;
+  bindGridEvents();
 }
 
 function renderWeekly(weekData, baseDate, days = 7) {
@@ -293,7 +425,7 @@ function renderWeekly(weekData, baseDate, days = 7) {
     dates.push(fmtDate(d));
   }
 
-  const weekdayNames = ['一', '二', '三', '四', '五', '六', '日'];
+  const weekdayNames = ['星期一', '星期二', '星期三', '星期四', '星期五', '星期六', '星期日'];
   let html = '<tr><th class="sticky-left-1">日期</th><th class="sticky-left-2">時段</th>';
   for (const venue of venues) html += `<th>${venue.name}</th>`;
   html += '</tr>';
@@ -303,31 +435,31 @@ function renderWeekly(weekData, baseDate, days = 7) {
     for (let h = START_HOUR; h < END_HOUR; h++) {
       html += '<tr>';
       if (h === START_HOUR) {
-        html += `<td class="venue" rowspan="${END_HOUR - START_HOUR}">${day}<br>${weekday}</td>`;
+        html += `<td class="venue" rowspan="${END_HOUR - START_HOUR}">${day}<br>(${weekday})</td>`;
       }
       html += `<td class="slot-time">${String(h).padStart(2, '0')}-${String(h + 1).padStart(2, '0')}</td>`;
 
       const bookings = weekData[day] || [];
       for (const venue of venues) {
         const b = bookingForSlot(venue.venue_id, h, bookings);
-        let cls = 'slot';
-        let cell = '';
         if (b) {
-          cls += currentRole === 'admin' ? ' booked-admin' : ' booked-user';
-          cell = currentRole === 'admin'
-            ? `${b.customer}
-${b.purpose || ''}`
-            : '';
+          const startHour = toDateObj(b.start_time).getHours();
+          const endHour = toDateObj(b.end_time).getHours();
+          if (h > startHour) continue;
+          const span = Math.max(1, endHour - startHour);
+          const text = isAdmin ? `${b.customer}\n${b.purpose || ''}\n$${Number(b.price || 0).toFixed(0)}` : '已預約';
+          html += makeSlotCell(day, h, venue.venue_id, b, text, span);
+          continue;
         }
-        html += `<td class="${cls}"><div class="small">${cell}</div></td>`;
+        html += makeSlotCell(day, h, venue.venue_id, null, '', 1);
       }
       html += '</tr>';
     }
   }
 
   grid.innerHTML = html;
+  bindGridEvents();
 }
-
 
 async function refresh() {
   const date = document.getElementById('date').value;
@@ -343,58 +475,108 @@ async function refresh() {
 
 async function requestAdmin() {
   const password = prompt('請輸入管理員密碼：');
-  if (password === null) return;
+  if (password === null) return false;
   const resp = await fetch('/api/admin/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ password }),
   });
   if (!resp.ok) {
-    alert('密碼錯誤，無法切換管理員檢視');
-    return;
+    alert('密碼錯誤，無法切換進階檢視');
+    return false;
   }
   isAdmin = true;
-  currentRole = 'admin';
+  adminPassword = password;
   setAuthBadge();
   refresh();
+  return true;
 }
 
-function switchToUser() {
-  currentRole = 'user';
-  setAuthBadge();
-  closeBookingModal();
-  refresh();
-}
-
-function openBookingModal() {
+function openBookingModal(data = null) {
   if (!isAdmin) return;
+  modalEditingBookingId = data?.booking_id || null;
   document.getElementById('booking-modal').style.display = 'flex';
+  document.getElementById('add-btn').textContent = modalEditingBookingId ? '儲存修改' : '送出預約';
+  if (data) {
+    document.getElementById('venue').value = String(data.venue_id);
+    document.getElementById('customer').value = data.customer || '';
+    document.getElementById('purpose').value = data.purpose || '';
+    document.getElementById('price').value = Number(data.price || 0);
+    document.getElementById('start').value = data.start_time.replace(' ', 'T');
+    document.getElementById('end').value = data.end_time.replace(' ', 'T');
+  }
+}
+
+function openBookingModalFromCell(cell, bookingId) {
+  const day = cell.dataset.day;
+  const hour = Number(cell.dataset.hour);
+  const venueId = Number(cell.dataset.venueId);
+
+  if (bookingId) {
+    const dateBookings = bookingsCache[day] || [];
+    const booking = dateBookings.find(item => item.booking_id === bookingId);
+    if (booking) openBookingModal(booking);
+    return;
+  }
+
+  const start = `${day}T${String(hour).padStart(2, '0')}:00`;
+  const end = `${day}T${String(hour + 1).padStart(2, '0')}:00`;
+  modalEditingBookingId = null;
+  document.getElementById('venue').value = String(venueId);
+  document.getElementById('customer').value = '';
+  document.getElementById('purpose').value = purposes[0]?.name || '';
+  document.getElementById('price').value = 0;
+  document.getElementById('start').value = start;
+  document.getElementById('end').value = end;
+  openBookingModal();
 }
 
 function closeBookingModal() {
   document.getElementById('booking-modal').style.display = 'none';
+  modalEditingBookingId = null;
+}
+
+async function deleteSelectedBooking() {
+  if (!isAdmin || !selectedBookingId) return;
+  if (!confirm(`確定刪除預約 #${selectedBookingId}？`)) return;
+
+  const resp = await fetch('/api/bookings', {
+    method: 'DELETE',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ booking_id: selectedBookingId, admin_password: adminPassword }),
+  });
+  const data = await resp.json();
+  const msg = document.getElementById('msg');
+  if (!resp.ok) {
+    msg.style.color = '#dc2626';
+    msg.textContent = data.error || '刪除失敗';
+    return;
+  }
+
+  msg.style.color = '#16a34a';
+  msg.textContent = `已刪除預約 #${selectedBookingId}`;
+  selectedBookingId = null;
+  bookingsCache = {};
+  refresh();
 }
 
 document.getElementById('admin-view').addEventListener('click', async () => {
   if (!isAdmin) await requestAdmin();
-  else {
-    currentRole = 'admin';
-    setAuthBadge();
-    refresh();
-  }
 });
 
-document.getElementById('user-view').addEventListener('click', switchToUser);
 document.getElementById('date').addEventListener('change', refresh);
 document.getElementById('view-mode').addEventListener('change', refresh);
-document.getElementById('open-add-modal').addEventListener('click', openBookingModal);
+document.getElementById('open-add-modal').addEventListener('click', () => openBookingModal());
 document.getElementById('close-add-modal').addEventListener('click', closeBookingModal);
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Delete') deleteSelectedBooking();
+});
 
 document.getElementById('add-btn').addEventListener('click', async () => {
   const msg = document.getElementById('msg');
   if (!isAdmin) {
     msg.style.color = '#dc2626';
-    msg.textContent = '請先切換為管理員並通過密碼驗證';
+    msg.textContent = '請先切換進階檢視並通過密碼驗證';
     return;
   }
 
@@ -402,24 +584,30 @@ document.getElementById('add-btn').addEventListener('click', async () => {
     venue_id: Number(document.getElementById('venue').value),
     customer: document.getElementById('customer').value.trim(),
     purpose: document.getElementById('purpose').value.trim(),
+    price: Number(document.getElementById('price').value || 0),
     start: toServerDateTime(document.getElementById('start').value),
     end: toServerDateTime(document.getElementById('end').value),
+    admin_password: adminPassword,
   };
 
   const resp = await fetch('/api/bookings', {
-    method: 'POST',
+    method: modalEditingBookingId ? 'PUT' : 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify(payload),
+    body: JSON.stringify(modalEditingBookingId ? { ...payload, booking_id: modalEditingBookingId } : payload),
   });
   const data = await resp.json();
 
   if (!resp.ok) {
     msg.style.color = '#dc2626';
-    msg.textContent = data.error || '新增失敗';
+    msg.textContent = data.error || (modalEditingBookingId ? '更新失敗' : '新增失敗');
     return;
   }
+
   msg.style.color = '#16a34a';
-  msg.textContent = `新增成功 #${data.booking_id}`;
+  const createdCount = Number(data.created_count || 1);
+  msg.textContent = modalEditingBookingId
+    ? `更新成功 #${data.booking_id}`
+    : (createdCount > 1 ? `新增成功，共建立 ${createdCount} 筆預約` : `新增成功 #${data.booking_id}`);
   bookingsCache = {};
   closeBookingModal();
   refresh();
@@ -471,10 +659,11 @@ body {
   padding: 16px;
   box-shadow: 0 10px 28px rgba(67,56,202,.08);
 }
+* { box-sizing: border-box; }
 h1 { margin-top: 0; color:#1e3a8a; }
 h3 { margin: 0 0 8px; color:#334155; }
 input, button { padding:10px 12px; font-size:15px; border-radius:10px; border:1px solid #cbd5e1; }
-input { width: 100%; background:#fff; }
+input { width: 100%; background:#fff; min-width: 0; }
 button {
   cursor:pointer;
   background:linear-gradient(180deg,var(--opt-primary),var(--opt-primary-strong));
@@ -483,11 +672,19 @@ button {
   box-shadow: 0 6px 14px rgba(79,70,229,.25);
 }
 button:hover { filter:brightness(.98); }
-table { width: 100%; border-collapse: separate; border-spacing: 0; margin-top: 10px; background:#fff; border-radius:10px; overflow:hidden; }
-th, td { border:1px solid #dbe2f0; padding:10px; text-align:left; font-size:15px; }
+table { width: 100%; border-collapse: separate; border-spacing: 0; margin-top: 10px; background:#fff; border-radius:10px; overflow:hidden; table-layout: fixed; }
+th, td { border:1px solid #dbe2f0; padding:10px; text-align:left; font-size:15px; vertical-align: middle; }
 th { background:#eef2ff; color:#334155; }
-.actions button { margin-right: 6px; }
+th:first-child, td:first-child { width: 52px; }
+th:last-child, td:last-child { width: 186px; }
+.row-input { width: 100%; min-width: 0; }
+.actions { display:flex; gap:8px; align-items:center; justify-content:flex-start; flex-wrap:nowrap; white-space:nowrap; }
+.actions button { margin-right: 0; padding:8px 12px; min-width:56px; }
 .top { max-width:1200px; margin:0 auto 14px; display:flex; gap:10px; align-items:center; }
+.create-btn { margin-top: 10px; margin-bottom: 8px; }
+@media (max-width: 1100px) {
+  .wrap { grid-template-columns: 1fr; }
+}
 </style>
 </head>
 <body>
@@ -499,13 +696,13 @@ th { background:#eef2ff; color:#334155; }
   <div class="panel">
     <h3>場地管理</h3>
     <input id="new-venue" placeholder="新增場地名稱" />
-    <button onclick="createVenue()">新增場地</button>
+    <button class="create-btn" onclick="createVenue()">新增場地</button>
     <table id="venue-table"></table>
   </div>
   <div class="panel">
     <h3>用途管理</h3>
     <input id="new-purpose" placeholder="新增用途名稱" />
-    <button onclick="createPurpose()">新增用途</button>
+    <button class="create-btn" onclick="createPurpose()">新增用途</button>
     <table id="purpose-table"></table>
   </div>
 </div>
@@ -542,12 +739,12 @@ async function refresh() {
 
   const vt = document.getElementById('venue-table');
   vt.innerHTML = '<tr><th>ID</th><th>名稱</th><th>操作</th></tr>' + venues.map(v =>
-    `<tr><td>${v.venue_id}</td><td><input value="${v.name}" id="venue-${v.venue_id}"/></td><td class="actions"><button onclick="updateVenue(${v.venue_id})">儲存</button><button onclick="deleteVenue(${v.venue_id})">刪除</button></td></tr>`
+    `<tr><td>${v.venue_id}</td><td><input class="row-input" value="${v.name}" id="venue-${v.venue_id}"/></td><td class="actions"><button onclick="updateVenue(${v.venue_id})">儲存</button><button onclick="deleteVenue(${v.venue_id})">刪除</button></td></tr>`
   ).join('');
 
   const pt = document.getElementById('purpose-table');
   pt.innerHTML = '<tr><th>ID</th><th>名稱</th><th>操作</th></tr>' + purposes.map(p =>
-    `<tr><td>${p.purpose_id}</td><td><input value="${p.name}" id="purpose-${p.purpose_id}"/></td><td class="actions"><button onclick="updatePurpose(${p.purpose_id})">儲存</button><button onclick="deletePurpose(${p.purpose_id})">刪除</button></td></tr>`
+    `<tr><td>${p.purpose_id}</td><td><input class="row-input" value="${p.name}" id="purpose-${p.purpose_id}"/></td><td class="actions"><button onclick="updatePurpose(${p.purpose_id})">儲存</button><button onclick="deletePurpose(${p.purpose_id})">刪除</button></td></tr>`
   ).join('');
 }
 
@@ -586,6 +783,93 @@ refresh();
 """
 
 
+REPORT_PAGE = """<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>預約費用統計</title>
+<style>
+body { font-family: "Noto Sans TC", Arial, sans-serif; margin:0; padding:22px; background:#f4f6ff; color:#0f172a; }
+.wrap { max-width: 980px; margin: 0 auto; }
+.card { background:#fff; border:1px solid #dbe2f0; border-radius:14px; padding:16px; box-shadow:0 10px 25px rgba(30,64,175,.08); }
+.top { display:flex; gap:10px; align-items:center; margin-bottom:12px; }
+h1 { margin:0; color:#1e3a8a; }
+input, button { padding:10px 12px; border-radius:10px; border:1px solid #cbd5e1; font-size:15px; }
+button { background:#4f46e5; color:#fff; border:none; cursor:pointer; }
+.filters { display:flex; flex-wrap:wrap; gap:10px; align-items:end; margin-bottom:12px; }
+table { width:100%; border-collapse:collapse; }
+th, td { border:1px solid #dbe2f0; padding:10px; text-align:left; }
+th { background:#eef2ff; }
+.total { margin-top:10px; font-weight:700; color:#1e3a8a; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <h1>預約費用統計</h1>
+    <button onclick="location.href='/'">回預約頁</button>
+  </div>
+  <div class="card">
+    <div class="filters">
+      <div><div>開始日期</div><input id="start-date" type="date"/></div>
+      <div><div>結束日期</div><input id="end-date" type="date"/></div>
+      <div><div>預約人</div><input id="customer-filter" placeholder="留空=全部"/></div>
+      <button id="query-btn">查詢</button>
+    </div>
+    <table id="report-table"></table>
+    <div class="total" id="grand-total"></div>
+  </div>
+</div>
+<script>
+let adminPassword = '';
+
+async function login() {
+  const pw = prompt('請輸入管理員密碼：');
+  if (pw === null) return false;
+  const resp = await fetch('/api/admin/login', {
+    method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({password: pw})
+  });
+  if (!resp.ok) { alert('密碼錯誤'); return false; }
+  adminPassword = pw;
+  return true;
+}
+
+async function refreshReport() {
+  if (!adminPassword) {
+    const ok = await login();
+    if (!ok) return;
+  }
+  const start = document.getElementById('start-date').value;
+  const end = document.getElementById('end-date').value;
+  const customer = document.getElementById('customer-filter').value.trim();
+  const resp = await fetch('/api/reports/fees', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ admin_password: adminPassword, start_date: start, end_date: end, customer }),
+  });
+  const data = await resp.json();
+  if (!resp.ok) { alert(data.error || '查詢失敗'); return; }
+
+  const table = document.getElementById('report-table');
+  table.innerHTML = '<tr><th>預約人</th><th>預約筆數</th><th>總費用</th></tr>' +
+    data.items.map(item => `<tr><td>${item.customer}</td><td>${item.booking_count}</td><td>$${Number(item.total_fee).toFixed(0)}</td></tr>`).join('');
+  document.getElementById('grand-total').textContent = `總計：$${Number(data.grand_total).toFixed(0)}`;
+}
+
+document.getElementById('query-btn').addEventListener('click', refreshReport);
+(function init() {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth(), 1);
+  const ymd = d => d.toISOString().slice(0, 10);
+  document.getElementById('start-date').value = ymd(start);
+  document.getElementById('end-date').value = ymd(now);
+})();
+</script>
+</body>
+</html>
+"""
+
 class BookingWebHandler(BaseHTTPRequestHandler):
     def _send_json(self, payload: Union[Dict[str, Any], List[Any]], status: int = HTTPStatus.OK) -> None:
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
@@ -610,6 +894,9 @@ class BookingWebHandler(BaseHTTPRequestHandler):
             return
         if parsed.path == "/options":
             self._send_html(OPTIONS_PAGE)
+            return
+        if parsed.path == "/reports":
+            self._send_html(REPORT_PAGE)
             return
         if parsed.path == "/api/venues":
             with manager_lock:
@@ -668,6 +955,22 @@ class BookingWebHandler(BaseHTTPRequestHandler):
                 self._send_json({"error": str(exc)}, status=HTTPStatus.BAD_REQUEST)
                 return
 
+        if parsed.path == "/api/reports/fees":
+            try:
+                self._check_admin_password(payload)
+                start_date = str(payload.get("start_date", "")).strip()
+                end_date = str(payload.get("end_date", "")).strip()
+                if not start_date or not end_date:
+                    raise ValueError("請提供開始與結束日期")
+                customer = str(payload.get("customer", "")).strip()
+                with manager_lock:
+                    items = manager.summarize_fees(start_date, end_date, customer)
+                grand_total = sum(item["total_fee"] for item in items)
+                self._send_json({"items": items, "grand_total": grand_total})
+            except ValueError as exc:
+                self._send_json({"error": str(exc)}, status=HTTPStatus.BAD_REQUEST)
+            return
+
         if parsed.path != "/api/bookings":
             self._send_json({"error": "Not Found"}, status=HTTPStatus.NOT_FOUND)
             return
@@ -677,14 +980,18 @@ class BookingWebHandler(BaseHTTPRequestHandler):
                 if not str(payload.get(field, "")).strip():
                     raise ValueError(f"缺少必要欄位：{field}")
             with manager_lock:
-                booking = manager.add_booking(
+                created = manager.add_bookings_for_purpose(
                     venue_id=int(payload["venue_id"]),
                     customer=payload["customer"],
                     purpose=payload.get("purpose", ""),
+                    price=payload.get("price", 0),
                     start=payload["start"],
                     end=payload["end"],
                 )
-            self._send_json(booking_to_dict(booking), status=HTTPStatus.CREATED)
+            first = created[0]
+            response = booking_to_dict(first)
+            response["created_count"] = len(created)
+            self._send_json(response, status=HTTPStatus.CREATED)
         except ValueError as exc:
             self._send_json({"error": str(exc)}, status=HTTPStatus.BAD_REQUEST)
 
@@ -697,12 +1004,25 @@ class BookingWebHandler(BaseHTTPRequestHandler):
             with manager_lock:
                 if parsed.path == "/api/venues":
                     item = manager.update_venue(int(payload.get("venue_id", 0)), str(payload.get("name", "")))
-                elif parsed.path == "/api/purposes":
-                    item = manager.update_purpose(int(payload.get("purpose_id", 0)), str(payload.get("name", "")))
-                else:
-                    self._send_json({"error": "Not Found"}, status=HTTPStatus.NOT_FOUND)
+                    self._send_json(item.__dict__)
                     return
-            self._send_json(item.__dict__)
+                if parsed.path == "/api/purposes":
+                    item = manager.update_purpose(int(payload.get("purpose_id", 0)), str(payload.get("name", "")))
+                    self._send_json(item.__dict__)
+                    return
+                if parsed.path == "/api/bookings":
+                    item = manager.update_booking(
+                        booking_id=int(payload.get("booking_id", 0)),
+                        venue_id=int(payload.get("venue_id", 0)),
+                        customer=str(payload.get("customer", "")),
+                        purpose=str(payload.get("purpose", "")),
+                        price=payload.get("price", 0),
+                        start=str(payload.get("start", "")),
+                        end=str(payload.get("end", "")),
+                    )
+                    self._send_json(booking_to_dict(item))
+                    return
+                self._send_json({"error": "Not Found"}, status=HTTPStatus.NOT_FOUND)
         except (ValueError, json.JSONDecodeError) as exc:
             self._send_json({"error": str(exc) or "JSON 格式錯誤"}, status=HTTPStatus.BAD_REQUEST)
 
@@ -717,6 +1037,8 @@ class BookingWebHandler(BaseHTTPRequestHandler):
                     ok = manager.delete_venue(int(payload.get("venue_id", 0)))
                 elif parsed.path == "/api/purposes":
                     ok = manager.delete_purpose(int(payload.get("purpose_id", 0)))
+                elif parsed.path == "/api/bookings":
+                    ok = manager.cancel_booking(int(payload.get("booking_id", 0)))
                 else:
                     self._send_json({"error": "Not Found"}, status=HTTPStatus.NOT_FOUND)
                     return

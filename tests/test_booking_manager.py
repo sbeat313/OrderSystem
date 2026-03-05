@@ -44,16 +44,53 @@ class BookingManagerTests(unittest.TestCase):
             venue_id=1,
             customer="王小明",
             purpose="臨租",
+            price=600,
             start="2026-04-01 09:00",
             end="2026-04-01 11:00",
         )
         self.assertEqual(booking.booking_id, 1)
+        self.assertEqual(booking.price, 600)
         self.assertEqual(len(self.manager.list_bookings("2026-04-01")), 1)
 
     def test_conflict_booking_raises_error(self):
         self.manager.add_booking(1, "王小明", "2026-04-01 09:00", "2026-04-01 11:00", "臨租")
         with self.assertRaises(ValueError):
             self.manager.add_booking(1, "李小華", "2026-04-01 10:30", "2026-04-01 12:00", "臨租")
+
+    def test_add_bookings_for_single_month_rent(self):
+        items = self.manager.add_bookings_for_purpose(
+            venue_id=1,
+            customer="王小明",
+            purpose="單月租",
+            price=500,
+            start="2026-04-01 09:00",
+            end="2026-04-01 11:00",
+        )
+        self.assertEqual(len(items), 5)
+        self.assertEqual(items[0].start_time.strftime("%Y-%m-%d"), "2026-04-01")
+        self.assertEqual(items[-1].start_time.strftime("%Y-%m-%d"), "2026-04-29")
+
+    def test_add_bookings_for_double_month_rent(self):
+        items = self.manager.add_bookings_for_purpose(
+            venue_id=1,
+            customer="王小明",
+            purpose="雙月租",
+            price=500,
+            start="2026-04-01 09:00",
+            end="2026-04-01 11:00",
+        )
+        self.assertEqual(len(items), 9)
+        self.assertEqual(items[-1].start_time.strftime("%Y-%m-%d"), "2026-05-27")
+
+    def test_summarize_fees(self):
+        self.manager.add_booking(1, "王小明", "2026-04-01 09:00", "2026-04-01 11:00", "臨租", 500)
+        self.manager.add_booking(2, "王小明", "2026-04-02 09:00", "2026-04-02 11:00", "臨租", 700)
+        items = self.manager.summarize_fees("2026-04-01", "2026-04-30")
+        self.assertEqual(items[0]["customer"], "王小明")
+        self.assertEqual(items[0]["total_fee"], 1200)
+        filtered = self.manager.summarize_fees("2026-04-01", "2026-04-30", "王小明")
+        self.assertEqual(len(filtered), 1)
+        self.assertEqual(filtered[0]["total_fee"], 1200)
 
     def test_persistence(self):
         self.manager.add_booking(2, "王小明", "2026-04-01 09:00", "2026-04-01 10:00", "臨租")
