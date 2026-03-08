@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sqlite3
+import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -80,6 +81,8 @@ class BookingManager:
             columns = [row["name"] for row in conn.execute("PRAGMA table_info(bookings)").fetchall()]
             if "price" not in columns:
                 conn.execute("ALTER TABLE bookings ADD COLUMN price REAL NOT NULL DEFAULT 0")
+            if "rental_group_id" not in columns:
+                conn.execute("ALTER TABLE bookings ADD COLUMN rental_group_id TEXT")
             count = conn.execute("SELECT COUNT(*) FROM venues").fetchone()[0]
             if count == 0:
                 conn.executemany(
@@ -234,8 +237,8 @@ class BookingManager:
 
             cursor = conn.execute(
                 """
-                INSERT INTO bookings(venue_id, customer, purpose, price, start_time, end_time)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO bookings(venue_id, customer, purpose, price, start_time, end_time, rental_group_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     venue_id,
@@ -244,6 +247,7 @@ class BookingManager:
                     booking_price,
                     start_time.strftime(TIME_FORMAT),
                     end_time.strftime(TIME_FORMAT),
+                    None,
                 ),
             )
             booking_id = cursor.lastrowid
@@ -286,6 +290,7 @@ class BookingManager:
             cursor += timedelta(days=7)
 
         with self._connect() as conn:
+            group_id = str(uuid.uuid4())
             venue = conn.execute("SELECT id, name FROM venues WHERE id = ?", (venue_id,)).fetchone()
             if venue is None:
                 raise ValueError("場地不存在")
@@ -322,8 +327,8 @@ class BookingManager:
                 slot_end = slot_start + duration
                 cursor = conn.execute(
                     """
-                    INSERT INTO bookings(venue_id, customer, purpose, price, start_time, end_time)
-                    VALUES (?, ?, ?, ?, ?, ?)
+                    INSERT INTO bookings(venue_id, customer, purpose, price, start_time, end_time, rental_group_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         venue_id,
@@ -332,6 +337,7 @@ class BookingManager:
                         booking_price,
                         slot_start.strftime(TIME_FORMAT),
                         slot_end.strftime(TIME_FORMAT),
+                        group_id,
                     ),
                 )
                 created.append(
@@ -351,6 +357,52 @@ class BookingManager:
 
     def cancel_booking(self, booking_id: int) -> bool:
         with self._connect() as conn:
+            row = conn.execute(
+                """
+                SELECT id, venue_id, customer, purpose, start_time, end_time, rental_group_id
+                FROM bookings
+                WHERE id = ?
+                """,
+                (booking_id,),
+            ).fetchone()
+            if row is None:
+                return False
+
+            if row["purpose"] in {"單月租", "雙月租"}:
+                if row["rental_group_id"]:
+                    cur = conn.execute(
+                        "DELETE FROM bookings WHERE rental_group_id = ?",
+                        (row["rental_group_id"],),
+                    )
+                    return cur.rowcount > 0
+
+                start_time = datetime.strptime(row["start_time"], TIME_FORMAT)
+                period_end = self._month_end(start_time)
+                if row["purpose"] == "雙月租":
+                    period_end = self._month_end(self._next_month_start(start_time))
+
+                cur = conn.execute(
+                    """
+                    DELETE FROM bookings
+                    WHERE venue_id = ?
+                      AND customer = ?
+                      AND purpose = ?
+                      AND date(start_time) BETWEEN date(?) AND date(?)
+                      AND time(start_time) = time(?)
+                      AND time(end_time) = time(?)
+                    """,
+                    (
+                        row["venue_id"],
+                        row["customer"],
+                        row["purpose"],
+                        start_time.strftime("%Y-%m-%d"),
+                        period_end.strftime("%Y-%m-%d"),
+                        row["start_time"],
+                        row["end_time"],
+                    ),
+                )
+                return cur.rowcount > 0
+
             cur = conn.execute("DELETE FROM bookings WHERE id = ?", (booking_id,))
             return cur.rowcount > 0
 

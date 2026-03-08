@@ -219,6 +219,33 @@ class TestWebBookingApp(unittest.TestCase):
         created = json.loads(body)
         self.assertEqual(created["created_count"], 9)
 
+    def test_delete_monthly_rent_removes_related_bookings(self):
+        status, body = self.request(
+            "POST",
+            "/api/bookings",
+            {
+                "venue_id": 1,
+                "customer": "王小明",
+                "purpose": "單月租",
+                "price": 500,
+                "start": "2026-04-01 09:00",
+                "end": "2026-04-01 11:00",
+            },
+        )
+        self.assertEqual(status, 201)
+        booking_id = json.loads(body)["booking_id"]
+
+        status, _ = self.request(
+            "DELETE",
+            "/api/bookings",
+            {"admin_password": "admin123", "booking_id": booking_id},
+        )
+        self.assertEqual(status, 200)
+
+        status, body = self.request("GET", "/api/bookings")
+        self.assertEqual(status, 200)
+        self.assertEqual(len(json.loads(body)), 0)
+
     def test_fee_report_endpoint(self):
         self.request(
             "POST",
