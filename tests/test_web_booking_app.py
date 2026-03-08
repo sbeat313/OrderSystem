@@ -70,6 +70,12 @@ class TestWebBookingApp(unittest.TestCase):
         self.assertNotIn("在欲新增的「場地/時段空白格」雙擊可快速新增", body)
         self.assertNotIn("只有通過管理員驗證後可新增預約", body)
 
+    def test_homepage_booking_modal_shows_validation_and_error_area(self):
+        status, body = self.request("GET", "/")
+        self.assertEqual(status, 200)
+        self.assertIn('id="booking-modal-msg"', body)
+        self.assertIn('請填寫：', body)
+
     def test_options_page_exists(self):
         status, body = self.request("GET", "/options")
         self.assertEqual(status, 200)
