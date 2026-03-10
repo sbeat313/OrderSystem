@@ -156,11 +156,7 @@ td.slot.booked-user { background: #93c5fd; color: #0f172a; }
       </div>
       <div class="field">
         <label>顯示模式</label>
-        <select id="view-mode">
-          <option value="daily" selected>每日</option>
-          <option value="weekly">每週</option>
-          <option value="biweekly">雙週</option>
-        </select>
+        <input value="固定雙週（14天）" disabled />
       </div>
       <button class="chip" id="admin-view">進階檢視</button>
       <button class="chip" id="options-link" style="display:none;" onclick="location.href='/options'">場地/用途設定</button>
@@ -555,14 +551,7 @@ $${Number(b.price || 0).toFixed(0)}` : '已預約';
 
 async function refresh() {
   const date = document.getElementById('date').value;
-  const mode = document.getElementById('view-mode').value;
-  if (mode === 'daily') {
-    renderDaily(await loadBookings(date));
-  } else if (mode === 'weekly') {
-    renderWeekly(await loadRangeBookings(date, 7), date, 7);
-  } else {
-    renderTwoDay(await loadRangeBookings(date, 2), date);
-  }
+  renderWeekly(await loadRangeBookings(date, 14), date, 14);
 }
 
 async function requestAdmin() {
@@ -697,7 +686,6 @@ document.getElementById('admin-view').addEventListener('click', async () => {
 });
 
 document.getElementById('date').addEventListener('change', refresh);
-document.getElementById('view-mode').addEventListener('change', refresh);
 document.getElementById('open-add-modal').addEventListener('click', () => openBookingModal());
 document.getElementById('close-add-modal').addEventListener('click', closeBookingModal);
 document.addEventListener('keydown', (event) => {
