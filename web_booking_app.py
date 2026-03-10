@@ -157,7 +157,7 @@ td.slot.booked-user { background: #93c5fd; color: #0f172a; }
       <div class="field">
         <label>顯示模式</label>
         <select id="view-mode">
-          <option value="daily" selected>雙日（左右）</option>
+          <option value="daily" selected>每日</option>
           <option value="weekly">每週</option>
           <option value="biweekly">雙週</option>
         </select>
@@ -405,12 +405,42 @@ async function handleBookingDrop(targetCell, dragData, copyMode) {
   await refresh();
 }
 
+function renderDaily(bookings) {
+  const grid = document.getElementById('grid');
+  const day = document.getElementById('date').value;
+  let html = '<tr><th class="sticky-left-1">時段</th>';
+  for (const venue of venues) html += `<th>${venue.name}</th>`;
+  html += '</tr>';
+
+  for (let h = START_HOUR; h < END_HOUR; h++) {
+    html += `<tr><td class="venue">${String(h).padStart(2, '0')}-${String(h + 1).padStart(2, '0')}</td>`;
+    for (const venue of venues) {
+      const b = bookingForSlot(venue.venue_id, h, bookings);
+      if (b) {
+        const startHour = toDateObj(b.start_time).getHours();
+        const endHour = toDateObj(b.end_time).getHours();
+        if (h > startHour) continue;
+        const span = Math.max(1, endHour - startHour);
+        const text = isAdmin ? `${b.customer}
+${b.purpose || ''}
+$${Number(b.price || 0).toFixed(0)}` : '已預約';
+        html += makeSlotCell(day, h, venue.venue_id, b, text, span);
+        continue;
+      }
+      html += makeSlotCell(day, h, venue.venue_id, null, '', 1);
+    }
+    html += '</tr>';
+  }
+  grid.innerHTML = html;
+  bindGridEvents();
+}
+
 function isWeekend(day) {
   const weekDay = new Date(`${day}T00:00:00`).getDay();
   return weekDay === 0 || weekDay === 6;
 }
 
-function renderDaily(dayData, baseDate) {
+function renderTwoDay(dayData, baseDate) {
   const grid = document.getElementById('grid');
   const firstDay = new Date(`${baseDate}T00:00:00`);
   const secondDay = new Date(firstDay);
@@ -521,11 +551,11 @@ async function refresh() {
   const date = document.getElementById('date').value;
   const mode = document.getElementById('view-mode').value;
   if (mode === 'daily') {
-    renderDaily(await loadRangeBookings(date, 2), date);
+    renderDaily(await loadBookings(date));
   } else if (mode === 'weekly') {
     renderWeekly(await loadRangeBookings(date, 7), date, 7);
   } else {
-    renderWeekly(await loadRangeBookings(date, 14), date, 14);
+    renderTwoDay(await loadRangeBookings(date, 2), date);
   }
 }
 

@@ -78,7 +78,8 @@ class TestWebBookingApp(unittest.TestCase):
         self.assertIn('id="booking-modal-msg"', body)
         self.assertIn('場地（可複選）', body)
         self.assertIn('multiple size="6"', body)
-        self.assertIn('雙日（左右）', body)
+        self.assertIn('每日', body)
+        self.assertIn("renderTwoDay(await loadRangeBookings(date, 2), date);", body)
 
     def test_options_page_exists(self):
         status, body = self.request("GET", "/options")
