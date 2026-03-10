@@ -204,6 +204,11 @@ let purposes = [];
 let bookingsCache = {};
 let selectedBookingId = null;
 let modalEditingBookingId = null;
+const ADMIN_PASSWORD_KEY = 'booking_admin_password';
+
+function saveAdminPassword(password) { localStorage.setItem(ADMIN_PASSWORD_KEY, password); }
+function loadAdminPassword() { return localStorage.getItem(ADMIN_PASSWORD_KEY) || ''; }
+function clearAdminPassword() { localStorage.removeItem(ADMIN_PASSWORD_KEY); }
 
 function toServerDateTime(v) { return v.replace('T', ' '); }
 function toDateObj(s) { return new Date(s.replace(' ', 'T') + ':00'); }
@@ -270,6 +275,7 @@ function bookingForSlot(venueId, slotHour, bookings) {
 
 function setAuthBadge() {
   document.getElementById('admin-view').classList.toggle('active', isAdmin);
+  document.getElementById('admin-view').textContent = isAdmin ? '已登入（點我登出）' : '進階檢視';
   document.getElementById('options-link').style.display = isAdmin ? 'inline-block' : 'none';
   document.getElementById('report-link').style.display = isAdmin ? 'inline-block' : 'none';
   document.getElementById('extra-income-link').style.display = isAdmin ? 'inline-block' : 'none';
@@ -573,9 +579,37 @@ async function requestAdmin() {
   }
   isAdmin = true;
   adminPassword = password;
+  saveAdminPassword(password);
   setAuthBadge();
   refresh();
   return true;
+}
+
+
+async function restoreAdminSession() {
+  const stored = loadAdminPassword();
+  if (!stored) return false;
+  const resp = await fetch('/api/admin/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password: stored }),
+  });
+  if (!resp.ok) {
+    clearAdminPassword();
+    return false;
+  }
+  isAdmin = true;
+  adminPassword = stored;
+  return true;
+}
+
+function logoutAdmin() {
+  isAdmin = false;
+  adminPassword = '';
+  selectedBookingId = null;
+  clearAdminPassword();
+  setAuthBadge();
+  refresh();
 }
 
 function openBookingModal(data = null) {
@@ -655,7 +689,11 @@ async function deleteSelectedBooking() {
 }
 
 document.getElementById('admin-view').addEventListener('click', async () => {
-  if (!isAdmin) await requestAdmin();
+  if (isAdmin) {
+    logoutAdmin();
+    return;
+  }
+  await requestAdmin();
 });
 
 document.getElementById('date').addEventListener('change', refresh);
@@ -733,6 +771,7 @@ document.getElementById('add-btn').addEventListener('click', async () => {
   document.getElementById('date').value = now.toISOString().slice(0, 10);
   await loadVenues();
   await loadPurposes();
+  await restoreAdminSession();
   setAuthBadge();
   await refresh();
 })();
@@ -806,6 +845,7 @@ th:last-child, td:last-child { width: 186px; }
 <div class="top">
   <h1 style="margin:0;">場地 / 用途 管理</h1>
   <button onclick="location.href='/'">回預約頁</button>
+  <button onclick="logoutAdmin()">登出管理員</button>
 </div>
 <div class="wrap">
   <div class="panel">
@@ -823,6 +863,17 @@ th:last-child, td:last-child { width: 186px; }
 </div>
 <script>
 let adminPassword = '';
+const ADMIN_PASSWORD_KEY = 'booking_admin_password';
+
+function saveAdminPassword(password) { localStorage.setItem(ADMIN_PASSWORD_KEY, password); }
+function loadAdminPassword() { return localStorage.getItem(ADMIN_PASSWORD_KEY) || ''; }
+function clearAdminPassword() { localStorage.removeItem(ADMIN_PASSWORD_KEY); }
+
+function logoutAdmin() {
+  clearAdminPassword();
+  adminPassword = '';
+  alert('已登出管理員');
+}
 
 async function login() {
   const pw = prompt('請輸入管理員密碼：');
@@ -830,11 +881,18 @@ async function login() {
   const resp = await fetch('/api/admin/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({password: pw})});
   if (!resp.ok) { alert('密碼錯誤'); return false; }
   adminPassword = pw;
+  saveAdminPassword(pw);
   return true;
 }
 
 async function ensureLogin() {
-  if (adminPassword) return true;
+  if (!adminPassword) adminPassword = loadAdminPassword();
+  if (adminPassword) {
+    const resp = await fetch('/api/admin/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({password: adminPassword})});
+    if (resp.ok) return true;
+    clearAdminPassword();
+    adminPassword = '';
+  }
   return await login();
 }
 
@@ -905,6 +963,7 @@ EXTRA_INCOME_PAGE = """<!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>額外收入登記</title>
 <style>
+* { box-sizing: border-box; }
 body { font-family: "Noto Sans TC", Arial, sans-serif; margin:0; padding:22px; background:#f4f6ff; color:#0f172a; }
 .wrap { max-width: 980px; margin: 0 auto; }
 .card { background:#fff; border:1px solid #dbe2f0; border-radius:14px; padding:16px; box-shadow:0 10px 25px rgba(30,64,175,.08); }
@@ -926,6 +985,7 @@ th { background:#eef2ff; }
     <h1>額外收入登記</h1>
     <button onclick="location.href='/'">回預約頁</button>
     <button onclick="location.href='/reports'">去費用統計</button>
+    <button onclick="logoutAdmin()">登出管理員</button>
   </div>
   <div class="card">
     <div class="filters">
@@ -942,6 +1002,16 @@ th { background:#eef2ff; }
 </div>
 <script>
 let adminPassword = '';
+const ADMIN_PASSWORD_KEY = 'booking_admin_password';
+
+function saveAdminPassword(password) { localStorage.setItem(ADMIN_PASSWORD_KEY, password); }
+function loadAdminPassword() { return localStorage.getItem(ADMIN_PASSWORD_KEY) || ''; }
+function clearAdminPassword() { localStorage.removeItem(ADMIN_PASSWORD_KEY); }
+function logoutAdmin() {
+  clearAdminPassword();
+  adminPassword = '';
+  alert('已登出管理員');
+}
 
 function toServerDateTime(v) { return v.replace('T', ' '); }
 
@@ -953,11 +1023,18 @@ async function login() {
   });
   if (!resp.ok) { alert('密碼錯誤'); return false; }
   adminPassword = pw;
+  saveAdminPassword(pw);
   return true;
 }
 
 async function ensureLogin() {
-  if (adminPassword) return true;
+  if (!adminPassword) adminPassword = loadAdminPassword();
+  if (adminPassword) {
+    const resp = await fetch('/api/admin/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({password: adminPassword})});
+    if (resp.ok) return true;
+    clearAdminPassword();
+    adminPassword = '';
+  }
   return login();
 }
 
@@ -1030,6 +1107,7 @@ REPORT_PAGE = """<!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>預約費用統計</title>
 <style>
+* { box-sizing: border-box; }
 body { font-family: "Noto Sans TC", Arial, sans-serif; margin:0; padding:22px; background:#f4f6ff; color:#0f172a; }
 .wrap { max-width: 980px; margin: 0 auto; }
 .card { background:#fff; border:1px solid #dbe2f0; border-radius:14px; padding:16px; box-shadow:0 10px 25px rgba(30,64,175,.08); }
@@ -1051,6 +1129,7 @@ th { background:#eef2ff; }
     <h1>預約費用統計</h1>
     <button onclick="location.href='/'">回預約頁</button>
     <button onclick="location.href='/extra-income'">額外收入登記</button>
+    <button onclick="logoutAdmin()">登出管理員</button>
   </div>
   <div class="card">
     <div class="filters">
@@ -1068,6 +1147,17 @@ th { background:#eef2ff; }
 </div>
 <script>
 let adminPassword = '';
+const ADMIN_PASSWORD_KEY = 'booking_admin_password';
+
+function saveAdminPassword(password) { localStorage.setItem(ADMIN_PASSWORD_KEY, password); }
+function loadAdminPassword() { return localStorage.getItem(ADMIN_PASSWORD_KEY) || ''; }
+function clearAdminPassword() { localStorage.removeItem(ADMIN_PASSWORD_KEY); }
+
+function logoutAdmin() {
+  clearAdminPassword();
+  adminPassword = '';
+  alert('已登出管理員');
+}
 
 async function login() {
   const pw = prompt('請輸入管理員密碼：');
@@ -1077,10 +1167,19 @@ async function login() {
   });
   if (!resp.ok) { alert('密碼錯誤'); return false; }
   adminPassword = pw;
+  saveAdminPassword(pw);
   return true;
 }
 
 async function refreshReport() {
+  if (!adminPassword) adminPassword = loadAdminPassword();
+  if (adminPassword) {
+    const check = await fetch('/api/admin/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({password: adminPassword})});
+    if (!check.ok) {
+      clearAdminPassword();
+      adminPassword = '';
+    }
+  }
   if (!adminPassword) {
     const ok = await login();
     if (!ok) return;

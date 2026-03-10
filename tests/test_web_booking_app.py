@@ -76,6 +76,8 @@ class TestWebBookingApp(unittest.TestCase):
         status, body = self.request("GET", "/")
         self.assertEqual(status, 200)
         self.assertIn('id="booking-modal-msg"', body)
+        self.assertIn("已登入（點我登出）", body)
+        self.assertIn("booking_admin_password", body)
         self.assertIn('場地（可複選）', body)
         self.assertIn('multiple size="6"', body)
         self.assertIn('每日', body)
@@ -96,6 +98,8 @@ class TestWebBookingApp(unittest.TestCase):
         status, body = self.request("GET", "/extra-income")
         self.assertEqual(status, 200)
         self.assertIn("額外收入登記", body)
+        self.assertIn("box-sizing: border-box", body)
+        self.assertIn("booking_admin_password", body)
 
     def test_export_endpoint_removed(self):
         status, _ = self.request("GET", "/api/export?format=png&date=2026-04-01&role=user")
