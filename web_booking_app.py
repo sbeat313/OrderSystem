@@ -118,6 +118,10 @@ td.venue {
 }
 td.slot-time { min-width: var(--sticky-time); font-weight: 600; background: #f8fafc; position: sticky; left: var(--sticky-venue); z-index: 3; }
 td.slot { height: 56px; background: #fcfdff; }
+th.day-block-start, td.day-block-start { border-left: 4px solid #64748b; }
+th.weekend-head { background: linear-gradient(180deg, #fee2e2, #fecaca); color: #7f1d1d; }
+td.weekend-date { background: #fff1f2; color: #9f1239; font-weight: 800; }
+td.weekend-time { background: #fff7ed; color: #9a3412; }
 td.slot.booked-admin { background: #bbf7d0; }
 td.slot.booked-user { background: #93c5fd; color: #0f172a; }
 .small { font-size: 15px; line-height: 1.35; white-space: pre-line; }
@@ -142,9 +146,9 @@ td.slot.booked-user { background: #93c5fd; color: #0f172a; }
       <div class="field">
         <label>顯示模式</label>
         <select id="view-mode">
-          <option value="daily">每日</option>
+          <option value="daily" selected>雙日（左右）</option>
           <option value="weekly">每週</option>
-          <option value="biweekly" selected>雙週</option>
+          <option value="biweekly">雙週</option>
         </select>
       </div>
       <button class="chip" id="admin-view">進階檢視</button>
@@ -163,7 +167,7 @@ td.slot.booked-user { background: #93c5fd; color: #0f172a; }
   <div class="modal">
     <h3 style="margin-top:0;">新增預約（管理員）</h3>
     <div class="modal-grid">
-      <div><label>場地</label><select id="venue"></select></div>
+      <div><label>場地（可複選）</label><select id="venue" multiple size="6"></select></div>
       <div><label>預約人</label><input id="customer" placeholder="例如：江江" /></div>
       <div><label>用途</label><select id="purpose"></select></div>
       <div><label>價錢</label><input id="price" type="number" min="0" step="1" placeholder="例如：500" /></div>
@@ -388,27 +392,59 @@ async function handleBookingDrop(targetCell, dragData, copyMode) {
   await refresh();
 }
 
-function renderDaily(bookings) {
+function isWeekend(day) {
+  const weekDay = new Date(`${day}T00:00:00`).getDay();
+  return weekDay === 0 || weekDay === 6;
+}
+
+function renderDaily(dayData, baseDate) {
   const grid = document.getElementById('grid');
-  const day = document.getElementById('date').value;
+  const firstDay = new Date(`${baseDate}T00:00:00`);
+  const secondDay = new Date(firstDay);
+  secondDay.setDate(secondDay.getDate() + 1);
+  const days = [fmtDate(firstDay), fmtDate(secondDay)];
+  const weekdayNames = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
+
   let html = '<tr><th class="sticky-left-1">時段</th>';
-  for (const venue of venues) html += `<th>${venue.name}</th>`;
+  for (const day of days) {
+    const weekDay = new Date(`${day}T00:00:00`).getDay();
+    const weekendClass = isWeekend(day) ? ' weekend-head' : '';
+    const separatorClass = day === days[1] ? ' day-block-start' : '';
+    html += `<th class="${separatorClass}${weekendClass}" colspan="${venues.length}">${day}（${weekdayNames[weekDay]}）</th>`;
+  }
+  html += '</tr><tr><th class="sticky-left-1">場地</th>';
+  for (const day of days) {
+    for (const [index, venue] of venues.entries()) {
+      const classes = [];
+      if (day === days[1] && index === 0) classes.push('day-block-start');
+      html += `<th class="${classes.join(' ')}">${venue.name}</th>`;
+    }
+  }
   html += '</tr>';
 
   for (let h = START_HOUR; h < END_HOUR; h++) {
     html += `<tr><td class="venue">${String(h).padStart(2, '0')}-${String(h + 1).padStart(2, '0')}</td>`;
-    for (const venue of venues) {
-      const b = bookingForSlot(venue.venue_id, h, bookings);
-      if (b) {
-        const startHour = toDateObj(b.start_time).getHours();
-        const endHour = toDateObj(b.end_time).getHours();
-        if (h > startHour) continue;
-        const span = Math.max(1, endHour - startHour);
-        const text = isAdmin ? `${b.customer}\n${b.purpose || ''}\n$${Number(b.price || 0).toFixed(0)}` : '已預約';
-        html += makeSlotCell(day, h, venue.venue_id, b, text, span);
-        continue;
+    for (const day of days) {
+      const bookings = dayData[day] || [];
+      for (const [index, venue] of venues.entries()) {
+        const b = bookingForSlot(venue.venue_id, h, bookings);
+        if (b) {
+          const startHour = toDateObj(b.start_time).getHours();
+          const endHour = toDateObj(b.end_time).getHours();
+          if (h > startHour) continue;
+          const span = Math.max(1, endHour - startHour);
+          const text = isAdmin ? `${b.customer}
+${b.purpose || ''}
+$${Number(b.price || 0).toFixed(0)}` : '已預約';
+          let cell = makeSlotCell(day, h, venue.venue_id, b, text, span);
+          if (day === days[1] && index === 0) cell = cell.replace('class="slot', 'class="slot day-block-start');
+          html += cell;
+          continue;
+        }
+        let cell = makeSlotCell(day, h, venue.venue_id, null, '', 1);
+        if (day === days[1] && index === 0) cell = cell.replace('class="slot', 'class="slot day-block-start');
+        html += cell;
       }
-      html += makeSlotCell(day, h, venue.venue_id, null, '', 1);
     }
     html += '</tr>';
   }
@@ -432,13 +468,17 @@ function renderWeekly(weekData, baseDate, days = 7) {
   html += '</tr>';
 
   for (const day of dates) {
-    const weekday = weekdayNames[(new Date(day + 'T00:00:00').getDay() + 6) % 7];
+    const weekdayIndex = (new Date(day + 'T00:00:00').getDay() + 6) % 7;
+    const weekday = weekdayNames[weekdayIndex];
+    const weekend = weekdayIndex >= 5;
     for (let h = START_HOUR; h < END_HOUR; h++) {
       html += '<tr>';
       if (h === START_HOUR) {
-        html += `<td class="venue" rowspan="${END_HOUR - START_HOUR}">${day}<br>(${weekday})</td>`;
+        const dateClass = weekend ? 'venue weekend-date' : 'venue';
+        html += `<td class="${dateClass}" rowspan="${END_HOUR - START_HOUR}">${day}<br>(${weekday})</td>`;
       }
-      html += `<td class="slot-time">${String(h).padStart(2, '0')}-${String(h + 1).padStart(2, '0')}</td>`;
+      const timeClass = weekend ? 'slot-time weekend-time' : 'slot-time';
+      html += `<td class="${timeClass}">${String(h).padStart(2, '0')}-${String(h + 1).padStart(2, '0')}</td>`;
 
       const bookings = weekData[day] || [];
       for (const venue of venues) {
@@ -448,7 +488,9 @@ function renderWeekly(weekData, baseDate, days = 7) {
           const endHour = toDateObj(b.end_time).getHours();
           if (h > startHour) continue;
           const span = Math.max(1, endHour - startHour);
-          const text = isAdmin ? `${b.customer}\n${b.purpose || ''}\n$${Number(b.price || 0).toFixed(0)}` : '已預約';
+          const text = isAdmin ? `${b.customer}
+${b.purpose || ''}
+$${Number(b.price || 0).toFixed(0)}` : '已預約';
           html += makeSlotCell(day, h, venue.venue_id, b, text, span);
           continue;
         }
@@ -466,7 +508,7 @@ async function refresh() {
   const date = document.getElementById('date').value;
   const mode = document.getElementById('view-mode').value;
   if (mode === 'daily') {
-    renderDaily(await loadBookings(date));
+    renderDaily(await loadRangeBookings(date, 2), date);
   } else if (mode === 'weekly') {
     renderWeekly(await loadRangeBookings(date, 7), date, 7);
   } else {
@@ -500,7 +542,10 @@ function openBookingModal(data = null) {
   document.getElementById('booking-modal-msg').textContent = '';
   document.getElementById('add-btn').textContent = modalEditingBookingId ? '儲存修改' : '送出預約';
   if (data) {
-    document.getElementById('venue').value = String(data.venue_id);
+    const venueSelect = document.getElementById('venue');
+    Array.from(venueSelect.options).forEach(option => {
+      option.selected = Number(option.value) === Number(data.venue_id);
+    });
     document.getElementById('customer').value = data.customer || '';
     document.getElementById('purpose').value = data.purpose || '';
     document.getElementById('price').value = Number(data.price || 0);
@@ -524,7 +569,10 @@ function openBookingModalFromCell(cell, bookingId) {
   const start = `${day}T${String(hour).padStart(2, '0')}:00`;
   const end = `${day}T${String(hour + 1).padStart(2, '0')}:00`;
   modalEditingBookingId = null;
-  document.getElementById('venue').value = String(venueId);
+  const venueSelect = document.getElementById('venue');
+  Array.from(venueSelect.options).forEach(option => {
+    option.selected = Number(option.value) === venueId;
+  });
   document.getElementById('customer').value = '';
   document.getElementById('purpose').value = purposes[0]?.name || '';
   document.getElementById('price').value = 0;
@@ -585,8 +633,10 @@ document.getElementById('add-btn').addEventListener('click', async () => {
     return;
   }
 
+  const selectedVenueIds = Array.from(document.getElementById('venue').selectedOptions).map(option => Number(option.value));
   const payload = {
-    venue_id: Number(document.getElementById('venue').value),
+    venue_ids: selectedVenueIds,
+    venue_id: selectedVenueIds[0] || 0,
     customer: document.getElementById('customer').value.trim(),
     purpose: document.getElementById('purpose').value.trim(),
     price: Number(document.getElementById('price').value || 0),
@@ -596,13 +646,16 @@ document.getElementById('add-btn').addEventListener('click', async () => {
   };
 
   const required = [
-    { key: 'venue_id', label: '場地' },
+    { key: 'venue_ids', label: '場地', check: value => Array.isArray(value) && value.length > 0 },
     { key: 'customer', label: '預約人' },
     { key: 'purpose', label: '用途' },
     { key: 'start', label: '開始時間' },
     { key: 'end', label: '結束時間' },
   ];
-  const missing = required.filter(item => !String(payload[item.key] ?? '').trim());
+  const missing = required.filter(item => {
+    if (item.check) return !item.check(payload[item.key]);
+    return !String(payload[item.key] ?? '').trim();
+  });
   if (missing.length > 0) {
     modalMsg.style.color = '#dc2626';
     modalMsg.textContent = `請填寫：${missing.map(item => item.label).join('、')}`;
@@ -995,18 +1048,31 @@ class BookingWebHandler(BaseHTTPRequestHandler):
             return
 
         try:
-            for field in ["venue_id", "customer", "start", "end"]:
+            for field in ["customer", "start", "end"]:
                 if not str(payload.get(field, "")).strip():
                     raise ValueError(f"缺少必要欄位：{field}")
+
+            raw_venue_ids = payload.get("venue_ids")
+            if isinstance(raw_venue_ids, list) and raw_venue_ids:
+                venue_ids = [int(v) for v in raw_venue_ids]
+            else:
+                if not str(payload.get("venue_id", "")).strip():
+                    raise ValueError("缺少必要欄位：venue_id")
+                venue_ids = [int(payload["venue_id"])]
+
+            created = []
             with manager_lock:
-                created = manager.add_bookings_for_purpose(
-                    venue_id=int(payload["venue_id"]),
-                    customer=payload["customer"],
-                    purpose=payload.get("purpose", ""),
-                    price=payload.get("price", 0),
-                    start=payload["start"],
-                    end=payload["end"],
-                )
+                for venue_id in venue_ids:
+                    created.extend(
+                        manager.add_bookings_for_purpose(
+                            venue_id=venue_id,
+                            customer=payload["customer"],
+                            purpose=payload.get("purpose", ""),
+                            price=payload.get("price", 0),
+                            start=payload["start"],
+                            end=payload["end"],
+                        )
+                    )
             first = created[0]
             response = booking_to_dict(first)
             response["created_count"] = len(created)

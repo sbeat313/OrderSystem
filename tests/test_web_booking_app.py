@@ -74,7 +74,9 @@ class TestWebBookingApp(unittest.TestCase):
         status, body = self.request("GET", "/")
         self.assertEqual(status, 200)
         self.assertIn('id="booking-modal-msg"', body)
-        self.assertIn('請填寫：', body)
+        self.assertIn('場地（可複選）', body)
+        self.assertIn('multiple size="6"', body)
+        self.assertIn('雙日（左右）', body)
 
     def test_options_page_exists(self):
         status, body = self.request("GET", "/options")
@@ -112,6 +114,30 @@ class TestWebBookingApp(unittest.TestCase):
         self.assertEqual(status, 200)
         items = json.loads(body)
         self.assertEqual(len(items), 1)
+
+
+    def test_create_booking_with_multiple_venues(self):
+        status, body = self.request(
+            "POST",
+            "/api/bookings",
+            {
+                "venue_ids": [1, 2],
+                "customer": "多場地測試",
+                "purpose": "臨租",
+                "price": 900,
+                "start": "2026-04-01 18:00",
+                "end": "2026-04-01 20:00",
+            },
+        )
+        self.assertEqual(status, 201)
+        created = json.loads(body)
+        self.assertEqual(created["created_count"], 2)
+
+        status, body = self.request("GET", "/api/bookings?date=2026-04-01")
+        self.assertEqual(status, 200)
+        items = json.loads(body)
+        self.assertEqual(len(items), 2)
+        self.assertEqual({item["venue_id"] for item in items}, {1, 2})
 
     def test_conflict_returns_400(self):
         self.request(
