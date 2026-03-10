@@ -23,6 +23,16 @@ class Purpose:
     name: str
 
 
+
+@dataclass
+class ExtraIncome:
+    income_id: int
+    customer: str
+    item: str
+    amount: float
+    note: str
+    income_time: datetime
+
 @dataclass
 class Booking:
     booking_id: int
@@ -75,6 +85,18 @@ class BookingManager:
                     start_time TEXT NOT NULL,
                     end_time TEXT NOT NULL,
                     FOREIGN KEY (venue_id) REFERENCES venues(id)
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS extra_incomes (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    customer TEXT NOT NULL,
+                    item TEXT NOT NULL,
+                    amount REAL NOT NULL DEFAULT 0,
+                    note TEXT NOT NULL DEFAULT '',
+                    income_time TEXT NOT NULL
                 )
                 """
             )
@@ -556,6 +578,86 @@ class BookingManager:
             }
             for row in rows
         ]
+
+    def add_extra_income(
+        self,
+        customer: str,
+        item: str,
+        amount: float,
+        income_time: str,
+        note: str = "",
+    ) -> ExtraIncome:
+        customer_name = customer.strip()
+        item_name = item.strip()
+        memo = note.strip()
+        if not customer_name:
+            raise ValueError("姓名不可為空")
+        if not item_name:
+            raise ValueError("項目不可為空")
+
+        try:
+            dt = datetime.strptime(income_time.strip(), TIME_FORMAT)
+        except ValueError as exc:
+            raise ValueError(f"時間格式錯誤，請使用 {TIME_FORMAT}") from exc
+        income_amount = self._parse_price(amount)
+
+        with self._connect() as conn:
+            cursor = conn.execute(
+                """
+                INSERT INTO extra_incomes(customer, item, amount, note, income_time)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (customer_name, item_name, income_amount, memo, dt.strftime(TIME_FORMAT)),
+            )
+            income_id = cursor.lastrowid
+
+        return ExtraIncome(
+            income_id=income_id,
+            customer=customer_name,
+            item=item_name,
+            amount=income_amount,
+            note=memo,
+            income_time=dt,
+        )
+
+    def list_extra_incomes(
+        self,
+        start_date: str = "",
+        end_date: str = "",
+        customer: str = "",
+    ) -> List[ExtraIncome]:
+        query = "SELECT id, customer, item, amount, note, income_time FROM extra_incomes WHERE 1=1"
+        params: List[str] = []
+        if start_date:
+            query += " AND date(income_time) >= date(?)"
+            params.append(start_date)
+        if end_date:
+            query += " AND date(income_time) <= date(?)"
+            params.append(end_date)
+        if customer.strip():
+            query += " AND customer = ?"
+            params.append(customer.strip())
+        query += " ORDER BY income_time DESC, id DESC"
+
+        with self._connect() as conn:
+            rows = conn.execute(query, tuple(params)).fetchall()
+
+        return [
+            ExtraIncome(
+                income_id=row["id"],
+                customer=row["customer"],
+                item=row["item"],
+                amount=float(row["amount"] or 0),
+                note=row["note"] or "",
+                income_time=datetime.strptime(row["income_time"], TIME_FORMAT),
+            )
+            for row in rows
+        ]
+
+    def delete_extra_income(self, income_id: int) -> bool:
+        with self._connect() as conn:
+            cur = conn.execute("DELETE FROM extra_incomes WHERE id = ?", (income_id,))
+            return cur.rowcount > 0
 
     @staticmethod
     def _parse_price(price: float) -> float:

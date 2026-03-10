@@ -10,7 +10,7 @@ from threading import Lock
 from typing import Any, Dict, List, Union
 from urllib.parse import parse_qs, urlparse
 
-from booking_manager import Booking, BookingManager, TIME_FORMAT
+from booking_manager import Booking, BookingManager, TIME_FORMAT, ExtraIncome
 
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "admin123")
 
@@ -28,6 +28,17 @@ def booking_to_dict(booking: Booking) -> dict:
         "price": booking.price,
         "start_time": booking.start_time.strftime(TIME_FORMAT),
         "end_time": booking.end_time.strftime(TIME_FORMAT),
+    }
+
+
+def extra_income_to_dict(income: ExtraIncome) -> dict:
+    return {
+        "income_id": income.income_id,
+        "customer": income.customer,
+        "item": income.item,
+        "amount": income.amount,
+        "note": income.note,
+        "income_time": income.income_time.strftime(TIME_FORMAT),
     }
 
 
@@ -154,6 +165,7 @@ td.slot.booked-user { background: #93c5fd; color: #0f172a; }
       <button class="chip" id="admin-view">進階檢視</button>
       <button class="chip" id="options-link" style="display:none;" onclick="location.href='/options'">場地/用途設定</button>
       <button class="chip" id="report-link" style="display:none;" onclick="location.href='/reports'">費用統計</button>
+      <button class="chip" id="extra-income-link" style="display:none;" onclick="location.href='/extra-income'">額外收入</button>
       <button class="chip" id="open-add-modal" style="display:none;">新增預約</button>
     </div>
     <div id="msg" class="note"></div>
@@ -260,6 +272,7 @@ function setAuthBadge() {
   document.getElementById('admin-view').classList.toggle('active', isAdmin);
   document.getElementById('options-link').style.display = isAdmin ? 'inline-block' : 'none';
   document.getElementById('report-link').style.display = isAdmin ? 'inline-block' : 'none';
+  document.getElementById('extra-income-link').style.display = isAdmin ? 'inline-block' : 'none';
   document.getElementById('open-add-modal').style.display = isAdmin ? 'inline-block' : 'none';
 }
 
@@ -855,6 +868,131 @@ refresh();
 """
 
 
+EXTRA_INCOME_PAGE = """<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>額外收入登記</title>
+<style>
+body { font-family: "Noto Sans TC", Arial, sans-serif; margin:0; padding:22px; background:#f4f6ff; color:#0f172a; }
+.wrap { max-width: 980px; margin: 0 auto; }
+.card { background:#fff; border:1px solid #dbe2f0; border-radius:14px; padding:16px; box-shadow:0 10px 25px rgba(30,64,175,.08); }
+.top { display:flex; gap:10px; align-items:center; margin-bottom:12px; }
+h1 { margin:0; color:#1e3a8a; }
+input, button { padding:10px 12px; border-radius:10px; border:1px solid #cbd5e1; font-size:15px; }
+button { background:#4f46e5; color:#fff; border:none; cursor:pointer; }
+.filters { display:grid; grid-template-columns: repeat(2, 1fr); gap:10px; align-items:end; margin-bottom:12px; }
+textarea { padding:10px 12px; border-radius:10px; border:1px solid #cbd5e1; font-size:15px; min-height:72px; width:100%; }
+table { width:100%; border-collapse:collapse; margin-top:12px; }
+th, td { border:1px solid #dbe2f0; padding:10px; text-align:left; }
+th { background:#eef2ff; }
+.note { min-height:20px; margin-top:8px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <h1>額外收入登記</h1>
+    <button onclick="location.href='/'">回預約頁</button>
+    <button onclick="location.href='/reports'">去費用統計</button>
+  </div>
+  <div class="card">
+    <div class="filters">
+      <div><div>時間</div><input id="income-time" type="datetime-local"/></div>
+      <div><div>姓名</div><input id="income-customer" placeholder="例如：王小明"/></div>
+      <div><div>項目</div><input id="income-item" placeholder="例如：球具寄賣"/></div>
+      <div><div>金額</div><input id="income-amount" type="number" min="0" step="1"/></div>
+    </div>
+    <div><div>備註</div><textarea id="income-note" placeholder="可留空"></textarea></div>
+    <div style="margin-top:10px;"><button id="save-income">新增額外收入</button></div>
+    <div id="income-msg" class="note"></div>
+    <table id="income-table"></table>
+  </div>
+</div>
+<script>
+let adminPassword = '';
+
+function toServerDateTime(v) { return v.replace('T', ' '); }
+
+async function login() {
+  const pw = prompt('請輸入管理員密碼：');
+  if (pw === null) return false;
+  const resp = await fetch('/api/admin/login', {
+    method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({password: pw})
+  });
+  if (!resp.ok) { alert('密碼錯誤'); return false; }
+  adminPassword = pw;
+  return true;
+}
+
+async function ensureLogin() {
+  if (adminPassword) return true;
+  return login();
+}
+
+async function refreshList() {
+  if (!await ensureLogin()) return;
+  const resp = await fetch('/api/extra-incomes/query', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ admin_password: adminPassword }),
+  });
+  const data = await resp.json();
+  if (!resp.ok) { alert(data.error || '讀取失敗'); return; }
+
+  const table = document.getElementById('income-table');
+  table.innerHTML = '<tr><th>時間</th><th>姓名</th><th>項目</th><th>金額</th><th>備註</th></tr>' +
+    data.items.map(row => `<tr><td>${row.income_time}</td><td>${row.customer}</td><td>${row.item}</td><td>$${Number(row.amount).toFixed(0)}</td><td>${row.note || ''}</td></tr>`).join('');
+}
+
+document.getElementById('save-income').addEventListener('click', async () => {
+  const msg = document.getElementById('income-msg');
+  msg.textContent = '';
+  if (!await ensureLogin()) return;
+
+  const payload = {
+    admin_password: adminPassword,
+    income_time: toServerDateTime(document.getElementById('income-time').value),
+    customer: document.getElementById('income-customer').value.trim(),
+    item: document.getElementById('income-item').value.trim(),
+    amount: Number(document.getElementById('income-amount').value || 0),
+    note: document.getElementById('income-note').value.trim(),
+  };
+
+  const resp = await fetch('/api/extra-incomes', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(payload),
+  });
+  const data = await resp.json();
+  if (!resp.ok) {
+    msg.style.color = '#dc2626';
+    msg.textContent = data.error || '新增失敗';
+    return;
+  }
+
+  msg.style.color = '#16a34a';
+  msg.textContent = `新增成功 #${data.income_id}`;
+  await refreshList();
+});
+
+(function init() {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  const h = String(now.getHours()).padStart(2, '0');
+  const min = String(now.getMinutes()).padStart(2, '0');
+  document.getElementById('income-time').value = `${y}-${m}-${d}T${h}:${min}`;
+  refreshList();
+})();
+</script>
+</body>
+</html>
+"""
+
+
 REPORT_PAGE = """<!doctype html>
 <html lang="zh-Hant">
 <head>
@@ -870,10 +1008,11 @@ h1 { margin:0; color:#1e3a8a; }
 input, button { padding:10px 12px; border-radius:10px; border:1px solid #cbd5e1; font-size:15px; }
 button { background:#4f46e5; color:#fff; border:none; cursor:pointer; }
 .filters { display:flex; flex-wrap:wrap; gap:10px; align-items:end; margin-bottom:12px; }
-table { width:100%; border-collapse:collapse; }
+table { width:100%; border-collapse:collapse; margin-top:8px; }
 th, td { border:1px solid #dbe2f0; padding:10px; text-align:left; }
 th { background:#eef2ff; }
 .total { margin-top:10px; font-weight:700; color:#1e3a8a; }
+.section-title { margin-top:14px; font-weight:700; color:#334155; }
 </style>
 </head>
 <body>
@@ -881,15 +1020,19 @@ th { background:#eef2ff; }
   <div class="top">
     <h1>預約費用統計</h1>
     <button onclick="location.href='/'">回預約頁</button>
+    <button onclick="location.href='/extra-income'">額外收入登記</button>
   </div>
   <div class="card">
     <div class="filters">
       <div><div>開始日期</div><input id="start-date" type="date"/></div>
       <div><div>結束日期</div><input id="end-date" type="date"/></div>
-      <div><div>預約人</div><input id="customer-filter" placeholder="留空=全部"/></div>
+      <div><div>姓名</div><input id="customer-filter" placeholder="留空=全部"/></div>
       <button id="query-btn">查詢</button>
     </div>
+    <div class="section-title">合計（預約 + 額外收入）</div>
     <table id="report-table"></table>
+    <div class="section-title">額外收入明細</div>
+    <table id="extra-income-table"></table>
     <div class="total" id="grand-total"></div>
   </div>
 </div>
@@ -924,9 +1067,14 @@ async function refreshReport() {
   if (!resp.ok) { alert(data.error || '查詢失敗'); return; }
 
   const table = document.getElementById('report-table');
-  table.innerHTML = '<tr><th>預約人</th><th>預約筆數</th><th>總費用</th></tr>' +
-    data.items.map(item => `<tr><td>${item.customer}</td><td>${item.booking_count}</td><td>$${Number(item.total_fee).toFixed(0)}</td></tr>`).join('');
-  document.getElementById('grand-total').textContent = `總計：$${Number(data.grand_total).toFixed(0)}`;
+  table.innerHTML = '<tr><th>姓名</th><th>預約費用</th><th>額外收入</th><th>合計</th></tr>' +
+    data.items.map(item => `<tr><td>${item.customer}</td><td>$${Number(item.booking_total).toFixed(0)}</td><td>$${Number(item.extra_income_total).toFixed(0)}</td><td>$${Number(item.total_fee).toFixed(0)}</td></tr>`).join('');
+
+  const extraTable = document.getElementById('extra-income-table');
+  extraTable.innerHTML = '<tr><th>時間</th><th>姓名</th><th>項目</th><th>金額</th><th>備註</th></tr>' +
+    data.extra_income_records.map(row => `<tr><td>${row.income_time}</td><td>${row.customer}</td><td>${row.item}</td><td>$${Number(row.amount).toFixed(0)}</td><td>${row.note || ''}</td></tr>`).join('');
+
+  document.getElementById('grand-total').textContent = `總計（預約）：$${Number(data.booking_grand_total).toFixed(0)}｜總計（額外收入）：$${Number(data.extra_income_grand_total).toFixed(0)}｜整體總計：$${Number(data.grand_total).toFixed(0)}`;
 }
 
 document.getElementById('query-btn').addEventListener('click', refreshReport);
@@ -941,6 +1089,7 @@ document.getElementById('query-btn').addEventListener('click', refreshReport);
 </body>
 </html>
 """
+
 
 class BookingWebHandler(BaseHTTPRequestHandler):
     def _send_json(self, payload: Union[Dict[str, Any], List[Any]], status: int = HTTPStatus.OK) -> None:
@@ -969,6 +1118,9 @@ class BookingWebHandler(BaseHTTPRequestHandler):
             return
         if parsed.path == "/reports":
             self._send_html(REPORT_PAGE)
+            return
+        if parsed.path == "/extra-income":
+            self._send_html(EXTRA_INCOME_PAGE)
             return
         if parsed.path == "/api/venues":
             with manager_lock:
@@ -1027,6 +1179,38 @@ class BookingWebHandler(BaseHTTPRequestHandler):
                 self._send_json({"error": str(exc)}, status=HTTPStatus.BAD_REQUEST)
                 return
 
+        if parsed.path == "/api/extra-incomes":
+            try:
+                self._check_admin_password(payload)
+                with manager_lock:
+                    income = manager.add_extra_income(
+                        customer=str(payload.get("customer", "")),
+                        item=str(payload.get("item", "")),
+                        amount=payload.get("amount", 0),
+                        income_time=str(payload.get("income_time", "")),
+                        note=str(payload.get("note", "")),
+                    )
+                self._send_json(extra_income_to_dict(income), status=HTTPStatus.CREATED)
+            except ValueError as exc:
+                self._send_json({"error": str(exc)}, status=HTTPStatus.BAD_REQUEST)
+            return
+
+        if parsed.path == "/api/extra-incomes/query":
+            try:
+                self._check_admin_password(payload)
+                start_date = str(payload.get("start_date", "")).strip()
+                end_date = str(payload.get("end_date", "")).strip()
+                customer = str(payload.get("customer", "")).strip()
+                with manager_lock:
+                    items = [
+                        extra_income_to_dict(item)
+                        for item in manager.list_extra_incomes(start_date=start_date, end_date=end_date, customer=customer)
+                    ]
+                self._send_json({"items": items})
+            except ValueError as exc:
+                self._send_json({"error": str(exc)}, status=HTTPStatus.BAD_REQUEST)
+            return
+
         if parsed.path == "/api/reports/fees":
             try:
                 self._check_admin_password(payload)
@@ -1036,9 +1220,51 @@ class BookingWebHandler(BaseHTTPRequestHandler):
                     raise ValueError("請提供開始與結束日期")
                 customer = str(payload.get("customer", "")).strip()
                 with manager_lock:
-                    items = manager.summarize_fees(start_date, end_date, customer)
-                grand_total = sum(item["total_fee"] for item in items)
-                self._send_json({"items": items, "grand_total": grand_total})
+                    booking_items = manager.summarize_fees(start_date, end_date, customer)
+                    extra_records = [
+                        extra_income_to_dict(item)
+                        for item in manager.list_extra_incomes(start_date=start_date, end_date=end_date, customer=customer)
+                    ]
+
+                booking_map = {
+                    item["customer"]: {
+                        "customer": item["customer"],
+                        "booking_total": float(item["total_fee"]),
+                        "extra_income_total": 0.0,
+                    }
+                    for item in booking_items
+                }
+                for row in extra_records:
+                    if row["customer"] not in booking_map:
+                        booking_map[row["customer"]] = {
+                            "customer": row["customer"],
+                            "booking_total": 0.0,
+                            "extra_income_total": 0.0,
+                        }
+                    booking_map[row["customer"]]["extra_income_total"] += float(row["amount"])
+
+                items = []
+                for item in booking_map.values():
+                    total_fee = float(item["booking_total"] + item["extra_income_total"])
+                    items.append({
+                        "customer": item["customer"],
+                        "booking_total": float(item["booking_total"]),
+                        "extra_income_total": float(item["extra_income_total"]),
+                        "total_fee": total_fee,
+                    })
+                items.sort(key=lambda row: (-row["total_fee"], row["customer"]))
+
+                booking_grand_total = sum(float(item["total_fee"]) for item in booking_items)
+                extra_income_grand_total = sum(float(row["amount"]) for row in extra_records)
+                grand_total = booking_grand_total + extra_income_grand_total
+                self._send_json({
+                    "items": items,
+                    "booking_items": booking_items,
+                    "extra_income_records": extra_records,
+                    "booking_grand_total": booking_grand_total,
+                    "extra_income_grand_total": extra_income_grand_total,
+                    "grand_total": grand_total,
+                })
             except ValueError as exc:
                 self._send_json({"error": str(exc)}, status=HTTPStatus.BAD_REQUEST)
             return
@@ -1124,6 +1350,8 @@ class BookingWebHandler(BaseHTTPRequestHandler):
                     ok = manager.delete_purpose(int(payload.get("purpose_id", 0)))
                 elif parsed.path == "/api/bookings":
                     ok = manager.cancel_booking(int(payload.get("booking_id", 0)))
+                elif parsed.path == "/api/extra-incomes":
+                    ok = manager.delete_extra_income(int(payload.get("income_id", 0)))
                 else:
                     self._send_json({"error": "Not Found"}, status=HTTPStatus.NOT_FOUND)
                     return
