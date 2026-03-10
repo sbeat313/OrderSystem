@@ -154,10 +154,6 @@ td.slot.booked-user { background: #93c5fd; color: #0f172a; }
         <label>日期</label>
         <input id="date" type="date" />
       </div>
-      <div class="field">
-        <label>顯示模式</label>
-        <input value="固定雙週（14天）" disabled />
-      </div>
       <button class="chip" id="admin-view">進階檢視</button>
       <button class="chip" id="options-link" style="display:none;" onclick="location.href='/options'">場地/用途設定</button>
       <button class="chip" id="report-link" style="display:none;" onclick="location.href='/reports'">費用統計</button>
@@ -497,7 +493,7 @@ $${Number(b.price || 0).toFixed(0)}` : '已預約';
   bindGridEvents();
 }
 
-function renderWeekly(weekData, baseDate, days = 7) {
+function renderWeekly(weekData, baseDate, days = 14) {
   const grid = document.getElementById('grid');
   const start = weekStart(baseDate);
   const dates = [];
@@ -508,38 +504,53 @@ function renderWeekly(weekData, baseDate, days = 7) {
   }
 
   const weekdayNames = ['星期一', '星期二', '星期三', '星期四', '星期五', '星期六', '星期日'];
-  let html = '<tr><th class="sticky-left-1">日期</th><th class="sticky-left-2">時段</th>';
-  for (const venue of venues) html += `<th>${venue.name}</th>`;
-  html += '</tr>';
+  let html = '';
 
-  for (const day of dates) {
-    const weekdayIndex = (new Date(day + 'T00:00:00').getDay() + 6) % 7;
-    const weekday = weekdayNames[weekdayIndex];
-    const weekend = weekdayIndex >= 5;
-    for (let h = START_HOUR; h < END_HOUR; h++) {
-      html += '<tr>';
-      if (h === START_HOUR) {
-        const dateClass = weekend ? 'venue weekend-date' : 'venue';
-        html += `<td class="${dateClass}" rowspan="${END_HOUR - START_HOUR}">${day}<br>(${weekday})</td>`;
+  for (let i = 0; i < dates.length; i += 2) {
+    const leftDay = dates[i];
+    const rightDay = dates[i + 1];
+    const blockDays = rightDay ? [leftDay, rightDay] : [leftDay];
+
+    html += '<tr><th class="sticky-left-1">時段</th>';
+    for (const day of blockDays) {
+      const weekDay = new Date(`${day}T00:00:00`).getDay();
+      const weekendClass = isWeekend(day) ? ' weekend-head' : '';
+      const separatorClass = (day === rightDay) ? ' day-block-start' : '';
+      html += `<th class="${separatorClass}${weekendClass}" colspan="${venues.length}">${day}（${weekdayNames[(weekDay + 6) % 7]}）</th>`;
+    }
+    html += '</tr><tr><th class="sticky-left-1">場地</th>';
+    for (const day of blockDays) {
+      for (const [index, venue] of venues.entries()) {
+        const classes = [];
+        if (day === rightDay && index === 0) classes.push('day-block-start');
+        html += `<th class="${classes.join(' ')}">${venue.name}</th>`;
       }
-      const timeClass = weekend ? 'slot-time weekend-time' : 'slot-time';
-      html += `<td class="${timeClass}">${String(h).padStart(2, '0')}-${String(h + 1).padStart(2, '0')}</td>`;
+    }
+    html += '</tr>';
 
-      const bookings = weekData[day] || [];
-      for (const venue of venues) {
-        const b = bookingForSlot(venue.venue_id, h, bookings);
-        if (b) {
-          const startHour = toDateObj(b.start_time).getHours();
-          const endHour = toDateObj(b.end_time).getHours();
-          if (h > startHour) continue;
-          const span = Math.max(1, endHour - startHour);
-          const text = isAdmin ? `${b.customer}
+    for (let h = START_HOUR; h < END_HOUR; h++) {
+      html += `<tr><td class="venue">${String(h).padStart(2, '0')}-${String(h + 1).padStart(2, '0')}</td>`;
+      for (const day of blockDays) {
+        const bookings = weekData[day] || [];
+        for (const [index, venue] of venues.entries()) {
+          const b = bookingForSlot(venue.venue_id, h, bookings);
+          if (b) {
+            const startHour = toDateObj(b.start_time).getHours();
+            const endHour = toDateObj(b.end_time).getHours();
+            if (h > startHour) continue;
+            const span = Math.max(1, endHour - startHour);
+            const text = isAdmin ? `${b.customer}
 ${b.purpose || ''}
 $${Number(b.price || 0).toFixed(0)}` : '已預約';
-          html += makeSlotCell(day, h, venue.venue_id, b, text, span);
-          continue;
+            let cell = makeSlotCell(day, h, venue.venue_id, b, text, span);
+            if (day === rightDay && index === 0) cell = cell.replace('class="slot', 'class="slot day-block-start');
+            html += cell;
+            continue;
+          }
+          let cell = makeSlotCell(day, h, venue.venue_id, null, '', 1);
+          if (day === rightDay && index === 0) cell = cell.replace('class="slot', 'class="slot day-block-start');
+          html += cell;
         }
-        html += makeSlotCell(day, h, venue.venue_id, null, '', 1);
       }
       html += '</tr>';
     }

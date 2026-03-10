@@ -80,9 +80,10 @@ class TestWebBookingApp(unittest.TestCase):
         self.assertIn("booking_admin_password", body)
         self.assertIn('場地（可複選）', body)
         self.assertIn('multiple size="6"', body)
-        self.assertIn('固定雙週（14天）', body)
         self.assertNotIn('id="view-mode"', body)
+        self.assertNotIn('顯示模式', body)
         self.assertIn('renderWeekly(await loadRangeBookings(date, 14), date, 14);', body)
+        self.assertIn('const blockDays = rightDay ? [leftDay, rightDay] : [leftDay];', body)
 
     def test_options_page_exists(self):
         status, body = self.request("GET", "/options")
