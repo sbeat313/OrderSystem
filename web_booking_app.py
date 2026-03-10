@@ -174,6 +174,7 @@ td.slot.booked-user { background: #93c5fd; color: #0f172a; }
       <button id="add-btn">送出預約</button>
       <button id="close-add-modal" class="btn-secondary">取消</button>
     </div>
+    <div id="booking-modal-msg" class="note"></div>
   </div>
 </div>
 
@@ -496,6 +497,7 @@ function openBookingModal(data = null) {
   if (!isAdmin) return;
   modalEditingBookingId = data?.booking_id || null;
   document.getElementById('booking-modal').style.display = 'flex';
+  document.getElementById('booking-modal-msg').textContent = '';
   document.getElementById('add-btn').textContent = modalEditingBookingId ? '儲存修改' : '送出預約';
   if (data) {
     document.getElementById('venue').value = String(data.venue_id);
@@ -533,6 +535,7 @@ function openBookingModalFromCell(cell, bookingId) {
 
 function closeBookingModal() {
   document.getElementById('booking-modal').style.display = 'none';
+  document.getElementById('booking-modal-msg').textContent = '';
   modalEditingBookingId = null;
 }
 
@@ -574,6 +577,8 @@ document.addEventListener('keydown', (event) => {
 
 document.getElementById('add-btn').addEventListener('click', async () => {
   const msg = document.getElementById('msg');
+  const modalMsg = document.getElementById('booking-modal-msg');
+  modalMsg.textContent = '';
   if (!isAdmin) {
     msg.style.color = '#dc2626';
     msg.textContent = '請先切換進階檢視並通過密碼驗證';
@@ -590,6 +595,20 @@ document.getElementById('add-btn').addEventListener('click', async () => {
     admin_password: adminPassword,
   };
 
+  const required = [
+    { key: 'venue_id', label: '場地' },
+    { key: 'customer', label: '預約人' },
+    { key: 'purpose', label: '用途' },
+    { key: 'start', label: '開始時間' },
+    { key: 'end', label: '結束時間' },
+  ];
+  const missing = required.filter(item => !String(payload[item.key] ?? '').trim());
+  if (missing.length > 0) {
+    modalMsg.style.color = '#dc2626';
+    modalMsg.textContent = `請填寫：${missing.map(item => item.label).join('、')}`;
+    return;
+  }
+
   const resp = await fetch('/api/bookings', {
     method: modalEditingBookingId ? 'PUT' : 'POST',
     headers: {'Content-Type': 'application/json'},
@@ -598,8 +617,8 @@ document.getElementById('add-btn').addEventListener('click', async () => {
   const data = await resp.json();
 
   if (!resp.ok) {
-    msg.style.color = '#dc2626';
-    msg.textContent = data.error || (modalEditingBookingId ? '更新失敗' : '新增失敗');
+    modalMsg.style.color = '#dc2626';
+    modalMsg.textContent = data.error || (modalEditingBookingId ? '更新失敗' : '新增失敗');
     return;
   }
 

@@ -92,6 +92,32 @@ class BookingManagerTests(unittest.TestCase):
         self.assertEqual(len(filtered), 1)
         self.assertEqual(filtered[0]["total_fee"], 1200)
 
+    def test_cancel_single_month_rent_deletes_related_bookings(self):
+        items = self.manager.add_bookings_for_purpose(
+            venue_id=1,
+            customer="王小明",
+            purpose="單月租",
+            price=500,
+            start="2026-04-01 09:00",
+            end="2026-04-01 11:00",
+        )
+        self.assertTrue(self.manager.cancel_booking(items[0].booking_id))
+        self.assertEqual(len(self.manager.list_bookings("2026-04-01")), 0)
+        self.assertEqual(len(self.manager.list_bookings("2026-04-08")), 0)
+
+    def test_cancel_double_month_rent_deletes_related_bookings(self):
+        items = self.manager.add_bookings_for_purpose(
+            venue_id=1,
+            customer="王小明",
+            purpose="雙月租",
+            price=500,
+            start="2026-04-01 09:00",
+            end="2026-04-01 11:00",
+        )
+        self.assertTrue(self.manager.cancel_booking(items[-1].booking_id))
+        self.assertEqual(len(self.manager.list_bookings("2026-04-01")), 0)
+        self.assertEqual(len(self.manager.list_bookings("2026-05-27")), 0)
+
     def test_persistence(self):
         self.manager.add_booking(2, "王小明", "2026-04-01 09:00", "2026-04-01 10:00", "臨租")
         manager2 = BookingManager(db_path=f"{self.tmp.name}/test.db")
