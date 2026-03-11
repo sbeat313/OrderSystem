@@ -32,6 +32,12 @@ class ExtraIncome:
     amount: float
     note: str
     income_time: datetime
+    contact_phone: str = ""
+    racket_model: str = ""
+    string_tension: Optional[int] = None
+    payment_status: str = ""
+    racket_status: str = ""
+    pickup_date: str = ""
 
 @dataclass
 class Booking:
@@ -96,7 +102,13 @@ class BookingManager:
                     item TEXT NOT NULL,
                     amount REAL NOT NULL DEFAULT 0,
                     note TEXT NOT NULL DEFAULT '',
-                    income_time TEXT NOT NULL
+                    income_time TEXT NOT NULL,
+                    contact_phone TEXT NOT NULL DEFAULT '',
+                    racket_model TEXT NOT NULL DEFAULT '',
+                    string_tension INTEGER,
+                    payment_status TEXT NOT NULL DEFAULT '',
+                    racket_status TEXT NOT NULL DEFAULT '',
+                    pickup_date TEXT NOT NULL DEFAULT ''
                 )
                 """
             )
@@ -105,6 +117,21 @@ class BookingManager:
                 conn.execute("ALTER TABLE bookings ADD COLUMN price REAL NOT NULL DEFAULT 0")
             if "rental_group_id" not in columns:
                 conn.execute("ALTER TABLE bookings ADD COLUMN rental_group_id TEXT")
+
+            extra_columns = [row["name"] for row in conn.execute("PRAGMA table_info(extra_incomes)").fetchall()]
+            if "contact_phone" not in extra_columns:
+                conn.execute("ALTER TABLE extra_incomes ADD COLUMN contact_phone TEXT NOT NULL DEFAULT ''")
+            if "racket_model" not in extra_columns:
+                conn.execute("ALTER TABLE extra_incomes ADD COLUMN racket_model TEXT NOT NULL DEFAULT ''")
+            if "string_tension" not in extra_columns:
+                conn.execute("ALTER TABLE extra_incomes ADD COLUMN string_tension INTEGER")
+            if "payment_status" not in extra_columns:
+                conn.execute("ALTER TABLE extra_incomes ADD COLUMN payment_status TEXT NOT NULL DEFAULT ''")
+            if "racket_status" not in extra_columns:
+                conn.execute("ALTER TABLE extra_incomes ADD COLUMN racket_status TEXT NOT NULL DEFAULT ''")
+            if "pickup_date" not in extra_columns:
+                conn.execute("ALTER TABLE extra_incomes ADD COLUMN pickup_date TEXT NOT NULL DEFAULT ''")
+
             count = conn.execute("SELECT COUNT(*) FROM venues").fetchone()[0]
             if count == 0:
                 conn.executemany(
@@ -586,10 +613,21 @@ class BookingManager:
         amount: float,
         income_time: str,
         note: str = "",
+        contact_phone: str = "",
+        racket_model: str = "",
+        string_tension: Optional[int] = None,
+        payment_status: str = "",
+        racket_status: str = "",
+        pickup_date: str = "",
     ) -> ExtraIncome:
         customer_name = customer.strip()
         item_name = item.strip()
         memo = note.strip()
+        phone = contact_phone.strip()
+        racket = racket_model.strip()
+        paid_status = payment_status.strip()
+        racket_state = racket_status.strip()
+        pickup = pickup_date.strip()
         if not customer_name:
             raise ValueError("姓名不可為空")
         if not item_name:
@@ -601,13 +639,43 @@ class BookingManager:
             raise ValueError(f"時間格式錯誤，請使用 {TIME_FORMAT}") from exc
         income_amount = self._parse_price(amount)
 
+        tension_value: Optional[int] = None
+        if string_tension not in (None, ""):
+            try:
+                tension_value = int(string_tension)
+            except (TypeError, ValueError) as exc:
+                raise ValueError("磅數格式錯誤") from exc
+            if tension_value <= 0:
+                raise ValueError("磅數必須為正整數")
+
+        if item_name == "球拍":
+            if not racket:
+                raise ValueError("球拍項目需填寫穿線項目")
+            if tension_value is None:
+                raise ValueError("球拍項目需填寫磅數")
+
         with self._connect() as conn:
             cursor = conn.execute(
                 """
-                INSERT INTO extra_incomes(customer, item, amount, note, income_time)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO extra_incomes(
+                    customer, item, amount, note, income_time,
+                    contact_phone, racket_model, string_tension, payment_status, racket_status, pickup_date
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (customer_name, item_name, income_amount, memo, dt.strftime(TIME_FORMAT)),
+                (
+                    customer_name,
+                    item_name,
+                    income_amount,
+                    memo,
+                    dt.strftime(TIME_FORMAT),
+                    phone,
+                    racket,
+                    tension_value,
+                    paid_status,
+                    racket_state,
+                    pickup,
+                ),
             )
             income_id = cursor.lastrowid
 
@@ -618,6 +686,12 @@ class BookingManager:
             amount=income_amount,
             note=memo,
             income_time=dt,
+            contact_phone=phone,
+            racket_model=racket,
+            string_tension=tension_value,
+            payment_status=paid_status,
+            racket_status=racket_state,
+            pickup_date=pickup,
         )
 
     def list_extra_incomes(
@@ -626,7 +700,11 @@ class BookingManager:
         end_date: str = "",
         customer: str = "",
     ) -> List[ExtraIncome]:
-        query = "SELECT id, customer, item, amount, note, income_time FROM extra_incomes WHERE 1=1"
+        query = (
+            "SELECT id, customer, item, amount, note, income_time, "
+            "contact_phone, racket_model, string_tension, payment_status, racket_status, pickup_date "
+            "FROM extra_incomes WHERE 1=1"
+        )
         params: List[str] = []
         if start_date:
             query += " AND date(income_time) >= date(?)"
@@ -650,6 +728,12 @@ class BookingManager:
                 amount=float(row["amount"] or 0),
                 note=row["note"] or "",
                 income_time=datetime.strptime(row["income_time"], TIME_FORMAT),
+                contact_phone=row["contact_phone"] or "",
+                racket_model=row["racket_model"] or "",
+                string_tension=(int(row["string_tension"]) if row["string_tension"] is not None else None),
+                payment_status=row["payment_status"] or "",
+                racket_status=row["racket_status"] or "",
+                pickup_date=row["pickup_date"] or "",
             )
             for row in rows
         ]

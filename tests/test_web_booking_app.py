@@ -102,6 +102,8 @@ class TestWebBookingApp(unittest.TestCase):
         self.assertIn("額外收入登記", body)
         self.assertIn("box-sizing: border-box", body)
         self.assertIn("booking_admin_password", body)
+        self.assertIn("穿線項目", body)
+        self.assertIn("磅數", body)
 
     def test_export_endpoint_removed(self):
         status, _ = self.request("GET", "/api/export?format=png&date=2026-04-01&role=user")
@@ -406,6 +408,42 @@ class TestWebBookingApp(unittest.TestCase):
         self.assertEqual(data["grand_total"], 800)
         self.assertEqual(len(data["extra_income_records"]), 1)
         self.assertEqual(data["extra_income_records"][0]["item"], "球具寄賣")
+
+    def test_extra_income_racket_fields(self):
+        status, body = self.request(
+            "POST",
+            "/api/extra-incomes",
+            {
+                "admin_password": "admin123",
+                "income_time": "2026-04-02 10:00",
+                "customer": "王小明",
+                "item": "球拍",
+                "amount": 440,
+                "note": "白色線",
+                "contact_phone": "0912222333",
+                "racket_model": "YONEX BG-66UM",
+                "string_tension": 34,
+                "payment_status": "尚未付款",
+                "racket_status": "店內保管",
+                "pickup_date": "2026-04-14",
+            },
+        )
+        self.assertEqual(status, 201)
+        created = json.loads(body)
+        self.assertEqual(created["racket_model"], "YONEX BG-66UM")
+        self.assertEqual(created["string_tension"], 34)
+
+        status, body = self.request(
+            "POST",
+            "/api/extra-incomes/query",
+            {"admin_password": "admin123", "customer": "王小明"},
+        )
+        self.assertEqual(status, 200)
+        data = json.loads(body)
+        self.assertEqual(len(data["items"]), 1)
+        row = data["items"][0]
+        self.assertEqual(row["contact_phone"], "0912222333")
+        self.assertEqual(row["payment_status"], "尚未付款")
 
     def test_manage_venues_and_purposes_via_api(self):
         status, body = self.request(

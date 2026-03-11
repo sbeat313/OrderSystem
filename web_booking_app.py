@@ -39,6 +39,12 @@ def extra_income_to_dict(income: ExtraIncome) -> dict:
         "amount": income.amount,
         "note": income.note,
         "income_time": income.income_time.strftime(TIME_FORMAT),
+        "contact_phone": income.contact_phone,
+        "racket_model": income.racket_model,
+        "string_tension": income.string_tension,
+        "payment_status": income.payment_status,
+        "racket_status": income.racket_status,
+        "pickup_date": income.pickup_date,
     }
 
 
@@ -964,18 +970,20 @@ EXTRA_INCOME_PAGE = """<!doctype html>
 <style>
 * { box-sizing: border-box; }
 body { font-family: "Noto Sans TC", Arial, sans-serif; margin:0; padding:22px; background:#f4f6ff; color:#0f172a; }
-.wrap { max-width: 980px; margin: 0 auto; }
+.wrap { max-width: 1180px; margin: 0 auto; }
 .card { background:#fff; border:1px solid #dbe2f0; border-radius:14px; padding:16px; box-shadow:0 10px 25px rgba(30,64,175,.08); }
 .top { display:flex; gap:10px; align-items:center; margin-bottom:12px; }
 h1 { margin:0; color:#1e3a8a; }
-input, button { padding:10px 12px; border-radius:10px; border:1px solid #cbd5e1; font-size:15px; }
+input, button, select { padding:10px 12px; border-radius:10px; border:1px solid #cbd5e1; font-size:15px; }
 button { background:#4f46e5; color:#fff; border:none; cursor:pointer; }
-.filters { display:grid; grid-template-columns: repeat(2, 1fr); gap:10px; align-items:end; margin-bottom:12px; }
+.filters { display:grid; grid-template-columns: repeat(4, 1fr); gap:10px; align-items:end; margin-bottom:12px; }
+.racket-fields { display:grid; grid-template-columns: repeat(3, 1fr); gap:10px; align-items:end; margin-bottom:12px; }
 textarea { padding:10px 12px; border-radius:10px; border:1px solid #cbd5e1; font-size:15px; min-height:72px; width:100%; }
 table { width:100%; border-collapse:collapse; margin-top:12px; }
 th, td { border:1px solid #dbe2f0; padding:10px; text-align:left; }
 th { background:#eef2ff; }
 .note { min-height:20px; margin-top:8px; }
+.helper { font-size:13px; color:#475569; margin-top:4px; }
 </style>
 </head>
 <body>
@@ -988,12 +996,52 @@ th { background:#eef2ff; }
   </div>
   <div class="card">
     <div class="filters">
-      <div><div>時間</div><input id="income-time" type="datetime-local"/></div>
+      <div><div>日期時間</div><input id="income-time" type="datetime-local"/></div>
       <div><div>姓名</div><input id="income-customer" placeholder="例如：王小明"/></div>
-      <div><div>項目</div><input id="income-item" placeholder="例如：球具寄賣"/></div>
+      <div>
+        <div>項目</div>
+        <select id="income-item">
+          <option value="">請選擇</option>
+          <option value="球拍">球拍</option>
+          <option value="球具寄賣">球具寄賣</option>
+          <option value="其他">其他</option>
+        </select>
+      </div>
       <div><div>金額</div><input id="income-amount" type="number" min="0" step="1"/></div>
     </div>
-    <div><div>備註</div><textarea id="income-note" placeholder="可留空"></textarea></div>
+
+    <div id="racket-fields" class="racket-fields" style="display:none;">
+      <div><div>連絡電話</div><input id="income-phone" placeholder="例如：0912345678"/></div>
+      <div><div>穿線項目</div><input id="income-racket-model" placeholder="例如：YONEX BG-66UM"/></div>
+      <div><div>磅數</div><input id="income-tension" type="number" min="1" step="1"/></div>
+      <div>
+        <div>收費狀態</div>
+        <select id="income-payment-status">
+          <option value="">未設定</option>
+          <option value="尚未付款">尚未付款</option>
+          <option value="結清">結清</option>
+        </select>
+      </div>
+      <div>
+        <div>球拍狀態</div>
+        <select id="income-racket-status">
+          <option value="">未設定</option>
+          <option value="客戶取回">客戶取回</option>
+          <option value="店內保管">店內保管</option>
+        </select>
+      </div>
+      <div>
+        <div>客戶取回日</div>
+        <input id="income-pickup-date" type="date"/>
+      </div>
+    </div>
+
+    <div>
+      <div>備註</div>
+      <textarea id="income-note" placeholder="可留空"></textarea>
+      <div class="helper">若項目選擇「球拍」，可填寫連絡電話、穿線項目、磅數、收費狀態、球拍狀態與客戶取回日。</div>
+    </div>
+
     <div style="margin-top:10px;"><button id="save-income">新增額外收入</button></div>
     <div id="income-msg" class="note"></div>
     <table id="income-table"></table>
@@ -1013,6 +1061,14 @@ function logoutAdmin() {
 }
 
 function toServerDateTime(v) { return v.replace('T', ' '); }
+
+function isRacketItem() {
+  return document.getElementById('income-item').value.trim() === '球拍';
+}
+
+function toggleRacketFields() {
+  document.getElementById('racket-fields').style.display = isRacketItem() ? 'grid' : 'none';
+}
 
 async function login() {
   const pw = prompt('請輸入管理員密碼：');
@@ -1037,6 +1093,19 @@ async function ensureLogin() {
   return login();
 }
 
+function racketSummary(row) {
+  if (row.item !== '球拍') return row.note || '';
+  const parts = [];
+  if (row.contact_phone) parts.push(`電話：${row.contact_phone}`);
+  if (row.racket_model) parts.push(`穿線：${row.racket_model}`);
+  if (row.string_tension) parts.push(`磅數：${row.string_tension}`);
+  if (row.payment_status) parts.push(`收費：${row.payment_status}`);
+  if (row.racket_status) parts.push(`球拍：${row.racket_status}`);
+  if (row.pickup_date) parts.push(`取回日：${row.pickup_date}`);
+  if (row.note) parts.push(`備註：${row.note}`);
+  return parts.join('｜');
+}
+
 async function refreshList() {
   if (!await ensureLogin()) return;
   const resp = await fetch('/api/extra-incomes/query', {
@@ -1048,9 +1117,11 @@ async function refreshList() {
   if (!resp.ok) { alert(data.error || '讀取失敗'); return; }
 
   const table = document.getElementById('income-table');
-  table.innerHTML = '<tr><th>時間</th><th>姓名</th><th>項目</th><th>金額</th><th>備註</th></tr>' +
-    data.items.map(row => `<tr><td>${row.income_time}</td><td>${row.customer}</td><td>${row.item}</td><td>$${Number(row.amount).toFixed(0)}</td><td>${row.note || ''}</td></tr>`).join('');
+  table.innerHTML = '<tr><th>時間</th><th>姓名</th><th>項目</th><th>金額</th><th>詳細/備註</th></tr>' +
+    data.items.map(row => `<tr><td>${row.income_time}</td><td>${row.customer}</td><td>${row.item}</td><td>$${Number(row.amount).toFixed(0)}</td><td>${racketSummary(row)}</td></tr>`).join('');
 }
+
+document.getElementById('income-item').addEventListener('change', toggleRacketFields);
 
 document.getElementById('save-income').addEventListener('click', async () => {
   const msg = document.getElementById('income-msg');
@@ -1064,6 +1135,12 @@ document.getElementById('save-income').addEventListener('click', async () => {
     item: document.getElementById('income-item').value.trim(),
     amount: Number(document.getElementById('income-amount').value || 0),
     note: document.getElementById('income-note').value.trim(),
+    contact_phone: document.getElementById('income-phone').value.trim(),
+    racket_model: document.getElementById('income-racket-model').value.trim(),
+    string_tension: document.getElementById('income-tension').value.trim(),
+    payment_status: document.getElementById('income-payment-status').value.trim(),
+    racket_status: document.getElementById('income-racket-status').value.trim(),
+    pickup_date: document.getElementById('income-pickup-date').value.trim(),
   };
 
   const resp = await fetch('/api/extra-incomes', {
@@ -1091,6 +1168,7 @@ document.getElementById('save-income').addEventListener('click', async () => {
   const h = String(now.getHours()).padStart(2, '0');
   const min = String(now.getMinutes()).padStart(2, '0');
   document.getElementById('income-time').value = `${y}-${m}-${d}T${h}:${min}`;
+  toggleRacketFields();
   refreshList();
 })();
 </script>
@@ -1199,8 +1277,21 @@ async function refreshReport() {
     data.items.map(item => `<tr><td>${item.customer}</td><td>$${Number(item.booking_total).toFixed(0)}</td><td>$${Number(item.extra_income_total).toFixed(0)}</td><td>$${Number(item.total_fee).toFixed(0)}</td></tr>`).join('');
 
   const extraTable = document.getElementById('extra-income-table');
-  extraTable.innerHTML = '<tr><th>時間</th><th>姓名</th><th>項目</th><th>金額</th><th>備註</th></tr>' +
-    data.extra_income_records.map(row => `<tr><td>${row.income_time}</td><td>${row.customer}</td><td>${row.item}</td><td>$${Number(row.amount).toFixed(0)}</td><td>${row.note || ''}</td></tr>`).join('');
+  extraTable.innerHTML = '<tr><th>時間</th><th>姓名</th><th>項目</th><th>金額</th><th>詳細/備註</th></tr>' +
+    data.extra_income_records.map(row => {
+      const details = row.item === '球拍'
+        ? [
+            row.contact_phone ? `電話：${row.contact_phone}` : '',
+            row.racket_model ? `穿線：${row.racket_model}` : '',
+            row.string_tension ? `磅數：${row.string_tension}` : '',
+            row.payment_status ? `收費：${row.payment_status}` : '',
+            row.racket_status ? `球拍：${row.racket_status}` : '',
+            row.pickup_date ? `取回日：${row.pickup_date}` : '',
+            row.note ? `備註：${row.note}` : '',
+          ].filter(Boolean).join('｜')
+        : (row.note || '');
+      return `<tr><td>${row.income_time}</td><td>${row.customer}</td><td>${row.item}</td><td>$${Number(row.amount).toFixed(0)}</td><td>${details}</td></tr>`;
+    }).join('');
 
   document.getElementById('grand-total').textContent = `總計（預約）：$${Number(data.booking_grand_total).toFixed(0)}｜總計（額外收入）：$${Number(data.extra_income_grand_total).toFixed(0)}｜整體總計：$${Number(data.grand_total).toFixed(0)}`;
 }
@@ -1317,6 +1408,12 @@ class BookingWebHandler(BaseHTTPRequestHandler):
                         amount=payload.get("amount", 0),
                         income_time=str(payload.get("income_time", "")),
                         note=str(payload.get("note", "")),
+                        contact_phone=str(payload.get("contact_phone", "")),
+                        racket_model=str(payload.get("racket_model", "")),
+                        string_tension=payload.get("string_tension", None),
+                        payment_status=str(payload.get("payment_status", "")),
+                        racket_status=str(payload.get("racket_status", "")),
+                        pickup_date=str(payload.get("pickup_date", "")),
                     )
                 self._send_json(extra_income_to_dict(income), status=HTTPStatus.CREATED)
             except ValueError as exc:
