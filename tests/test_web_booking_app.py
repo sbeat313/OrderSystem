@@ -86,7 +86,6 @@ class TestWebBookingApp(unittest.TestCase):
         self.assertNotIn('顯示模式', body)
         self.assertIn('renderWeekly(await loadRangeBookings(date, 14), date, 14);', body)
         self.assertIn('const blockDays = rightDay ? [leftDay, rightDay] : [leftDay];', body)
-        self.assertIn('場地${index + 1}', body)
 
     def test_options_page_exists(self):
         status, body = self.request("GET", "/options")

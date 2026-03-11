@@ -287,10 +287,6 @@ async function loadRangeBookings(baseDate, days) {
   return data;
 }
 
-function venueDisplayName(venue, index) {
-  return isAdmin ? venue.name : `場地${index + 1}`;
-}
-
 function bookingForSlot(venueId, slotHour, bookings) {
   return bookings.find(b => {
     if (b.venue_id !== venueId) return false;
@@ -442,7 +438,7 @@ function renderDaily(bookings) {
   const grid = document.getElementById('grid');
   const day = document.getElementById('date').value;
   let html = '<tr><th class="sticky-left-1">時段</th>';
-  for (const [index, venue] of venues.entries()) html += `<th>${venueDisplayName(venue, index)}</th>`;
+  for (const venue of venues) html += `<th>${venue.name}</th>`;
   html += '</tr>';
 
   for (let h = START_HOUR; h < END_HOUR; h++) {
@@ -493,7 +489,7 @@ function renderTwoDay(dayData, baseDate) {
     for (const [index, venue] of venues.entries()) {
       const classes = [];
       if (day === days[1] && index === 0) classes.push('day-block-start');
-      html += `<th class="${classes.join(' ')}">${venueDisplayName(venue, index)}</th>`;
+      html += `<th class="${classes.join(' ')}">${venue.name}</th>`;
     }
   }
   html += '</tr>';
@@ -558,7 +554,7 @@ function renderWeekly(weekData, baseDate, days = 14) {
       for (const [index, venue] of venues.entries()) {
         const classes = [];
         if (day === rightDay && index === 0) classes.push('day-block-start');
-        html += `<th class="${classes.join(' ')}">${venueDisplayName(venue, index)}</th>`;
+        html += `<th class="${classes.join(' ')}">${venue.name}</th>`;
       }
     }
     html += '</tr>';
