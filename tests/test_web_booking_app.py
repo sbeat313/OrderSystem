@@ -78,6 +78,8 @@ class TestWebBookingApp(unittest.TestCase):
         self.assertIn('id="booking-modal-msg"', body)
         self.assertIn("已登入（點我登出）", body)
         self.assertIn("booking_admin_password", body)
+        self.assertIn("booking_admin_expires_at", body)
+        self.assertIn("ADMIN_SESSION_TTL_MS", body)
         self.assertIn('場地（可複選）', body)
         self.assertIn('multiple size="6"', body)
         self.assertNotIn('id="view-mode"', body)
@@ -102,6 +104,8 @@ class TestWebBookingApp(unittest.TestCase):
         self.assertIn("額外收入登記", body)
         self.assertIn("box-sizing: border-box", body)
         self.assertIn("booking_admin_password", body)
+        self.assertIn("booking_admin_expires_at", body)
+        self.assertIn("ADMIN_SESSION_TTL_MS", body)
         self.assertIn("穿線項目", body)
         self.assertIn("磅數", body)
 

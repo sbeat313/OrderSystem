@@ -203,10 +203,28 @@ let bookingsCache = {};
 let selectedBookingId = null;
 let modalEditingBookingId = null;
 const ADMIN_PASSWORD_KEY = 'booking_admin_password';
+const ADMIN_EXPIRES_KEY = 'booking_admin_expires_at';
+const ADMIN_SESSION_TTL_MS = 2 * 60 * 60 * 1000;
 
-function saveAdminPassword(password) { localStorage.setItem(ADMIN_PASSWORD_KEY, password); }
-function loadAdminPassword() { return localStorage.getItem(ADMIN_PASSWORD_KEY) || ''; }
-function clearAdminPassword() { localStorage.removeItem(ADMIN_PASSWORD_KEY); }
+function saveAdminPassword(password) {
+  localStorage.setItem(ADMIN_PASSWORD_KEY, password);
+  localStorage.setItem(ADMIN_EXPIRES_KEY, String(Date.now() + ADMIN_SESSION_TTL_MS));
+}
+
+function loadAdminPassword() {
+  const password = localStorage.getItem(ADMIN_PASSWORD_KEY) || '';
+  const expiresAt = Number(localStorage.getItem(ADMIN_EXPIRES_KEY) || 0);
+  if (!password || !expiresAt || Date.now() >= expiresAt) {
+    clearAdminPassword();
+    return '';
+  }
+  return password;
+}
+
+function clearAdminPassword() {
+  localStorage.removeItem(ADMIN_PASSWORD_KEY);
+  localStorage.removeItem(ADMIN_EXPIRES_KEY);
+}
 
 function toServerDateTime(v) { return v.replace('T', ' '); }
 function toDateObj(s) { return new Date(s.replace(' ', 'T') + ':00'); }
@@ -869,10 +887,28 @@ th:last-child, td:last-child { width: 186px; }
 <script>
 let adminPassword = '';
 const ADMIN_PASSWORD_KEY = 'booking_admin_password';
+const ADMIN_EXPIRES_KEY = 'booking_admin_expires_at';
+const ADMIN_SESSION_TTL_MS = 2 * 60 * 60 * 1000;
 
-function saveAdminPassword(password) { localStorage.setItem(ADMIN_PASSWORD_KEY, password); }
-function loadAdminPassword() { return localStorage.getItem(ADMIN_PASSWORD_KEY) || ''; }
-function clearAdminPassword() { localStorage.removeItem(ADMIN_PASSWORD_KEY); }
+function saveAdminPassword(password) {
+  localStorage.setItem(ADMIN_PASSWORD_KEY, password);
+  localStorage.setItem(ADMIN_EXPIRES_KEY, String(Date.now() + ADMIN_SESSION_TTL_MS));
+}
+
+function loadAdminPassword() {
+  const password = localStorage.getItem(ADMIN_PASSWORD_KEY) || '';
+  const expiresAt = Number(localStorage.getItem(ADMIN_EXPIRES_KEY) || 0);
+  if (!password || !expiresAt || Date.now() >= expiresAt) {
+    clearAdminPassword();
+    return '';
+  }
+  return password;
+}
+
+function clearAdminPassword() {
+  localStorage.removeItem(ADMIN_PASSWORD_KEY);
+  localStorage.removeItem(ADMIN_EXPIRES_KEY);
+}
 
 function logoutAdmin() {
   clearAdminPassword();
@@ -1050,10 +1086,28 @@ th { background:#eef2ff; }
 <script>
 let adminPassword = '';
 const ADMIN_PASSWORD_KEY = 'booking_admin_password';
+const ADMIN_EXPIRES_KEY = 'booking_admin_expires_at';
+const ADMIN_SESSION_TTL_MS = 2 * 60 * 60 * 1000;
 
-function saveAdminPassword(password) { localStorage.setItem(ADMIN_PASSWORD_KEY, password); }
-function loadAdminPassword() { return localStorage.getItem(ADMIN_PASSWORD_KEY) || ''; }
-function clearAdminPassword() { localStorage.removeItem(ADMIN_PASSWORD_KEY); }
+function saveAdminPassword(password) {
+  localStorage.setItem(ADMIN_PASSWORD_KEY, password);
+  localStorage.setItem(ADMIN_EXPIRES_KEY, String(Date.now() + ADMIN_SESSION_TTL_MS));
+}
+
+function loadAdminPassword() {
+  const password = localStorage.getItem(ADMIN_PASSWORD_KEY) || '';
+  const expiresAt = Number(localStorage.getItem(ADMIN_EXPIRES_KEY) || 0);
+  if (!password || !expiresAt || Date.now() >= expiresAt) {
+    clearAdminPassword();
+    return '';
+  }
+  return password;
+}
+
+function clearAdminPassword() {
+  localStorage.removeItem(ADMIN_PASSWORD_KEY);
+  localStorage.removeItem(ADMIN_EXPIRES_KEY);
+}
 function logoutAdmin() {
   clearAdminPassword();
   adminPassword = '';
@@ -1225,10 +1279,28 @@ th { background:#eef2ff; }
 <script>
 let adminPassword = '';
 const ADMIN_PASSWORD_KEY = 'booking_admin_password';
+const ADMIN_EXPIRES_KEY = 'booking_admin_expires_at';
+const ADMIN_SESSION_TTL_MS = 2 * 60 * 60 * 1000;
 
-function saveAdminPassword(password) { localStorage.setItem(ADMIN_PASSWORD_KEY, password); }
-function loadAdminPassword() { return localStorage.getItem(ADMIN_PASSWORD_KEY) || ''; }
-function clearAdminPassword() { localStorage.removeItem(ADMIN_PASSWORD_KEY); }
+function saveAdminPassword(password) {
+  localStorage.setItem(ADMIN_PASSWORD_KEY, password);
+  localStorage.setItem(ADMIN_EXPIRES_KEY, String(Date.now() + ADMIN_SESSION_TTL_MS));
+}
+
+function loadAdminPassword() {
+  const password = localStorage.getItem(ADMIN_PASSWORD_KEY) || '';
+  const expiresAt = Number(localStorage.getItem(ADMIN_EXPIRES_KEY) || 0);
+  if (!password || !expiresAt || Date.now() >= expiresAt) {
+    clearAdminPassword();
+    return '';
+  }
+  return password;
+}
+
+function clearAdminPassword() {
+  localStorage.removeItem(ADMIN_PASSWORD_KEY);
+  localStorage.removeItem(ADMIN_EXPIRES_KEY);
+}
 
 function logoutAdmin() {
   clearAdminPassword();
