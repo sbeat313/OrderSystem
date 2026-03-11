@@ -79,7 +79,7 @@ class TestWebBookingApp(unittest.TestCase):
         self.assertIn("已登入（點我登出）", body)
         self.assertIn("booking_admin_password", body)
         self.assertIn("booking_admin_expires_at", body)
-        self.assertIn("ADMIN_SESSION_TTL_MS", body)
+        self.assertIn("DEFAULT_ADMIN_SESSION_TTL_MS", body)
         self.assertIn('場地（可複選）', body)
         self.assertIn('multiple size="6"', body)
         self.assertNotIn('id="view-mode"', body)
@@ -91,6 +91,8 @@ class TestWebBookingApp(unittest.TestCase):
         status, body = self.request("GET", "/options")
         self.assertEqual(status, 200)
         self.assertIn("場地 / 用途 管理", body)
+        self.assertIn("登入時效(分鐘)", body)
+        self.assertIn("booking_admin_session_ttl_ms", body)
 
     def test_reports_page_exists(self):
         status, body = self.request("GET", "/reports")
@@ -105,7 +107,7 @@ class TestWebBookingApp(unittest.TestCase):
         self.assertIn("box-sizing: border-box", body)
         self.assertIn("booking_admin_password", body)
         self.assertIn("booking_admin_expires_at", body)
-        self.assertIn("ADMIN_SESSION_TTL_MS", body)
+        self.assertIn("DEFAULT_ADMIN_SESSION_TTL_MS", body)
         self.assertIn("穿線項目", body)
         self.assertIn("磅數", body)
 

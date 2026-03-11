@@ -204,11 +204,18 @@ let selectedBookingId = null;
 let modalEditingBookingId = null;
 const ADMIN_PASSWORD_KEY = 'booking_admin_password';
 const ADMIN_EXPIRES_KEY = 'booking_admin_expires_at';
-const ADMIN_SESSION_TTL_MS = 2 * 60 * 60 * 1000;
+const ADMIN_SESSION_TTL_MS_KEY = 'booking_admin_session_ttl_ms';
+const DEFAULT_ADMIN_SESSION_TTL_MS = 2 * 60 * 60 * 1000;
+
+function getAdminSessionTtlMs() {
+  const raw = Number(localStorage.getItem(ADMIN_SESSION_TTL_MS_KEY) || 0);
+  if (!raw || raw < 60 * 1000) return DEFAULT_ADMIN_SESSION_TTL_MS;
+  return raw;
+}
 
 function saveAdminPassword(password) {
   localStorage.setItem(ADMIN_PASSWORD_KEY, password);
-  localStorage.setItem(ADMIN_EXPIRES_KEY, String(Date.now() + ADMIN_SESSION_TTL_MS));
+  localStorage.setItem(ADMIN_EXPIRES_KEY, String(Date.now() + getAdminSessionTtlMs()));
 }
 
 function loadAdminPassword() {
@@ -869,6 +876,11 @@ th:last-child, td:last-child { width: 186px; }
   <h1 style="margin:0;">場地 / 用途 管理</h1>
   <button onclick="location.href='/'">回預約頁</button>
   <button onclick="logoutAdmin()">登出管理員</button>
+  <div style="display:flex;align-items:center;gap:6px;margin-left:auto;">
+    <span style="font-size:14px;color:#334155;">登入時效(分鐘)</span>
+    <input id="session-ttl-minutes" type="number" min="1" step="1" style="width:120px;"/>
+    <button onclick="saveSessionTtl()">儲存時效</button>
+  </div>
 </div>
 <div class="wrap">
   <div class="panel">
@@ -888,11 +900,18 @@ th:last-child, td:last-child { width: 186px; }
 let adminPassword = '';
 const ADMIN_PASSWORD_KEY = 'booking_admin_password';
 const ADMIN_EXPIRES_KEY = 'booking_admin_expires_at';
-const ADMIN_SESSION_TTL_MS = 2 * 60 * 60 * 1000;
+const ADMIN_SESSION_TTL_MS_KEY = 'booking_admin_session_ttl_ms';
+const DEFAULT_ADMIN_SESSION_TTL_MS = 2 * 60 * 60 * 1000;
+
+function getAdminSessionTtlMs() {
+  const raw = Number(localStorage.getItem(ADMIN_SESSION_TTL_MS_KEY) || 0);
+  if (!raw || raw < 60 * 1000) return DEFAULT_ADMIN_SESSION_TTL_MS;
+  return raw;
+}
 
 function saveAdminPassword(password) {
   localStorage.setItem(ADMIN_PASSWORD_KEY, password);
-  localStorage.setItem(ADMIN_EXPIRES_KEY, String(Date.now() + ADMIN_SESSION_TTL_MS));
+  localStorage.setItem(ADMIN_EXPIRES_KEY, String(Date.now() + getAdminSessionTtlMs()));
 }
 
 function loadAdminPassword() {
@@ -914,6 +933,17 @@ function logoutAdmin() {
   clearAdminPassword();
   adminPassword = '';
   alert('已登出管理員');
+}
+
+function saveSessionTtl() {
+  const minutes = Number(document.getElementById('session-ttl-minutes').value || 0);
+  if (!minutes || minutes < 1) {
+    alert('請輸入大於等於 1 的分鐘數');
+    return;
+  }
+  localStorage.setItem(ADMIN_SESSION_TTL_MS_KEY, String(minutes * 60 * 1000));
+  if (adminPassword) saveAdminPassword(adminPassword);
+  alert('登入時效已更新');
 }
 
 async function login() {
@@ -989,6 +1019,12 @@ async function deletePurpose(id) {
   try { await api('DELETE', '/api/purposes', {purpose_id: id}); await refresh(); }
   catch (e) { alert(e.message); }
 }
+
+(function initSessionTtl() {
+  const ttlMinutes = Math.floor(getAdminSessionTtlMs() / 60000);
+  const input = document.getElementById('session-ttl-minutes');
+  if (input) input.value = ttlMinutes;
+})();
 
 refresh();
 </script>
@@ -1087,11 +1123,18 @@ th { background:#eef2ff; }
 let adminPassword = '';
 const ADMIN_PASSWORD_KEY = 'booking_admin_password';
 const ADMIN_EXPIRES_KEY = 'booking_admin_expires_at';
-const ADMIN_SESSION_TTL_MS = 2 * 60 * 60 * 1000;
+const ADMIN_SESSION_TTL_MS_KEY = 'booking_admin_session_ttl_ms';
+const DEFAULT_ADMIN_SESSION_TTL_MS = 2 * 60 * 60 * 1000;
+
+function getAdminSessionTtlMs() {
+  const raw = Number(localStorage.getItem(ADMIN_SESSION_TTL_MS_KEY) || 0);
+  if (!raw || raw < 60 * 1000) return DEFAULT_ADMIN_SESSION_TTL_MS;
+  return raw;
+}
 
 function saveAdminPassword(password) {
   localStorage.setItem(ADMIN_PASSWORD_KEY, password);
-  localStorage.setItem(ADMIN_EXPIRES_KEY, String(Date.now() + ADMIN_SESSION_TTL_MS));
+  localStorage.setItem(ADMIN_EXPIRES_KEY, String(Date.now() + getAdminSessionTtlMs()));
 }
 
 function loadAdminPassword() {
@@ -1112,6 +1155,17 @@ function logoutAdmin() {
   clearAdminPassword();
   adminPassword = '';
   alert('已登出管理員');
+}
+
+function saveSessionTtl() {
+  const minutes = Number(document.getElementById('session-ttl-minutes').value || 0);
+  if (!minutes || minutes < 1) {
+    alert('請輸入大於等於 1 的分鐘數');
+    return;
+  }
+  localStorage.setItem(ADMIN_SESSION_TTL_MS_KEY, String(minutes * 60 * 1000));
+  if (adminPassword) saveAdminPassword(adminPassword);
+  alert('登入時效已更新');
 }
 
 function toServerDateTime(v) { return v.replace('T', ' '); }
@@ -1280,11 +1334,18 @@ th { background:#eef2ff; }
 let adminPassword = '';
 const ADMIN_PASSWORD_KEY = 'booking_admin_password';
 const ADMIN_EXPIRES_KEY = 'booking_admin_expires_at';
-const ADMIN_SESSION_TTL_MS = 2 * 60 * 60 * 1000;
+const ADMIN_SESSION_TTL_MS_KEY = 'booking_admin_session_ttl_ms';
+const DEFAULT_ADMIN_SESSION_TTL_MS = 2 * 60 * 60 * 1000;
+
+function getAdminSessionTtlMs() {
+  const raw = Number(localStorage.getItem(ADMIN_SESSION_TTL_MS_KEY) || 0);
+  if (!raw || raw < 60 * 1000) return DEFAULT_ADMIN_SESSION_TTL_MS;
+  return raw;
+}
 
 function saveAdminPassword(password) {
   localStorage.setItem(ADMIN_PASSWORD_KEY, password);
-  localStorage.setItem(ADMIN_EXPIRES_KEY, String(Date.now() + ADMIN_SESSION_TTL_MS));
+  localStorage.setItem(ADMIN_EXPIRES_KEY, String(Date.now() + getAdminSessionTtlMs()));
 }
 
 function loadAdminPassword() {
@@ -1306,6 +1367,17 @@ function logoutAdmin() {
   clearAdminPassword();
   adminPassword = '';
   alert('已登出管理員');
+}
+
+function saveSessionTtl() {
+  const minutes = Number(document.getElementById('session-ttl-minutes').value || 0);
+  if (!minutes || minutes < 1) {
+    alert('請輸入大於等於 1 的分鐘數');
+    return;
+  }
+  localStorage.setItem(ADMIN_SESSION_TTL_MS_KEY, String(minutes * 60 * 1000));
+  if (adminPassword) saveAdminPassword(adminPassword);
+  alert('登入時效已更新');
 }
 
 async function login() {
