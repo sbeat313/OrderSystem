@@ -308,7 +308,7 @@ function availableVenueCountForSlot(slotHour, bookings) {
 
 function makeAvailabilityCell(day, hour, availableCount) {
   const cls = availableCount > 0 ? 'slot available' : 'slot full';
-  const text = availableCount > 0 ? `可預約（剩 ${availableCount} 場）` : '已滿';
+  const text = availableCount > 0 ? '可預約' : '已滿';
   return `<td class="${cls}" data-day="${day}" data-hour="${hour}"><div class="small">${text}</div></td>`;
 }
 
