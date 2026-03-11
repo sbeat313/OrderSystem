@@ -135,6 +135,8 @@ td.venue {
 }
 td.slot-time { min-width: var(--sticky-time); font-weight: 600; background: #f8fafc; position: sticky; left: var(--sticky-venue); z-index: 3; }
 td.slot { height: 56px; background: #fcfdff; }
+td.slot.available { background: #dcfce7; color: #166534; font-weight: 700; }
+td.slot.full { background: #fee2e2; color: #991b1b; font-weight: 700; }
 th.day-block-start, td.day-block-start { border-left: 4px solid #64748b; }
 th.weekend-head { background: linear-gradient(180deg, #fee2e2, #fecaca); color: #7f1d1d; }
 td.weekend-date { background: #fff1f2; color: #9f1239; font-weight: 800; }
@@ -294,6 +296,20 @@ function bookingForSlot(venueId, slotHour, bookings) {
     const end = toDateObj(b.end_time).getHours();
     return slotHour >= start && slotHour < end;
   });
+}
+
+function availableVenueCountForSlot(slotHour, bookings) {
+  let available = 0;
+  for (const venue of venues) {
+    if (!bookingForSlot(venue.venue_id, slotHour, bookings)) available += 1;
+  }
+  return available;
+}
+
+function makeAvailabilityCell(day, hour, availableCount) {
+  const cls = availableCount > 0 ? 'slot available' : 'slot full';
+  const text = availableCount > 0 ? `可預約（剩 ${availableCount} 場）` : '已滿';
+  return `<td class="${cls}" data-day="${day}" data-hour="${hour}"><div class="small">${text}</div></td>`;
 }
 
 function setAuthBadge() {
@@ -547,14 +563,23 @@ function renderWeekly(weekData, baseDate, days = 14) {
       const weekDay = new Date(`${day}T00:00:00`).getDay();
       const weekendClass = isWeekend(day) ? ' weekend-head' : '';
       const separatorClass = (day === rightDay) ? ' day-block-start' : '';
-      html += `<th class="${separatorClass}${weekendClass}" colspan="${venues.length}">${day}（${weekdayNames[(weekDay + 6) % 7]}）</th>`;
+      const colSpan = isAdmin ? venues.length : 1;
+      html += `<th class="${separatorClass}${weekendClass}" colspan="${colSpan}">${day}（${weekdayNames[(weekDay + 6) % 7]}）</th>`;
     }
-    html += '</tr><tr><th class="sticky-left-1">場地</th>';
+    html += '</tr><tr><th class="sticky-left-1">';
+    html += isAdmin ? '場地' : '可預約狀態';
+    html += '</th>';
+
     for (const day of blockDays) {
-      for (const [index, venue] of venues.entries()) {
-        const classes = [];
-        if (day === rightDay && index === 0) classes.push('day-block-start');
-        html += `<th class="${classes.join(' ')}">${venue.name}</th>`;
+      if (isAdmin) {
+        for (const [index, venue] of venues.entries()) {
+          const classes = [];
+          if (day === rightDay && index === 0) classes.push('day-block-start');
+          html += `<th class="${classes.join(' ')}">${venue.name}</th>`;
+        }
+      } else {
+        const classes = day === rightDay ? 'day-block-start' : '';
+        html += `<th class="${classes}">時段狀態</th>`;
       }
     }
     html += '</tr>';
@@ -563,6 +588,15 @@ function renderWeekly(weekData, baseDate, days = 14) {
       html += `<tr><td class="venue">${String(h).padStart(2, '0')}-${String(h + 1).padStart(2, '0')}</td>`;
       for (const day of blockDays) {
         const bookings = weekData[day] || [];
+
+        if (!isAdmin) {
+          const availableCount = availableVenueCountForSlot(h, bookings);
+          let cell = makeAvailabilityCell(day, h, availableCount);
+          if (day === rightDay) cell = cell.replace('class="slot', 'class="slot day-block-start');
+          html += cell;
+          continue;
+        }
+
         for (const [index, venue] of venues.entries()) {
           const b = bookingForSlot(venue.venue_id, h, bookings);
           if (b) {
@@ -570,9 +604,9 @@ function renderWeekly(weekData, baseDate, days = 14) {
             const endHour = toDateObj(b.end_time).getHours();
             if (h > startHour) continue;
             const span = Math.max(1, endHour - startHour);
-            const text = isAdmin ? `${b.customer}
+            const text = `${b.customer}
 ${b.purpose || ''}
-$${Number(b.price || 0).toFixed(0)}` : '已預約';
+$${Number(b.price || 0).toFixed(0)}`;
             let cell = makeSlotCell(day, h, venue.venue_id, b, text, span);
             if (day === rightDay && index === 0) cell = cell.replace('class="slot', 'class="slot day-block-start');
             html += cell;
