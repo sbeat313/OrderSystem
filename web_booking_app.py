@@ -931,6 +931,7 @@ th:last-child, td:last-child { width: 186px; }
 </div>
 <script>
 let adminPassword = '';
+let editingIncomeId = null;
 const ADMIN_PASSWORD_KEY = 'booking_admin_password';
 const ADMIN_EXPIRES_KEY = 'booking_admin_expires_at';
 const ADMIN_SESSION_TTL_MS_KEY = 'booking_admin_session_ttl_ms';
@@ -1131,8 +1132,10 @@ th { background:#eef2ff; }
         <div>球拍狀態</div>
         <select id="income-racket-status">
           <option value="">未設定</option>
+          <option value="待取回加工">待取回加工</option>
+          <option value="施做中">施做中</option>
+          <option value="辦公室未取">辦公室未取</option>
           <option value="客戶取回">客戶取回</option>
-          <option value="店內保管">店內保管</option>
         </select>
       </div>
       <div>
@@ -1147,13 +1150,17 @@ th { background:#eef2ff; }
       <div class="helper">若項目選擇「球拍」，可填寫連絡電話、穿線項目、磅數、收費狀態、球拍狀態與客戶取回日。</div>
     </div>
 
-    <div style="margin-top:10px;"><button id="save-income">新增額外收入</button></div>
+    <div style="margin-top:10px; display:flex; gap:8px;">
+      <button id="save-income">新增額外收入</button>
+      <button id="cancel-edit-income" style="display:none; background:#64748b;">取消編輯</button>
+    </div>
     <div id="income-msg" class="note"></div>
     <table id="income-table"></table>
   </div>
 </div>
 <script>
 let adminPassword = '';
+let editingIncomeId = null;
 const ADMIN_PASSWORD_KEY = 'booking_admin_password';
 const ADMIN_EXPIRES_KEY = 'booking_admin_expires_at';
 const ADMIN_SESSION_TTL_MS_KEY = 'booking_admin_session_ttl_ms';
@@ -1258,11 +1265,72 @@ async function refreshList() {
   if (!resp.ok) { alert(data.error || '讀取失敗'); return; }
 
   const table = document.getElementById('income-table');
-  table.innerHTML = '<tr><th>時間</th><th>姓名</th><th>項目</th><th>金額</th><th>詳細/備註</th></tr>' +
-    data.items.map(row => `<tr><td>${row.income_time}</td><td>${row.customer}</td><td>${row.item}</td><td>$${Number(row.amount).toFixed(0)}</td><td>${racketSummary(row)}</td></tr>`).join('');
+  table.innerHTML = '<tr><th>時間</th><th>姓名</th><th>項目</th><th>金額</th><th>詳細/備註</th><th>操作</th></tr>' +
+    data.items.map(row => `<tr><td>${row.income_time}</td><td>${row.customer}</td><td>${row.item}</td><td>$${Number(row.amount).toFixed(0)}</td><td>${racketSummary(row)}</td><td><button style="padding:6px 10px; margin-right:6px;" onclick="startEditIncome(${row.income_id})">編輯</button><button style="padding:6px 10px; background:#dc2626;" onclick="deleteIncome(${row.income_id})">刪除</button></td></tr>`).join('');
+}
+
+function resetIncomeForm() {
+  editingIncomeId = null;
+  document.getElementById('save-income').textContent = '新增額外收入';
+  document.getElementById('cancel-edit-income').style.display = 'none';
+  document.getElementById('income-customer').value = '';
+  document.getElementById('income-item').value = '';
+  document.getElementById('income-amount').value = '';
+  document.getElementById('income-note').value = '';
+  document.getElementById('income-phone').value = '';
+  document.getElementById('income-racket-model').value = '';
+  document.getElementById('income-tension').value = '';
+  document.getElementById('income-payment-status').value = '';
+  document.getElementById('income-racket-status').value = '';
+  document.getElementById('income-pickup-date').value = '';
+  toggleRacketFields();
+}
+
+async function startEditIncome(incomeId) {
+  if (!await ensureLogin()) return;
+  const resp = await fetch('/api/extra-incomes/query', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ admin_password: adminPassword }),
+  });
+  const data = await resp.json();
+  if (!resp.ok) { alert(data.error || '讀取失敗'); return; }
+  const row = data.items.find(item => Number(item.income_id) === Number(incomeId));
+  if (!row) { alert('找不到資料'); return; }
+
+  editingIncomeId = Number(row.income_id);
+  document.getElementById('save-income').textContent = '儲存修改';
+  document.getElementById('cancel-edit-income').style.display = 'inline-block';
+  document.getElementById('income-time').value = row.income_time.replace(' ', 'T');
+  document.getElementById('income-customer').value = row.customer || '';
+  document.getElementById('income-item').value = row.item || '';
+  document.getElementById('income-amount').value = Number(row.amount || 0);
+  document.getElementById('income-note').value = row.note || '';
+  document.getElementById('income-phone').value = row.contact_phone || '';
+  document.getElementById('income-racket-model').value = row.racket_model || '';
+  document.getElementById('income-tension').value = row.string_tension || '';
+  document.getElementById('income-payment-status').value = row.payment_status || '';
+  document.getElementById('income-racket-status').value = row.racket_status || '';
+  document.getElementById('income-pickup-date').value = row.pickup_date || '';
+  toggleRacketFields();
+}
+
+async function deleteIncome(incomeId) {
+  if (!confirm(`確定刪除收入 #${incomeId}？`)) return;
+  if (!await ensureLogin()) return;
+  const resp = await fetch('/api/extra-incomes', {
+    method:'DELETE',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ admin_password: adminPassword, income_id: Number(incomeId) }),
+  });
+  const data = await resp.json();
+  if (!resp.ok) { alert(data.error || '刪除失敗'); return; }
+  if (editingIncomeId === Number(incomeId)) resetIncomeForm();
+  await refreshList();
 }
 
 document.getElementById('income-item').addEventListener('change', toggleRacketFields);
+document.getElementById('cancel-edit-income').addEventListener('click', resetIncomeForm);
 
 document.getElementById('save-income').addEventListener('click', async () => {
   const msg = document.getElementById('income-msg');
@@ -1284,8 +1352,9 @@ document.getElementById('save-income').addEventListener('click', async () => {
     pickup_date: document.getElementById('income-pickup-date').value.trim(),
   };
 
+  if (editingIncomeId) payload.income_id = editingIncomeId;
   const resp = await fetch('/api/extra-incomes', {
-    method:'POST',
+    method: editingIncomeId ? 'PUT' : 'POST',
     headers:{'Content-Type':'application/json'},
     body: JSON.stringify(payload),
   });
@@ -1297,7 +1366,8 @@ document.getElementById('save-income').addEventListener('click', async () => {
   }
 
   msg.style.color = '#16a34a';
-  msg.textContent = `新增成功 #${data.income_id}`;
+  msg.textContent = editingIncomeId ? `更新成功 #${data.income_id}` : `新增成功 #${data.income_id}`;
+  resetIncomeForm();
   await refreshList();
 });
 
@@ -1356,7 +1426,7 @@ th { background:#eef2ff; }
       <div><div>姓名</div><input id="customer-filter" placeholder="留空=全部"/></div>
       <button id="query-btn">查詢</button>
     </div>
-    <div class="section-title">合計（預約 + 額外收入）</div>
+    <div class="section-title">預約收入明細</div>
     <table id="report-table"></table>
     <div class="section-title">額外收入明細</div>
     <table id="extra-income-table"></table>
@@ -1623,10 +1693,18 @@ class BookingWebHandler(BaseHTTPRequestHandler):
                 customer = str(payload.get("customer", "")).strip()
                 with manager_lock:
                     booking_items = manager.summarize_fees(start_date, end_date, customer)
-                    extra_records = [
+                    all_extra_records = [
                         extra_income_to_dict(item)
                         for item in manager.list_extra_incomes(start_date=start_date, end_date=end_date, customer=customer)
                     ]
+
+                extra_records = []
+                for row in all_extra_records:
+                    if row["item"] != "球拍":
+                        extra_records.append(row)
+                        continue
+                    if row["payment_status"] == "結清" and row["pickup_date"]:
+                        extra_records.append(row)
 
                 booking_map = {
                     item["customer"]: {
@@ -1734,6 +1812,23 @@ class BookingWebHandler(BaseHTTPRequestHandler):
                         end=str(payload.get("end", "")),
                     )
                     self._send_json(booking_to_dict(item))
+                    return
+                if parsed.path == "/api/extra-incomes":
+                    item = manager.update_extra_income(
+                        income_id=int(payload.get("income_id", 0)),
+                        customer=str(payload.get("customer", "")),
+                        item=str(payload.get("item", "")),
+                        amount=payload.get("amount", 0),
+                        income_time=str(payload.get("income_time", "")),
+                        note=str(payload.get("note", "")),
+                        contact_phone=str(payload.get("contact_phone", "")),
+                        racket_model=str(payload.get("racket_model", "")),
+                        string_tension=payload.get("string_tension", None),
+                        payment_status=str(payload.get("payment_status", "")),
+                        racket_status=str(payload.get("racket_status", "")),
+                        pickup_date=str(payload.get("pickup_date", "")),
+                    )
+                    self._send_json(extra_income_to_dict(item))
                     return
                 self._send_json({"error": "Not Found"}, status=HTTPStatus.NOT_FOUND)
         except (ValueError, json.JSONDecodeError) as exc:

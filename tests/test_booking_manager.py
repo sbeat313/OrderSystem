@@ -123,6 +123,31 @@ class BookingManagerTests(unittest.TestCase):
         manager2 = BookingManager(db_path=f"{self.tmp.name}/test.db")
         self.assertEqual(len(manager2.list_bookings("2026-04-01")), 1)
 
+    def test_update_extra_income(self):
+        created = self.manager.add_extra_income(
+            customer="王小明",
+            item="球拍",
+            amount=440,
+            income_time="2026-04-02 10:00",
+            racket_model="YONEX BG-66UM",
+            string_tension=34,
+        )
+        updated = self.manager.update_extra_income(
+            income_id=created.income_id,
+            customer="王小明",
+            item="球拍",
+            amount=520,
+            income_time="2026-04-03 09:00",
+            racket_model="YONEX BG-80",
+            string_tension=33,
+            payment_status="結清",
+            racket_status="客戶取回",
+            pickup_date="2026-04-05",
+        )
+        self.assertEqual(updated.amount, 520)
+        self.assertEqual(updated.payment_status, "結清")
+
+
 
 if __name__ == "__main__":
     unittest.main()

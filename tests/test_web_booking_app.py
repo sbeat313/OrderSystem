@@ -99,6 +99,7 @@ class TestWebBookingApp(unittest.TestCase):
         status, body = self.request("GET", "/reports")
         self.assertEqual(status, 200)
         self.assertIn("預約費用統計", body)
+        self.assertIn("預約收入明細", body)
         self.assertIn("額外收入明細", body)
 
     def test_extra_income_page_exists(self):
@@ -431,7 +432,7 @@ class TestWebBookingApp(unittest.TestCase):
                 "racket_model": "YONEX BG-66UM",
                 "string_tension": 34,
                 "payment_status": "尚未付款",
-                "racket_status": "店內保管",
+                "racket_status": "施做中",
                 "pickup_date": "2026-04-14",
             },
         )
@@ -451,6 +452,115 @@ class TestWebBookingApp(unittest.TestCase):
         row = data["items"][0]
         self.assertEqual(row["contact_phone"], "0912222333")
         self.assertEqual(row["payment_status"], "尚未付款")
+
+    def test_update_and_delete_extra_income_via_api(self):
+        status, body = self.request(
+            "POST",
+            "/api/extra-incomes",
+            {
+                "admin_password": "admin123",
+                "income_time": "2026-04-02 10:00",
+                "customer": "王小明",
+                "item": "球拍",
+                "amount": 440,
+                "racket_model": "YONEX BG-66UM",
+                "string_tension": 34,
+            },
+        )
+        self.assertEqual(status, 201)
+        income_id = json.loads(body)["income_id"]
+
+        status, body = self.request(
+            "PUT",
+            "/api/extra-incomes",
+            {
+                "admin_password": "admin123",
+                "income_id": income_id,
+                "income_time": "2026-04-03 11:00",
+                "customer": "王小明",
+                "item": "球拍",
+                "amount": 500,
+                "racket_model": "YONEX BG-80",
+                "string_tension": 33,
+                "payment_status": "結清",
+                "racket_status": "客戶取回",
+                "pickup_date": "2026-04-05",
+            },
+        )
+        self.assertEqual(status, 200)
+        updated = json.loads(body)
+        self.assertEqual(updated["amount"], 500)
+        self.assertEqual(updated["racket_model"], "YONEX BG-80")
+
+        status, _ = self.request(
+            "DELETE",
+            "/api/extra-incomes",
+            {"admin_password": "admin123", "income_id": income_id},
+        )
+        self.assertEqual(status, 200)
+
+    def test_racket_income_requires_paid_and_pickup_to_count_in_report(self):
+        self.request(
+            "POST",
+            "/api/extra-incomes",
+            {
+                "admin_password": "admin123",
+                "income_time": "2026-04-02 10:00",
+                "customer": "王小明",
+                "item": "球拍",
+                "amount": 440,
+                "racket_model": "YONEX BG-66UM",
+                "string_tension": 34,
+                "payment_status": "尚未付款",
+                "pickup_date": "2026-04-14",
+            },
+        )
+        self.request(
+            "POST",
+            "/api/extra-incomes",
+            {
+                "admin_password": "admin123",
+                "income_time": "2026-04-03 10:00",
+                "customer": "王小明",
+                "item": "球拍",
+                "amount": 460,
+                "racket_model": "YONEX BG-80",
+                "string_tension": 33,
+                "payment_status": "結清",
+                "pickup_date": "",
+            },
+        )
+        self.request(
+            "POST",
+            "/api/extra-incomes",
+            {
+                "admin_password": "admin123",
+                "income_time": "2026-04-04 10:00",
+                "customer": "王小明",
+                "item": "球拍",
+                "amount": 480,
+                "racket_model": "YONEX BG-65",
+                "string_tension": 32,
+                "payment_status": "結清",
+                "pickup_date": "2026-04-16",
+            },
+        )
+
+        status, body = self.request(
+            "POST",
+            "/api/reports/fees",
+            {
+                "admin_password": "admin123",
+                "start_date": "2026-04-01",
+                "end_date": "2026-04-30",
+                "customer": "王小明",
+            },
+        )
+        self.assertEqual(status, 200)
+        data = json.loads(body)
+        self.assertEqual(data["extra_income_grand_total"], 480)
+        self.assertEqual(len(data["extra_income_records"]), 1)
+        self.assertEqual(data["extra_income_records"][0]["pickup_date"], "2026-04-16")
 
     def test_manage_venues_and_purposes_via_api(self):
         status, body = self.request(

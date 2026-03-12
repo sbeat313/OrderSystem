@@ -694,6 +694,100 @@ class BookingManager:
             pickup_date=pickup,
         )
 
+    def update_extra_income(
+        self,
+        income_id: int,
+        customer: str,
+        item: str,
+        amount: float,
+        income_time: str,
+        note: str = "",
+        contact_phone: str = "",
+        racket_model: str = "",
+        string_tension: Optional[int] = None,
+        payment_status: str = "",
+        racket_status: str = "",
+        pickup_date: str = "",
+    ) -> ExtraIncome:
+        if income_id <= 0:
+            raise ValueError("收入資料不存在")
+
+        customer_name = customer.strip()
+        item_name = item.strip()
+        memo = note.strip()
+        phone = contact_phone.strip()
+        racket = racket_model.strip()
+        paid_status = payment_status.strip()
+        racket_state = racket_status.strip()
+        pickup = pickup_date.strip()
+        if not customer_name:
+            raise ValueError("姓名不可為空")
+        if not item_name:
+            raise ValueError("項目不可為空")
+
+        try:
+            dt = datetime.strptime(income_time.strip(), TIME_FORMAT)
+        except ValueError as exc:
+            raise ValueError(f"時間格式錯誤，請使用 {TIME_FORMAT}") from exc
+        income_amount = self._parse_price(amount)
+
+        tension_value: Optional[int] = None
+        if string_tension not in (None, ""):
+            try:
+                tension_value = int(string_tension)
+            except (TypeError, ValueError) as exc:
+                raise ValueError("磅數格式錯誤") from exc
+            if tension_value <= 0:
+                raise ValueError("磅數必須為正整數")
+
+        if item_name == "球拍":
+            if not racket:
+                raise ValueError("球拍項目需填寫穿線項目")
+            if tension_value is None:
+                raise ValueError("球拍項目需填寫磅數")
+
+        with self._connect() as conn:
+            cur = conn.execute(
+                """
+                UPDATE extra_incomes
+                SET customer = ?, item = ?, amount = ?, note = ?, income_time = ?,
+                    contact_phone = ?, racket_model = ?, string_tension = ?, payment_status = ?,
+                    racket_status = ?, pickup_date = ?
+                WHERE id = ?
+                """,
+                (
+                    customer_name,
+                    item_name,
+                    income_amount,
+                    memo,
+                    dt.strftime(TIME_FORMAT),
+                    phone,
+                    racket,
+                    tension_value,
+                    paid_status,
+                    racket_state,
+                    pickup,
+                    income_id,
+                ),
+            )
+            if cur.rowcount == 0:
+                raise ValueError("收入資料不存在")
+
+        return ExtraIncome(
+            income_id=income_id,
+            customer=customer_name,
+            item=item_name,
+            amount=income_amount,
+            note=memo,
+            income_time=dt,
+            contact_phone=phone,
+            racket_model=racket,
+            string_tension=tension_value,
+            payment_status=paid_status,
+            racket_status=racket_state,
+            pickup_date=pickup,
+        )
+
     def list_extra_incomes(
         self,
         start_date: str = "",
