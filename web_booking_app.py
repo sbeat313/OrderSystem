@@ -543,6 +543,7 @@ $${Number(b.price || 0).toFixed(0)}` : '已預約';
 function renderWeekly(weekData, baseDate, days = 14) {
   const grid = document.getElementById('grid');
   const start = weekStart(baseDate);
+  const daysPerRow = isAdmin ? 2 : 7;
   const dates = [];
   for (let i = 0; i < days; i++) {
     const d = new Date(start);
@@ -553,16 +554,14 @@ function renderWeekly(weekData, baseDate, days = 14) {
   const weekdayNames = ['星期一', '星期二', '星期三', '星期四', '星期五', '星期六', '星期日'];
   let html = '';
 
-  for (let i = 0; i < dates.length; i += 2) {
-    const leftDay = dates[i];
-    const rightDay = dates[i + 1];
-    const blockDays = rightDay ? [leftDay, rightDay] : [leftDay];
+  for (let i = 0; i < dates.length; i += daysPerRow) {
+    const blockDays = dates.slice(i, i + daysPerRow);
 
     html += '<tr><th class="sticky-left-1">時段</th>';
-    for (const day of blockDays) {
+    for (const [dayIndex, day] of blockDays.entries()) {
       const weekDay = new Date(`${day}T00:00:00`).getDay();
       const weekendClass = isWeekend(day) ? ' weekend-head' : '';
-      const separatorClass = (day === rightDay) ? ' day-block-start' : '';
+      const separatorClass = dayIndex > 0 ? ' day-block-start' : '';
       const colSpan = isAdmin ? venues.length : 1;
       html += `<th class="${separatorClass}${weekendClass}" colspan="${colSpan}">${day}（${weekdayNames[(weekDay + 6) % 7]}）</th>`;
     }
@@ -570,15 +569,15 @@ function renderWeekly(weekData, baseDate, days = 14) {
     html += isAdmin ? '場地' : '可預約狀態';
     html += '</th>';
 
-    for (const day of blockDays) {
+    for (const [dayIndex, day] of blockDays.entries()) {
       if (isAdmin) {
         for (const [index, venue] of venues.entries()) {
           const classes = [];
-          if (day === rightDay && index === 0) classes.push('day-block-start');
+          if (dayIndex > 0 && index === 0) classes.push('day-block-start');
           html += `<th class="${classes.join(' ')}">${venue.name}</th>`;
         }
       } else {
-        const classes = day === rightDay ? 'day-block-start' : '';
+        const classes = dayIndex > 0 ? 'day-block-start' : '';
         html += `<th class="${classes}">時段狀態</th>`;
       }
     }
@@ -586,13 +585,13 @@ function renderWeekly(weekData, baseDate, days = 14) {
 
     for (let h = START_HOUR; h < END_HOUR; h++) {
       html += `<tr><td class="venue">${String(h).padStart(2, '0')}-${String(h + 1).padStart(2, '0')}</td>`;
-      for (const day of blockDays) {
+      for (const [dayIndex, day] of blockDays.entries()) {
         const bookings = weekData[day] || [];
 
         if (!isAdmin) {
           const availableCount = availableVenueCountForSlot(h, bookings);
           let cell = makeAvailabilityCell(day, h, availableCount);
-          if (day === rightDay) cell = cell.replace('class="slot', 'class="slot day-block-start');
+          if (dayIndex > 0) cell = cell.replace('class="slot', 'class="slot day-block-start');
           html += cell;
           continue;
         }
@@ -608,12 +607,12 @@ function renderWeekly(weekData, baseDate, days = 14) {
 ${b.purpose || ''}
 $${Number(b.price || 0).toFixed(0)}`;
             let cell = makeSlotCell(day, h, venue.venue_id, b, text, span);
-            if (day === rightDay && index === 0) cell = cell.replace('class="slot', 'class="slot day-block-start');
+            if (dayIndex > 0 && index === 0) cell = cell.replace('class="slot', 'class="slot day-block-start');
             html += cell;
             continue;
           }
           let cell = makeSlotCell(day, h, venue.venue_id, null, '', 1);
-          if (day === rightDay && index === 0) cell = cell.replace('class="slot', 'class="slot day-block-start');
+          if (dayIndex > 0 && index === 0) cell = cell.replace('class="slot', 'class="slot day-block-start');
           html += cell;
         }
       }
