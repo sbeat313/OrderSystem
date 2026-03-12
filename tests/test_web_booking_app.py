@@ -84,7 +84,7 @@ class TestWebBookingApp(unittest.TestCase):
     def test_reports_page_exists(self):
         status, body = self.request("GET", "/reports")
         self.assertEqual(status, 200)
-        self.assertIn("預約費用統計", body)
+        self.assertIn("預約收入明細", body)
 
     def test_export_endpoint_removed(self):
         status, _ = self.request("GET", "/api/export?format=png&date=2026-04-01&role=user")
@@ -363,6 +363,49 @@ class TestWebBookingApp(unittest.TestCase):
             "/api/purposes",
             {"admin_password": "admin123", "purpose_id": purpose_id},
         )
+        self.assertEqual(status, 200)
+
+
+    def test_racket_and_stringing_item_crud_and_report_filter(self):
+        status, body = self.request(
+            "POST",
+            "/api/stringing-items",
+            {"admin_password": "admin123", "name": "測試線材", "amount": 460},
+        )
+        self.assertEqual(status, 201)
+        item_id = json.loads(body)["item_id"]
+
+        status, body = self.request(
+            "POST",
+            "/api/rackets",
+            {
+                "admin_password": "admin123",
+                "customer": "王小明",
+                "racket_model": "ARC11",
+                "status": "客戶取回",
+                "fee_status": "結清",
+                "stringing_item_id": item_id,
+                "amount": 460,
+                "received_date": "2026-04-01",
+                "pickup_date": "2026-04-05",
+                "note": "完成",
+            },
+        )
+        self.assertEqual(status, 201)
+        order_id = json.loads(body)["order_id"]
+
+        status, body = self.request(
+            "POST",
+            "/api/reports/fees",
+            {"admin_password": "admin123", "start_date": "2026-04-01", "end_date": "2026-04-30", "customer": "王小明"},
+        )
+        self.assertEqual(status, 200)
+        data = json.loads(body)
+        self.assertEqual(data["items"][0]["racket_fee"], 460)
+
+        status, _ = self.request("DELETE", "/api/rackets", {"admin_password": "admin123", "order_id": order_id})
+        self.assertEqual(status, 200)
+        status, _ = self.request("DELETE", "/api/stringing-items", {"admin_password": "admin123", "item_id": item_id})
         self.assertEqual(status, 200)
 
 

@@ -35,6 +35,32 @@ class Booking:
     end_time: datetime
 
 
+RACKET_STATUSES = ["待取回加工", "施做中", "辦公室未取", "客戶取回"]
+RACKET_FEE_STATUSES = ["未結清", "結清"]
+
+
+@dataclass
+class StringingItem:
+    item_id: int
+    name: str
+    amount: float
+
+
+@dataclass
+class RacketOrder:
+    order_id: int
+    customer: str
+    racket_model: str
+    status: str
+    fee_status: str
+    stringing_item_id: int
+    stringing_item_name: str
+    amount: float
+    received_date: str
+    pickup_date: str
+    note: str
+
+
 class BookingManager:
     def __init__(self, db_path: str = DEFAULT_DB_PATH) -> None:
         self.db_path = db_path
@@ -78,6 +104,32 @@ class BookingManager:
                 )
                 """
             )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS stringing_items (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL UNIQUE,
+                    amount REAL NOT NULL DEFAULT 0
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS racket_orders (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    customer TEXT NOT NULL,
+                    racket_model TEXT NOT NULL DEFAULT '',
+                    status TEXT NOT NULL,
+                    fee_status TEXT NOT NULL,
+                    stringing_item_id INTEGER NOT NULL,
+                    amount REAL NOT NULL DEFAULT 0,
+                    received_date TEXT NOT NULL,
+                    pickup_date TEXT NOT NULL DEFAULT '',
+                    note TEXT NOT NULL DEFAULT '',
+                    FOREIGN KEY (stringing_item_id) REFERENCES stringing_items(id)
+                )
+                """
+            )
             columns = [row["name"] for row in conn.execute("PRAGMA table_info(bookings)").fetchall()]
             if "price" not in columns:
                 conn.execute("ALTER TABLE bookings ADD COLUMN price REAL NOT NULL DEFAULT 0")
@@ -105,6 +157,141 @@ class BookingManager:
                         ("過年專案",),
                     ],
                 )
+            item_count = conn.execute("SELECT COUNT(*) FROM stringing_items").fetchone()[0]
+            if item_count == 0:
+                conn.executemany(
+                    "INSERT INTO stringing_items(name, amount) VALUES (?, ?)",
+                    [
+                        ("BG65 穿線", 350),
+                        ("NBG95 穿線", 500),
+                    ],
+                )
+
+    def list_stringing_items(self) -> List[StringingItem]:
+        with self._connect() as conn:
+            rows = conn.execute("SELECT id, name, amount FROM stringing_items ORDER BY id").fetchall()
+        return [
+            StringingItem(item_id=row["id"], name=row["name"], amount=float(row["amount"] or 0))
+            for row in rows
+        ]
+
+    def add_stringing_item(self, name: str, amount: float) -> StringingItem:
+        item_name = name.strip()
+        if not item_name:
+            raise ValueError("穿線項目名稱不可為空")
+        fee = self._parse_price(amount)
+        try:
+            with self._connect() as conn:
+                cur = conn.execute("INSERT INTO stringing_items(name, amount) VALUES (?, ?)", (item_name, fee))
+            return StringingItem(item_id=cur.lastrowid, name=item_name, amount=fee)
+        except sqlite3.IntegrityError as exc:
+            raise ValueError("穿線項目名稱不可重複") from exc
+
+    def update_stringing_item(self, item_id: int, name: str, amount: float) -> StringingItem:
+        item_name = name.strip()
+        if not item_name:
+            raise ValueError("穿線項目名稱不可為空")
+        fee = self._parse_price(amount)
+        try:
+            with self._connect() as conn:
+                cur = conn.execute(
+                    "UPDATE stringing_items SET name = ?, amount = ? WHERE id = ?",
+                    (item_name, fee, item_id),
+                )
+                if cur.rowcount == 0:
+                    raise ValueError("穿線項目不存在")
+            return StringingItem(item_id=item_id, name=item_name, amount=fee)
+        except sqlite3.IntegrityError as exc:
+            raise ValueError("穿線項目名稱不可重複") from exc
+
+    def delete_stringing_item(self, item_id: int) -> bool:
+        with self._connect() as conn:
+            used = conn.execute("SELECT COUNT(*) FROM racket_orders WHERE stringing_item_id = ?", (item_id,)).fetchone()[0]
+            if used > 0:
+                raise ValueError("此穿線項目已有球拍資料，無法刪除")
+            cur = conn.execute("DELETE FROM stringing_items WHERE id = ?", (item_id,))
+            return cur.rowcount > 0
+
+    def list_racket_orders(self) -> List[RacketOrder]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT r.id, r.customer, r.racket_model, r.status, r.fee_status, r.stringing_item_id,
+                       s.name AS stringing_item_name, r.amount, r.received_date, r.pickup_date, r.note
+                FROM racket_orders r
+                JOIN stringing_items s ON s.id = r.stringing_item_id
+                ORDER BY r.received_date DESC, r.id DESC
+                """
+            ).fetchall()
+        return [
+            RacketOrder(
+                order_id=row["id"],
+                customer=row["customer"],
+                racket_model=row["racket_model"],
+                status=row["status"],
+                fee_status=row["fee_status"],
+                stringing_item_id=row["stringing_item_id"],
+                stringing_item_name=row["stringing_item_name"],
+                amount=float(row["amount"] or 0),
+                received_date=row["received_date"],
+                pickup_date=row["pickup_date"],
+                note=row["note"],
+            )
+            for row in rows
+        ]
+
+    def add_racket_order(self, customer: str, racket_model: str, status: str, fee_status: str, stringing_item_id: int, amount: float, received_date: str, pickup_date: str = "", note: str = "") -> RacketOrder:
+        customer_name = customer.strip()
+        if not customer_name:
+            raise ValueError("客戶名稱不可為空")
+        self._validate_racket_statuses(status, fee_status)
+        self._validate_date(received_date, "收件日期")
+        if pickup_date:
+            self._validate_date(pickup_date, "客戶取回日")
+        fee = self._parse_price(amount)
+        with self._connect() as conn:
+            item = conn.execute("SELECT id, name FROM stringing_items WHERE id = ?", (stringing_item_id,)).fetchone()
+            if item is None:
+                raise ValueError("穿線項目不存在")
+            cur = conn.execute(
+                """
+                INSERT INTO racket_orders(customer, racket_model, status, fee_status, stringing_item_id, amount, received_date, pickup_date, note)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (customer_name, racket_model.strip(), status, fee_status, stringing_item_id, fee, received_date, pickup_date.strip(), note.strip()),
+            )
+            order_id = cur.lastrowid
+        return RacketOrder(order_id, customer_name, racket_model.strip(), status, fee_status, item["id"], item["name"], fee, received_date, pickup_date.strip(), note.strip())
+
+    def update_racket_order(self, order_id: int, customer: str, racket_model: str, status: str, fee_status: str, stringing_item_id: int, amount: float, received_date: str, pickup_date: str = "", note: str = "") -> RacketOrder:
+        customer_name = customer.strip()
+        if not customer_name:
+            raise ValueError("客戶名稱不可為空")
+        self._validate_racket_statuses(status, fee_status)
+        self._validate_date(received_date, "收件日期")
+        if pickup_date:
+            self._validate_date(pickup_date, "客戶取回日")
+        fee = self._parse_price(amount)
+        with self._connect() as conn:
+            item = conn.execute("SELECT id, name FROM stringing_items WHERE id = ?", (stringing_item_id,)).fetchone()
+            if item is None:
+                raise ValueError("穿線項目不存在")
+            cur = conn.execute(
+                """
+                UPDATE racket_orders
+                SET customer = ?, racket_model = ?, status = ?, fee_status = ?, stringing_item_id = ?, amount = ?, received_date = ?, pickup_date = ?, note = ?
+                WHERE id = ?
+                """,
+                (customer_name, racket_model.strip(), status, fee_status, stringing_item_id, fee, received_date, pickup_date.strip(), note.strip(), order_id),
+            )
+            if cur.rowcount == 0:
+                raise ValueError("球拍資料不存在")
+        return RacketOrder(order_id, customer_name, racket_model.strip(), status, fee_status, item["id"], item["name"], fee, received_date, pickup_date.strip(), note.strip())
+
+    def delete_racket_order(self, order_id: int) -> bool:
+        with self._connect() as conn:
+            cur = conn.execute("DELETE FROM racket_orders WHERE id = ?", (order_id,))
+            return cur.rowcount > 0
 
     def list_venues(self) -> List[Venue]:
         with self._connect() as conn:
@@ -548,14 +735,66 @@ class BookingManager:
         with self._connect() as conn:
             rows = conn.execute(query, params).fetchall()
 
-        return [
-            {
+        summary = {
+            row["customer"]: {
                 "customer": row["customer"],
                 "booking_count": int(row["booking_count"]),
-                "total_fee": float(row["total_fee"] or 0),
+                "booking_fee": float(row["total_fee"] or 0),
+                "racket_count": 0,
+                "racket_fee": 0.0,
             }
             for row in rows
-        ]
+        }
+
+        racket_query = """
+            SELECT customer, COUNT(*) AS racket_count, SUM(amount) AS racket_fee
+            FROM racket_orders
+            WHERE fee_status = '結清'
+              AND pickup_date <> ''
+              AND date(pickup_date) BETWEEN date(?) AND date(?)
+        """
+        racket_params: tuple = (start_date, end_date)
+        if customer_name:
+            racket_query += " AND customer = ?"
+            racket_params = (start_date, end_date, customer_name)
+        racket_query += " GROUP BY customer"
+
+        with self._connect() as conn:
+            racket_rows = conn.execute(racket_query, racket_params).fetchall()
+
+        for row in racket_rows:
+            record = summary.setdefault(
+                row["customer"],
+                {
+                    "customer": row["customer"],
+                    "booking_count": 0,
+                    "booking_fee": 0.0,
+                    "racket_count": 0,
+                    "racket_fee": 0.0,
+                },
+            )
+            record["racket_count"] = int(row["racket_count"])
+            record["racket_fee"] = float(row["racket_fee"] or 0)
+
+        items = list(summary.values())
+        for item in items:
+            item["total_fee"] = item["booking_fee"] + item["racket_fee"]
+        items.sort(key=lambda x: (-x["total_fee"], x["customer"]))
+        return items
+
+    @staticmethod
+    def _validate_date(date_str: str, field_name: str) -> None:
+        try:
+            datetime.strptime(date_str, "%Y-%m-%d")
+        except ValueError as exc:
+            raise ValueError(f"{field_name}格式錯誤，請使用 YYYY-MM-DD") from exc
+
+    @staticmethod
+    def _validate_racket_statuses(status: str, fee_status: str) -> None:
+        if status not in RACKET_STATUSES:
+            raise ValueError("球拍狀態不正確")
+        if fee_status not in RACKET_FEE_STATUSES:
+            raise ValueError("收費狀態不正確")
 
     @staticmethod
     def _parse_price(price: float) -> float:

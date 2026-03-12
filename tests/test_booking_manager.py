@@ -124,5 +124,54 @@ class BookingManagerTests(unittest.TestCase):
         self.assertEqual(len(manager2.list_bookings("2026-04-01")), 1)
 
 
+    def test_manage_racket_orders_and_stringing_items(self):
+        item = self.manager.add_stringing_item("測試線材", 420)
+        self.assertEqual(item.amount, 420)
+        item = self.manager.update_stringing_item(item.item_id, "測試線材2", 450)
+        self.assertEqual(item.name, "測試線材2")
+
+        order = self.manager.add_racket_order(
+            customer="王小明",
+            racket_model="ARC11",
+            status="施做中",
+            fee_status="未結清",
+            stringing_item_id=item.item_id,
+            amount=450,
+            received_date="2026-04-01",
+            pickup_date="",
+            note="急件",
+        )
+        self.assertEqual(order.status, "施做中")
+
+        order = self.manager.update_racket_order(
+            order_id=order.order_id,
+            customer="王小明",
+            racket_model="ARC11 Pro",
+            status="客戶取回",
+            fee_status="結清",
+            stringing_item_id=item.item_id,
+            amount=500,
+            received_date="2026-04-01",
+            pickup_date="2026-04-03",
+            note="完成",
+        )
+        self.assertEqual(order.fee_status, "結清")
+
+        items = self.manager.summarize_fees("2026-04-01", "2026-04-30", "王小明")
+        self.assertEqual(items[0]["racket_fee"], 500)
+
+        self.assertTrue(self.manager.delete_racket_order(order.order_id))
+        self.assertTrue(self.manager.delete_stringing_item(item.item_id))
+
+    def test_racket_fee_summary_only_count_settled_with_pickup_date(self):
+        base_item = self.manager.list_stringing_items()[0]
+        self.manager.add_racket_order("王小明", "A", "客戶取回", "未結清", base_item.item_id, 300, "2026-04-01", "2026-04-02")
+        self.manager.add_racket_order("王小明", "B", "客戶取回", "結清", base_item.item_id, 400, "2026-04-01", "")
+        self.manager.add_racket_order("王小明", "C", "客戶取回", "結清", base_item.item_id, 500, "2026-04-01", "2026-04-02")
+        result = self.manager.summarize_fees("2026-04-01", "2026-04-30", "王小明")
+        self.assertEqual(result[0]["racket_count"], 1)
+        self.assertEqual(result[0]["racket_fee"], 500)
+
+
 if __name__ == "__main__":
     unittest.main()

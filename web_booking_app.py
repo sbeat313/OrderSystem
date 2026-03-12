@@ -10,7 +10,13 @@ from threading import Lock
 from typing import Any, Dict, List, Union
 from urllib.parse import parse_qs, urlparse
 
-from booking_manager import Booking, BookingManager, TIME_FORMAT
+from booking_manager import (
+    Booking,
+    BookingManager,
+    RACKET_FEE_STATUSES,
+    RACKET_STATUSES,
+    TIME_FORMAT,
+)
 
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "admin123")
 
@@ -150,6 +156,7 @@ td.slot.booked-user { background: #93c5fd; color: #0f172a; }
       <button class="chip" id="admin-view">進階檢視</button>
       <button class="chip" id="options-link" style="display:none;" onclick="location.href='/options'">場地/用途設定</button>
       <button class="chip" id="report-link" style="display:none;" onclick="location.href='/reports'">費用統計</button>
+      <button class="chip" id="racket-link" style="display:none;" onclick="location.href='/rackets'">球拍管理</button>
       <button class="chip" id="open-add-modal" style="display:none;">新增預約</button>
     </div>
     <div id="msg" class="note"></div>
@@ -257,6 +264,7 @@ function setAuthBadge() {
   document.getElementById('options-link').style.display = isAdmin ? 'inline-block' : 'none';
   document.getElementById('report-link').style.display = isAdmin ? 'inline-block' : 'none';
   document.getElementById('open-add-modal').style.display = isAdmin ? 'inline-block' : 'none';
+  document.getElementById('racket-link').style.display = isAdmin ? 'inline-block' : 'none';
 }
 
 function makeSlotCell(day, hour, venueId, booking, text, rowspan = 1) {
@@ -807,7 +815,7 @@ REPORT_PAGE = """<!doctype html>
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>預約費用統計</title>
+<title>預約收入明細</title>
 <style>
 body { font-family: "Noto Sans TC", Arial, sans-serif; margin:0; padding:22px; background:#f4f6ff; color:#0f172a; }
 .wrap { max-width: 980px; margin: 0 auto; }
@@ -826,7 +834,7 @@ th { background:#eef2ff; }
 <body>
 <div class="wrap">
   <div class="top">
-    <h1>預約費用統計</h1>
+    <h1>預約收入明細</h1>
     <button onclick="location.href='/'">回預約頁</button>
   </div>
   <div class="card">
@@ -871,9 +879,9 @@ async function refreshReport() {
   if (!resp.ok) { alert(data.error || '查詢失敗'); return; }
 
   const table = document.getElementById('report-table');
-  table.innerHTML = '<tr><th>預約人</th><th>預約筆數</th><th>總費用</th></tr>' +
-    data.items.map(item => `<tr><td>${item.customer}</td><td>${item.booking_count}</td><td>$${Number(item.total_fee).toFixed(0)}</td></tr>`).join('');
-  document.getElementById('grand-total').textContent = `總計：$${Number(data.grand_total).toFixed(0)}`;
+  table.innerHTML = '<tr><th>預約人</th><th>預約筆數</th><th>預約收入</th><th>球拍筆數</th><th>球拍收入</th><th>總收入</th></tr>' +
+    data.items.map(item => `<tr><td>${item.customer}</td><td>${item.booking_count}</td><td>$${Number(item.booking_fee).toFixed(0)}</td><td>${item.racket_count}</td><td>$${Number(item.racket_fee).toFixed(0)}</td><td>$${Number(item.total_fee).toFixed(0)}</td></tr>`).join('');
+  document.getElementById('grand-total').textContent = `預約收入明細：$${Number(data.grand_total).toFixed(0)}`;
 }
 
 document.getElementById('query-btn').addEventListener('click', refreshReport);
@@ -888,6 +896,149 @@ document.getElementById('query-btn').addEventListener('click', refreshReport);
 </body>
 </html>
 """
+
+RACKET_PAGE = """<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>球拍管理</title>
+<style>
+body { font-family: "Noto Sans TC", Arial, sans-serif; margin:0; padding:22px; background:#f4f6ff; color:#0f172a; }
+.wrap { max-width: 1200px; margin: 0 auto; }
+.card { background:#fff; border:1px solid #dbe2f0; border-radius:14px; padding:16px; box-shadow:0 10px 25px rgba(30,64,175,.08); margin-bottom:12px; }
+.top { display:flex; gap:10px; align-items:center; margin-bottom:12px; }
+h1,h2 { margin:0 0 8px; color:#1e3a8a; }
+input, select, button { padding:8px 10px; border-radius:8px; border:1px solid #cbd5e1; font-size:14px; }
+button { background:#4f46e5; color:#fff; border:none; cursor:pointer; }
+.row { display:flex; flex-wrap:wrap; gap:8px; align-items:end; }
+table { width:100%; border-collapse:collapse; margin-top:8px; }
+th, td { border:1px solid #dbe2f0; padding:8px; text-align:left; }
+th { background:#eef2ff; }
+.actions { display:flex; gap:6px; }
+.small { width:100px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <h1>球拍管理</h1>
+    <button onclick="location.href='/'">回預約頁</button>
+  </div>
+
+  <div class="card">
+    <h2>穿線項目金額</h2>
+    <div class="row">
+      <div><div>項目名稱</div><input id="new-item-name"/></div>
+      <div><div>金額</div><input id="new-item-amount" type="number" min="0"/></div>
+      <button onclick="createItem()">新增穿線項目</button>
+    </div>
+    <table id="item-table"></table>
+  </div>
+
+  <div class="card">
+    <h2>球拍狀態與收費</h2>
+    <div class="row">
+      <div><div>客戶</div><input id="new-customer"/></div>
+      <div><div>球拍型號</div><input id="new-racket-model"/></div>
+      <div><div>球拍狀態</div><select id="new-status"></select></div>
+      <div><div>收費狀態</div><select id="new-fee-status"></select></div>
+      <div><div>穿線項目</div><select id="new-item-id"></select></div>
+      <div><div>費用</div><input id="new-amount" type="number" min="0"/></div>
+      <div><div>收件日</div><input id="new-received-date" type="date"/></div>
+      <div><div>客戶取回日</div><input id="new-pickup-date" type="date"/></div>
+      <div><div>備註</div><input id="new-note"/></div>
+      <button onclick="createOrder()">新增球拍單</button>
+    </div>
+    <table id="order-table"></table>
+  </div>
+</div>
+<script>
+let adminPassword = '';
+const STATUSES = ["待取回加工", "施做中", "辦公室未取", "客戶取回"];
+const FEE_STATUSES = ["未結清", "結清"];
+
+async function login() {
+  const pw = prompt('請輸入管理員密碼：');
+  if (pw === null) return false;
+  const resp = await fetch('/api/admin/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({password: pw}) });
+  if (!resp.ok) { alert('密碼錯誤'); return false; }
+  adminPassword = pw;
+  return true;
+}
+
+async function api(method, path, payload={}) {
+  if (!adminPassword) { const ok = await login(); if (!ok) throw new Error('cancel'); }
+  const resp = await fetch(path, { method, headers:{'Content-Type':'application/json'}, body: JSON.stringify({...payload, admin_password:adminPassword}) });
+  const data = await resp.json();
+  if (!resp.ok) throw new Error(data.error || '操作失敗');
+  return data;
+}
+
+function fillBaseSelects(items) {
+  document.getElementById('new-status').innerHTML = STATUSES.map(v => `<option value="${v}">${v}</option>`).join('');
+  document.getElementById('new-fee-status').innerHTML = FEE_STATUSES.map(v => `<option value="${v}">${v}</option>`).join('');
+  document.getElementById('new-item-id').innerHTML = items.map(v => `<option value="${v.item_id}">${v.name} ($${Number(v.amount).toFixed(0)})</option>`).join('');
+}
+
+async function refresh() {
+  const items = await api('GET', '/api/stringing-items');
+  fillBaseSelects(items);
+  const itemTable = document.getElementById('item-table');
+  itemTable.innerHTML = '<tr><th>ID</th><th>項目</th><th>金額</th><th>操作</th></tr>' + items.map(i => `<tr><td>${i.item_id}</td><td><input id="item-name-${i.item_id}" value="${i.name}"/></td><td><input class="small" type="number" min="0" id="item-amount-${i.item_id}" value="${Number(i.amount).toFixed(0)}"/></td><td class="actions"><button onclick="updateItem(${i.item_id})">儲存</button><button onclick="deleteItem(${i.item_id})">刪除</button></td></tr>`).join('');
+
+  const orders = await api('GET', '/api/rackets');
+  const orderTable = document.getElementById('order-table');
+  orderTable.innerHTML = '<tr><th>ID</th><th>客戶</th><th>球拍型號</th><th>球拍狀態</th><th>收費狀態</th><th>穿線項目</th><th>費用</th><th>收件日</th><th>客戶取回日</th><th>備註</th><th>操作</th></tr>' + orders.map(o => `<tr><td>${o.order_id}</td><td><input id="customer-${o.order_id}" value="${o.customer}"/></td><td><input id="racket-model-${o.order_id}" value="${o.racket_model}"/></td><td><select id="status-${o.order_id}">${STATUSES.map(v => `<option value="${v}" ${o.status===v?'selected':''}>${v}</option>`).join('')}</select></td><td><select id="fee-status-${o.order_id}">${FEE_STATUSES.map(v => `<option value="${v}" ${o.fee_status===v?'selected':''}>${v}</option>`).join('')}</select></td><td><select id="item-id-${o.order_id}">${items.map(v => `<option value="${v.item_id}" ${o.stringing_item_id===v.item_id?'selected':''}>${v.name}</option>`).join('')}</select></td><td><input class="small" type="number" min="0" id="amount-${o.order_id}" value="${Number(o.amount).toFixed(0)}"/></td><td><input type="date" id="received-date-${o.order_id}" value="${o.received_date}"/></td><td><input type="date" id="pickup-date-${o.order_id}" value="${o.pickup_date}"/></td><td><input id="note-${o.order_id}" value="${o.note}"/></td><td class="actions"><button onclick="updateOrder(${o.order_id})">儲存</button><button onclick="deleteOrder(${o.order_id})">刪除</button></td></tr>`).join('');
+}
+
+async function createItem(){ try{ await api('POST','/api/stringing-items',{ name:document.getElementById('new-item-name').value, amount:Number(document.getElementById('new-item-amount').value||0)}); await refresh(); }catch(e){ if(e.message!=='cancel')alert(e.message);} }
+async function updateItem(id){ try{ await api('PUT','/api/stringing-items',{ item_id:id, name:document.getElementById(`item-name-${id}`).value, amount:Number(document.getElementById(`item-amount-${id}`).value||0)}); await refresh(); }catch(e){alert(e.message);} }
+async function deleteItem(id){ if(!confirm('確定刪除穿線項目？'))return; try{ await api('DELETE','/api/stringing-items',{ item_id:id}); await refresh(); }catch(e){alert(e.message);} }
+
+async function createOrder(){
+  try{
+    await api('POST','/api/rackets',{
+      customer:document.getElementById('new-customer').value,
+      racket_model:document.getElementById('new-racket-model').value,
+      status:document.getElementById('new-status').value,
+      fee_status:document.getElementById('new-fee-status').value,
+      stringing_item_id:Number(document.getElementById('new-item-id').value),
+      amount:Number(document.getElementById('new-amount').value||0),
+      received_date:document.getElementById('new-received-date').value,
+      pickup_date:document.getElementById('new-pickup-date').value,
+      note:document.getElementById('new-note').value
+    });
+    await refresh();
+  }catch(e){ if(e.message!=='cancel')alert(e.message);}
+}
+
+async function updateOrder(id){
+  try{
+    await api('PUT','/api/rackets',{
+      order_id:id,
+      customer:document.getElementById(`customer-${id}`).value,
+      racket_model:document.getElementById(`racket-model-${id}`).value,
+      status:document.getElementById(`status-${id}`).value,
+      fee_status:document.getElementById(`fee-status-${id}`).value,
+      stringing_item_id:Number(document.getElementById(`item-id-${id}`).value),
+      amount:Number(document.getElementById(`amount-${id}`).value||0),
+      received_date:document.getElementById(`received-date-${id}`).value,
+      pickup_date:document.getElementById(`pickup-date-${id}`).value,
+      note:document.getElementById(`note-${id}`).value
+    });
+    await refresh();
+  }catch(e){alert(e.message);}
+}
+
+async function deleteOrder(id){ if(!confirm('確定刪除球拍資料？'))return; try{ await api('DELETE','/api/rackets',{ order_id:id}); await refresh(); }catch(e){alert(e.message);} }
+
+refresh().catch(()=>{});
+</script>
+</body>
+</html>
+"""
+
 
 class BookingWebHandler(BaseHTTPRequestHandler):
     def _send_json(self, payload: Union[Dict[str, Any], List[Any]], status: int = HTTPStatus.OK) -> None:
@@ -917,6 +1068,9 @@ class BookingWebHandler(BaseHTTPRequestHandler):
         if parsed.path == "/reports":
             self._send_html(REPORT_PAGE)
             return
+        if parsed.path == "/rackets":
+            self._send_html(RACKET_PAGE)
+            return
         if parsed.path == "/api/venues":
             with manager_lock:
                 venues = [v.__dict__ for v in manager.list_venues()]
@@ -926,6 +1080,16 @@ class BookingWebHandler(BaseHTTPRequestHandler):
             with manager_lock:
                 purposes = [p.__dict__ for p in manager.list_purposes()]
             self._send_json(purposes)
+            return
+        if parsed.path == "/api/stringing-items":
+            with manager_lock:
+                items = [i.__dict__ for i in manager.list_stringing_items()]
+            self._send_json(items)
+            return
+        if parsed.path == "/api/rackets":
+            with manager_lock:
+                rackets = [r.__dict__ for r in manager.list_racket_orders()]
+            self._send_json(rackets)
             return
         if parsed.path == "/api/bookings":
             date = parse_qs(parsed.query).get("date", [""])[0]
@@ -973,6 +1137,36 @@ class BookingWebHandler(BaseHTTPRequestHandler):
             except ValueError as exc:
                 self._send_json({"error": str(exc)}, status=HTTPStatus.BAD_REQUEST)
                 return
+
+        if parsed.path == "/api/stringing-items":
+            try:
+                self._check_admin_password(payload)
+                with manager_lock:
+                    item = manager.add_stringing_item(str(payload.get("name", "")), payload.get("amount", 0))
+                self._send_json(item.__dict__, status=HTTPStatus.CREATED)
+            except ValueError as exc:
+                self._send_json({"error": str(exc)}, status=HTTPStatus.BAD_REQUEST)
+            return
+
+        if parsed.path == "/api/rackets":
+            try:
+                self._check_admin_password(payload)
+                with manager_lock:
+                    order = manager.add_racket_order(
+                        customer=str(payload.get("customer", "")),
+                        racket_model=str(payload.get("racket_model", "")),
+                        status=str(payload.get("status", "")),
+                        fee_status=str(payload.get("fee_status", "")),
+                        stringing_item_id=int(payload.get("stringing_item_id", 0)),
+                        amount=payload.get("amount", 0),
+                        received_date=str(payload.get("received_date", "")),
+                        pickup_date=str(payload.get("pickup_date", "")),
+                        note=str(payload.get("note", "")),
+                    )
+                self._send_json(order.__dict__, status=HTTPStatus.CREATED)
+            except ValueError as exc:
+                self._send_json({"error": str(exc)}, status=HTTPStatus.BAD_REQUEST)
+            return
 
         if parsed.path == "/api/reports/fees":
             try:
@@ -1029,6 +1223,29 @@ class BookingWebHandler(BaseHTTPRequestHandler):
                     item = manager.update_purpose(int(payload.get("purpose_id", 0)), str(payload.get("name", "")))
                     self._send_json(item.__dict__)
                     return
+                if parsed.path == "/api/stringing-items":
+                    item = manager.update_stringing_item(
+                        item_id=int(payload.get("item_id", 0)),
+                        name=str(payload.get("name", "")),
+                        amount=payload.get("amount", 0),
+                    )
+                    self._send_json(item.__dict__)
+                    return
+                if parsed.path == "/api/rackets":
+                    order = manager.update_racket_order(
+                        order_id=int(payload.get("order_id", 0)),
+                        customer=str(payload.get("customer", "")),
+                        racket_model=str(payload.get("racket_model", "")),
+                        status=str(payload.get("status", "")),
+                        fee_status=str(payload.get("fee_status", "")),
+                        stringing_item_id=int(payload.get("stringing_item_id", 0)),
+                        amount=payload.get("amount", 0),
+                        received_date=str(payload.get("received_date", "")),
+                        pickup_date=str(payload.get("pickup_date", "")),
+                        note=str(payload.get("note", "")),
+                    )
+                    self._send_json(order.__dict__)
+                    return
                 if parsed.path == "/api/bookings":
                     item = manager.update_booking(
                         booking_id=int(payload.get("booking_id", 0)),
@@ -1058,6 +1275,10 @@ class BookingWebHandler(BaseHTTPRequestHandler):
                     ok = manager.delete_purpose(int(payload.get("purpose_id", 0)))
                 elif parsed.path == "/api/bookings":
                     ok = manager.cancel_booking(int(payload.get("booking_id", 0)))
+                elif parsed.path == "/api/stringing-items":
+                    ok = manager.delete_stringing_item(int(payload.get("item_id", 0)))
+                elif parsed.path == "/api/rackets":
+                    ok = manager.delete_racket_order(int(payload.get("order_id", 0)))
                 else:
                     self._send_json({"error": "Not Found"}, status=HTTPStatus.NOT_FOUND)
                     return
