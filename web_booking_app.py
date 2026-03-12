@@ -221,6 +221,7 @@ td.slot.booked-user { background: #93c5fd; color: #0f172a; }
 <div class="hover-top-zone">
   <div class="floating-actions">
     <button class="chip" id="admin-view">進階檢視</button>
+    <button class="chip" id="options-link" style="display:none;" onclick="location.href='/settings'">系統設定</button>
     <button class="chip" id="data-settings-link" style="display:none;" onclick="location.href='/purposes'">資料設定</button>
     <button class="chip" id="report-link" style="display:none;" onclick="location.href='/reports'">費用統計</button>
     <button class="chip" id="extra-income-link" style="display:none;" onclick="location.href='/extra-income'">額外收入</button>
@@ -386,6 +387,7 @@ function makeAvailabilityCell(day, hour, availableCount) {
 function setAuthBadge() {
   document.getElementById('admin-view').classList.toggle('active', isAdmin);
   document.getElementById('admin-view').textContent = isAdmin ? '已登入（點我登出）' : '進階檢視';
+  document.getElementById('options-link').style.display = isAdmin ? 'inline-block' : 'none';
   document.getElementById('data-settings-link').style.display = isAdmin ? 'inline-block' : 'none';
   document.getElementById('report-link').style.display = isAdmin ? 'inline-block' : 'none';
   document.getElementById('extra-income-link').style.display = isAdmin ? 'inline-block' : 'none';
@@ -994,6 +996,8 @@ th:last-child, td:last-child { width: 186px; }
   <div class="floating-actions">
     <button onclick="location.href='/'">回預約頁</button>
     <button onclick="location.href='/purposes'">資料設定</button>
+    <button onclick="location.href='/reports'">費用統計</button>
+    <button onclick="location.href='/extra-income'">額外收入</button>
     <button onclick="logoutAdmin()">登出管理員</button>
   </div>
 </div>
@@ -1182,6 +1186,7 @@ th { background:#eef2ff; }
 <div class="hover-top-zone">
   <div class="floating-actions">
     <button onclick="location.href='/'">回預約頁</button>
+    <button onclick="location.href='/settings'">系統設定</button>
     <button onclick="location.href='/reports'">費用統計</button>
     <button onclick="location.href='/extra-income'">額外收入</button>
   </div>
@@ -1358,8 +1363,9 @@ th { background:#eef2ff; }
 <div class="hover-top-zone">
   <div class="floating-actions">
     <button onclick="location.href='/'">回預約頁</button>
-    <button onclick="location.href='/reports'">去費用統計</button>
+    <button onclick="location.href='/settings'">系統設定</button>
     <button onclick="location.href='/purposes'">資料設定</button>
+    <button onclick="location.href='/reports'">去費用統計</button>
     <button onclick="logoutAdmin()">登出管理員</button>
   </div>
 </div>
@@ -1711,7 +1717,10 @@ th { background:#eef2ff; }
 <body>
 <div class="hover-top-zone">
   <div class="floating-actions">
-    <button onclick="location.href='/extra-income'">回額外收入</button>
+    <button onclick="location.href='/'">回預約頁</button>
+    <button onclick="location.href='/settings'">系統設定</button>
+    <button onclick="location.href='/purposes'">資料設定</button>
+    <button onclick="location.href='/extra-income'">額外收入</button>
   </div>
 </div>
 <div class="wrap">
@@ -1860,6 +1869,8 @@ th { background:#eef2ff; }
 <div class="hover-top-zone">
   <div class="floating-actions">
     <button onclick="location.href='/'">回預約頁</button>
+    <button onclick="location.href='/settings'">系統設定</button>
+    <button onclick="location.href='/purposes'">資料設定</button>
     <button onclick="location.href='/extra-income'">額外收入登記</button>
     <button onclick="logoutAdmin()">登出管理員</button>
   </div>
