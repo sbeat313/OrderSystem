@@ -23,6 +23,12 @@ class Purpose:
     name: str
 
 
+@dataclass
+class StringItem:
+    string_item_id: int
+    name: str
+    amount: float
+
 
 @dataclass
 class ExtraIncome:
@@ -49,6 +55,8 @@ class Booking:
     price: float
     start_time: datetime
     end_time: datetime
+    note: str = ""
+    created_at: str = ""
 
 
 class BookingManager:
@@ -96,6 +104,15 @@ class BookingManager:
             )
             conn.execute(
                 """
+                CREATE TABLE IF NOT EXISTS string_items (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL UNIQUE,
+                    amount REAL NOT NULL DEFAULT 0
+                )
+                """
+            )
+            conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS extra_incomes (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     customer TEXT NOT NULL,
@@ -117,6 +134,10 @@ class BookingManager:
                 conn.execute("ALTER TABLE bookings ADD COLUMN price REAL NOT NULL DEFAULT 0")
             if "rental_group_id" not in columns:
                 conn.execute("ALTER TABLE bookings ADD COLUMN rental_group_id TEXT")
+            if "note" not in columns:
+                conn.execute("ALTER TABLE bookings ADD COLUMN note TEXT NOT NULL DEFAULT ''")
+            if "created_at" not in columns:
+                conn.execute("ALTER TABLE bookings ADD COLUMN created_at TEXT NOT NULL DEFAULT ''")
 
             extra_columns = [row["name"] for row in conn.execute("PRAGMA table_info(extra_incomes)").fetchall()]
             if "contact_phone" not in extra_columns:
@@ -152,6 +173,17 @@ class BookingManager:
                         ("連假專案",),
                         ("寒暑假專案",),
                         ("過年專案",),
+                    ],
+                )
+
+            string_item_count = conn.execute("SELECT COUNT(*) FROM string_items").fetchone()[0]
+            if string_item_count == 0:
+                conn.executemany(
+                    "INSERT INTO string_items(name, amount) VALUES (?, ?)",
+                    [
+                        ("YONEX BG-66UM", 350),
+                        ("YONEX BG-80", 380),
+                        ("YONEX BG-65", 320),
                     ],
                 )
 
@@ -198,6 +230,44 @@ class BookingManager:
             rows = conn.execute("SELECT id, name FROM purposes ORDER BY id").fetchall()
         return [Purpose(purpose_id=row["id"], name=row["name"]) for row in rows]
 
+
+    def list_string_items(self) -> List[StringItem]:
+        with self._connect() as conn:
+            rows = conn.execute("SELECT id, name, amount FROM string_items ORDER BY id").fetchall()
+        return [StringItem(string_item_id=row["id"], name=row["name"], amount=float(row["amount"] or 0)) for row in rows]
+
+    def add_string_item(self, name: str, amount: float) -> StringItem:
+        item_name = name.strip()
+        if not item_name:
+            raise ValueError("穿線項目不可為空")
+        value = self._parse_price(amount)
+        try:
+            with self._connect() as conn:
+                cursor = conn.execute("INSERT INTO string_items(name, amount) VALUES (?, ?)", (item_name, value))
+                string_item_id = cursor.lastrowid
+            return StringItem(string_item_id=string_item_id, name=item_name, amount=value)
+        except sqlite3.IntegrityError as exc:
+            raise ValueError("穿線項目不可重複") from exc
+
+    def update_string_item(self, string_item_id: int, name: str, amount: float) -> StringItem:
+        item_name = name.strip()
+        if not item_name:
+            raise ValueError("穿線項目不可為空")
+        value = self._parse_price(amount)
+        try:
+            with self._connect() as conn:
+                cur = conn.execute("UPDATE string_items SET name = ?, amount = ? WHERE id = ?", (item_name, value, string_item_id))
+                if cur.rowcount == 0:
+                    raise ValueError("穿線項目不存在")
+            return StringItem(string_item_id=string_item_id, name=item_name, amount=value)
+        except sqlite3.IntegrityError as exc:
+            raise ValueError("穿線項目不可重複") from exc
+
+    def delete_string_item(self, string_item_id: int) -> bool:
+        with self._connect() as conn:
+            cur = conn.execute("DELETE FROM string_items WHERE id = ?", (string_item_id,))
+            return cur.rowcount > 0
+
     def add_purpose(self, name: str) -> Purpose:
         purpose_name = name.strip()
         if not purpose_name:
@@ -243,9 +313,12 @@ class BookingManager:
         end: str,
         purpose: str = "",
         price: float = 0,
+        note: str = "",
     ) -> Booking:
         start_time, end_time = self._parse_time_range(start, end)
         booking_price = self._parse_price(price)
+        note_text = note.strip()
+        created_at = datetime.now().strftime(TIME_FORMAT)
         with self._connect() as conn:
             venue = conn.execute(
                 "SELECT id, name FROM venues WHERE id = ?", (venue_id,)
@@ -286,8 +359,8 @@ class BookingManager:
 
             cursor = conn.execute(
                 """
-                INSERT INTO bookings(venue_id, customer, purpose, price, start_time, end_time, rental_group_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO bookings(venue_id, customer, purpose, price, start_time, end_time, rental_group_id, note, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     venue_id,
@@ -297,6 +370,8 @@ class BookingManager:
                     start_time.strftime(TIME_FORMAT),
                     end_time.strftime(TIME_FORMAT),
                     None,
+                    note_text,
+                    created_at,
                 ),
             )
             booking_id = cursor.lastrowid
@@ -310,6 +385,8 @@ class BookingManager:
             price=booking_price,
             start_time=start_time,
             end_time=end_time,
+            note=note_text,
+            created_at=created_at,
         )
 
     def add_bookings_for_purpose(
@@ -320,13 +397,16 @@ class BookingManager:
         end: str,
         purpose: str = "",
         price: float = 0,
+        note: str = "",
     ) -> List[Booking]:
         purpose_name = purpose.strip()
         if purpose_name not in {"單月租", "雙月租"}:
-            return [self.add_booking(venue_id, customer, start, end, purpose, price)]
+            return [self.add_booking(venue_id, customer, start, end, purpose, price, note)]
 
         start_time, end_time = self._parse_time_range(start, end)
         booking_price = self._parse_price(price)
+        note_text = note.strip()
+        created_at = datetime.now().strftime(TIME_FORMAT)
         duration = end_time - start_time
         period_end = self._month_end(start_time)
         if purpose_name == "雙月租":
@@ -372,12 +452,14 @@ class BookingManager:
                     )
 
             created: List[Booking] = []
+            note_text = note.strip()
+            created_at = datetime.now().strftime(TIME_FORMAT)
             for slot_start in slot_starts:
                 slot_end = slot_start + duration
                 cursor = conn.execute(
                     """
-                    INSERT INTO bookings(venue_id, customer, purpose, price, start_time, end_time, rental_group_id)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO bookings(venue_id, customer, purpose, price, start_time, end_time, rental_group_id, note, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         venue_id,
@@ -387,6 +469,8 @@ class BookingManager:
                         slot_start.strftime(TIME_FORMAT),
                         slot_end.strftime(TIME_FORMAT),
                         group_id,
+                        note_text,
+                        created_at,
                     ),
                 )
                 created.append(
@@ -399,6 +483,8 @@ class BookingManager:
                         price=booking_price,
                         start_time=slot_start,
                         end_time=slot_end,
+                        note=note_text,
+                        created_at=created_at,
                     )
                 )
 
@@ -464,12 +550,14 @@ class BookingManager:
         end: str,
         purpose: str = "",
         price: float = 0,
+        note: str = "",
     ) -> Booking:
         start_time, end_time = self._parse_time_range(start, end)
         booking_price = self._parse_price(price)
+        note_text = note.strip()
         with self._connect() as conn:
             existing = conn.execute(
-                "SELECT id FROM bookings WHERE id = ?",
+                "SELECT id, created_at FROM bookings WHERE id = ?",
                 (booking_id,),
             ).fetchone()
             if existing is None:
@@ -518,7 +606,7 @@ class BookingManager:
             cur = conn.execute(
                 """
                 UPDATE bookings
-                SET venue_id = ?, customer = ?, purpose = ?, price = ?, start_time = ?, end_time = ?
+                SET venue_id = ?, customer = ?, purpose = ?, price = ?, start_time = ?, end_time = ?, note = ?
                 WHERE id = ?
                 """,
                 (
@@ -528,6 +616,7 @@ class BookingManager:
                     booking_price,
                     start_time.strftime(TIME_FORMAT),
                     end_time.strftime(TIME_FORMAT),
+                    note_text,
                     booking_id,
                 ),
             )
@@ -543,11 +632,13 @@ class BookingManager:
             price=booking_price,
             start_time=start_time,
             end_time=end_time,
+            note=note_text,
+            created_at=(existing["created_at"] or ""),
         )
 
     def list_bookings(self, date: Optional[str] = None) -> List[Booking]:
         query = (
-            "SELECT b.id, b.venue_id, v.name AS venue_name, b.customer, b.purpose, b.price, b.start_time, b.end_time "
+            "SELECT b.id, b.venue_id, v.name AS venue_name, b.customer, b.purpose, b.price, b.start_time, b.end_time, b.note, b.created_at "
             "FROM bookings b JOIN venues v ON b.venue_id = v.id"
         )
         params: tuple = ()
@@ -569,6 +660,8 @@ class BookingManager:
                 price=float(row["price"]),
                 start_time=datetime.strptime(row["start_time"], TIME_FORMAT),
                 end_time=datetime.strptime(row["end_time"], TIME_FORMAT),
+                note=row["note"] or "",
+                created_at=row["created_at"] or "",
             )
             for row in rows
         ]
@@ -678,6 +771,100 @@ class BookingManager:
                 ),
             )
             income_id = cursor.lastrowid
+
+        return ExtraIncome(
+            income_id=income_id,
+            customer=customer_name,
+            item=item_name,
+            amount=income_amount,
+            note=memo,
+            income_time=dt,
+            contact_phone=phone,
+            racket_model=racket,
+            string_tension=tension_value,
+            payment_status=paid_status,
+            racket_status=racket_state,
+            pickup_date=pickup,
+        )
+
+    def update_extra_income(
+        self,
+        income_id: int,
+        customer: str,
+        item: str,
+        amount: float,
+        income_time: str,
+        note: str = "",
+        contact_phone: str = "",
+        racket_model: str = "",
+        string_tension: Optional[int] = None,
+        payment_status: str = "",
+        racket_status: str = "",
+        pickup_date: str = "",
+    ) -> ExtraIncome:
+        if income_id <= 0:
+            raise ValueError("收入資料不存在")
+
+        customer_name = customer.strip()
+        item_name = item.strip()
+        memo = note.strip()
+        phone = contact_phone.strip()
+        racket = racket_model.strip()
+        paid_status = payment_status.strip()
+        racket_state = racket_status.strip()
+        pickup = pickup_date.strip()
+        if not customer_name:
+            raise ValueError("姓名不可為空")
+        if not item_name:
+            raise ValueError("項目不可為空")
+
+        try:
+            dt = datetime.strptime(income_time.strip(), TIME_FORMAT)
+        except ValueError as exc:
+            raise ValueError(f"時間格式錯誤，請使用 {TIME_FORMAT}") from exc
+        income_amount = self._parse_price(amount)
+
+        tension_value: Optional[int] = None
+        if string_tension not in (None, ""):
+            try:
+                tension_value = int(string_tension)
+            except (TypeError, ValueError) as exc:
+                raise ValueError("磅數格式錯誤") from exc
+            if tension_value <= 0:
+                raise ValueError("磅數必須為正整數")
+
+        if item_name == "球拍":
+            if not racket:
+                raise ValueError("球拍項目需填寫穿線項目")
+            if tension_value is None:
+                raise ValueError("球拍項目需填寫磅數")
+
+        with self._connect() as conn:
+            cur = conn.execute(
+                """
+                UPDATE extra_incomes
+                SET customer = ?, item = ?, amount = ?, note = ?, income_time = ?,
+                    contact_phone = ?, racket_model = ?, string_tension = ?, payment_status = ?,
+                    racket_status = ?, pickup_date = ?
+                WHERE id = ?
+                """,
+                (
+                    customer_name,
+                    item_name,
+                    income_amount,
+                    memo,
+                    dt.strftime(TIME_FORMAT),
+                    phone,
+                    racket,
+                    tension_value,
+                    paid_status,
+                    racket_state,
+                    pickup,
+                    income_id,
+                ),
+            )
+            if cur.rowcount == 0:
+                raise ValueError("收入資料不存在")
 
         return ExtraIncome(
             income_id=income_id,
