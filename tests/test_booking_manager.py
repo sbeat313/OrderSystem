@@ -123,6 +123,21 @@ class BookingManagerTests(unittest.TestCase):
         manager2 = BookingManager(db_path=f"{self.tmp.name}/test.db")
         self.assertEqual(len(manager2.list_bookings("2026-04-01")), 1)
 
+
+    def test_manage_string_items(self):
+        original = self.manager.list_string_items()
+        self.assertGreaterEqual(len(original), 1)
+
+        created = self.manager.add_string_item("測試線", 399)
+        self.assertEqual(created.name, "測試線")
+        self.assertEqual(created.amount, 399)
+
+        updated = self.manager.update_string_item(created.string_item_id, "測試線2", 420)
+        self.assertEqual(updated.name, "測試線2")
+        self.assertEqual(updated.amount, 420)
+
+        self.assertTrue(self.manager.delete_string_item(created.string_item_id))
+
     def test_update_extra_income(self):
         created = self.manager.add_extra_income(
             customer="王小明",

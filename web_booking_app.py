@@ -48,6 +48,14 @@ def extra_income_to_dict(income: ExtraIncome) -> dict:
     }
 
 
+def string_item_to_dict(item: Any) -> dict:
+    return {
+        "string_item_id": item.string_item_id,
+        "name": item.name,
+        "amount": item.amount,
+    }
+
+
 HTML_PAGE = """<!doctype html>
 <html lang="zh-Hant">
 <head>
@@ -1098,6 +1106,7 @@ th { background:#eef2ff; }
     <h1>額外收入登記</h1>
     <button onclick="location.href='/'">回預約頁</button>
     <button onclick="location.href='/reports'">去費用統計</button>
+    <button onclick="location.href='/string-items'">穿線項目設定</button>
     <button onclick="logoutAdmin()">登出管理員</button>
   </div>
   <div class="card">
@@ -1118,7 +1127,7 @@ th { background:#eef2ff; }
 
     <div id="racket-fields" class="racket-fields" style="display:none;">
       <div><div>連絡電話</div><input id="income-phone" placeholder="例如：0912345678"/></div>
-      <div><div>穿線項目</div><input id="income-racket-model" placeholder="例如：YONEX BG-66UM"/></div>
+      <div><div>穿線項目</div><select id="income-racket-model"></select></div>
       <div><div>磅數</div><input id="income-tension" type="number" min="1" step="1"/></div>
       <div>
         <div>收費狀態</div>
@@ -1147,7 +1156,7 @@ th { background:#eef2ff; }
     <div>
       <div>備註</div>
       <textarea id="income-note" placeholder="可留空"></textarea>
-      <div class="helper">若項目選擇「球拍」，可填寫連絡電話、穿線項目、磅數、收費狀態、球拍狀態與客戶取回日。</div>
+      <div class="helper">若項目選擇「球拍」，請先至「穿線項目設定」維護金額，再於此下拉選取。</div>
     </div>
 
     <div style="margin-top:10px; display:flex; gap:8px;">
@@ -1241,6 +1250,30 @@ async function ensureLogin() {
   return login();
 }
 
+
+async function loadStringItems() {
+  if (!await ensureLogin()) return;
+  const resp = await fetch('/api/string-items/query', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ admin_password: adminPassword }),
+  });
+  const data = await resp.json();
+  if (!resp.ok) { return; }
+  const select = document.getElementById('income-racket-model');
+  select.innerHTML = '<option value="">請選擇穿線項目</option>' +
+    data.items.map(row => `<option value="${row.name}" data-amount="${Number(row.amount || 0)}">${row.name}（$${Number(row.amount || 0).toFixed(0)}）</option>`).join('');
+}
+
+function syncAmountByStringItem() {
+  if (!isRacketItem()) return;
+  const select = document.getElementById('income-racket-model');
+  const option = select.options[select.selectedIndex];
+  if (!option) return;
+  const amount = Number(option.getAttribute('data-amount') || 0);
+  if (amount > 0) document.getElementById('income-amount').value = String(amount);
+}
+
 function racketSummary(row) {
   if (row.item !== '球拍') return row.note || '';
   const parts = [];
@@ -1307,7 +1340,11 @@ async function startEditIncome(incomeId) {
   document.getElementById('income-amount').value = Number(row.amount || 0);
   document.getElementById('income-note').value = row.note || '';
   document.getElementById('income-phone').value = row.contact_phone || '';
-  document.getElementById('income-racket-model').value = row.racket_model || '';
+  const modelSelect = document.getElementById('income-racket-model');
+  if (row.racket_model && !Array.from(modelSelect.options).some(opt => opt.value === row.racket_model)) {
+    modelSelect.innerHTML += `<option value="${row.racket_model}">${row.racket_model}</option>`;
+  }
+  modelSelect.value = row.racket_model || '';
   document.getElementById('income-tension').value = row.string_tension || '';
   document.getElementById('income-payment-status').value = row.payment_status || '';
   document.getElementById('income-racket-status').value = row.racket_status || '';
@@ -1330,6 +1367,7 @@ async function deleteIncome(incomeId) {
 }
 
 document.getElementById('income-item').addEventListener('change', toggleRacketFields);
+document.getElementById('income-racket-model').addEventListener('change', syncAmountByStringItem);
 document.getElementById('cancel-edit-income').addEventListener('click', resetIncomeForm);
 
 document.getElementById('save-income').addEventListener('click', async () => {
@@ -1380,8 +1418,145 @@ document.getElementById('save-income').addEventListener('click', async () => {
   const min = String(now.getMinutes()).padStart(2, '0');
   document.getElementById('income-time').value = `${y}-${m}-${d}T${h}:${min}`;
   toggleRacketFields();
+  loadStringItems();
   refreshList();
 })();
+</script>
+</body>
+</html>
+"""
+
+
+STRING_ITEMS_PAGE = """<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>穿線項目設定</title>
+<style>
+* { box-sizing: border-box; }
+body { font-family: "Noto Sans TC", Arial, sans-serif; margin:0; padding:22px; background:#f4f6ff; color:#0f172a; }
+.wrap { max-width: 920px; margin: 0 auto; }
+.card { background:#fff; border:1px solid #dbe2f0; border-radius:14px; padding:16px; box-shadow:0 10px 25px rgba(30,64,175,.08); }
+.top { display:flex; gap:10px; align-items:center; margin-bottom:12px; }
+input, button { padding:10px 12px; border-radius:10px; border:1px solid #cbd5e1; font-size:15px; }
+button { background:#4f46e5; color:#fff; border:none; cursor:pointer; }
+table { width:100%; border-collapse:collapse; margin-top:12px; }
+th, td { border:1px solid #dbe2f0; padding:10px; text-align:left; }
+th { background:#eef2ff; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <h1>穿線項目設定</h1>
+    <button onclick="location.href='/extra-income'">回額外收入</button>
+  </div>
+  <div class="card">
+    <div style="display:flex; gap:10px; align-items:end; flex-wrap:wrap;">
+      <div><div>穿線項目</div><input id="string-item-name"/></div>
+      <div><div>對應金額</div><input id="string-item-amount" type="number" min="0" step="1"/></div>
+      <button id="save-string-item">新增項目</button>
+      <button id="cancel-string-item-edit" style="display:none; background:#64748b;">取消編輯</button>
+    </div>
+    <div id="string-item-msg" style="margin-top:8px;"></div>
+    <table id="string-item-table"></table>
+  </div>
+</div>
+<script>
+let adminPassword = '';
+let editingStringItemId = null;
+const ADMIN_PASSWORD_KEY = 'booking_admin_password';
+const ADMIN_EXPIRES_KEY = 'booking_admin_expires_at';
+
+function loadAdminPassword() {
+  const password = localStorage.getItem(ADMIN_PASSWORD_KEY) || '';
+  const expiresAt = Number(localStorage.getItem(ADMIN_EXPIRES_KEY) || 0);
+  if (!password || !expiresAt || Date.now() >= expiresAt) return '';
+  return password;
+}
+
+async function ensureLogin() {
+  if (!adminPassword) adminPassword = loadAdminPassword();
+  if (!adminPassword) {
+    const pw = prompt('請輸入管理員密碼：');
+    if (pw === null) return false;
+    const resp = await fetch('/api/admin/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({password: pw})});
+    if (!resp.ok) { alert('密碼錯誤'); return false; }
+    adminPassword = pw;
+  }
+  return true;
+}
+
+function resetForm() {
+  editingStringItemId = null;
+  document.getElementById('string-item-name').value = '';
+  document.getElementById('string-item-amount').value = '';
+  document.getElementById('save-string-item').textContent = '新增項目';
+  document.getElementById('cancel-string-item-edit').style.display = 'none';
+}
+
+async function refreshStringItems() {
+  if (!await ensureLogin()) return;
+  const resp = await fetch('/api/string-items/query', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ admin_password: adminPassword }),
+  });
+  const data = await resp.json();
+  if (!resp.ok) { alert(data.error || '讀取失敗'); return; }
+  document.getElementById('string-item-table').innerHTML = '<tr><th>項目</th><th>金額</th><th>操作</th></tr>' +
+    data.items.map(row => `<tr><td>${row.name}</td><td>$${Number(row.amount).toFixed(0)}</td><td><button style="padding:6px 10px; margin-right:6px;" onclick="editStringItem(${row.string_item_id}, '${row.name.replace(/'/g, "\'")}', ${Number(row.amount)})">編輯</button><button style="padding:6px 10px; background:#dc2626;" onclick="deleteStringItem(${row.string_item_id})">刪除</button></td></tr>`).join('');
+}
+
+function editStringItem(id, name, amount) {
+  editingStringItemId = Number(id);
+  document.getElementById('string-item-name').value = name;
+  document.getElementById('string-item-amount').value = amount;
+  document.getElementById('save-string-item').textContent = '儲存修改';
+  document.getElementById('cancel-string-item-edit').style.display = 'inline-block';
+}
+
+async function deleteStringItem(id) {
+  if (!confirm(`確定刪除穿線項目 #${id}？`)) return;
+  if (!await ensureLogin()) return;
+  const resp = await fetch('/api/string-items', {
+    method:'DELETE', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ admin_password: adminPassword, string_item_id: Number(id) }),
+  });
+  const data = await resp.json();
+  if (!resp.ok) { alert(data.error || '刪除失敗'); return; }
+  if (editingStringItemId === Number(id)) resetForm();
+  await refreshStringItems();
+}
+
+document.getElementById('cancel-string-item-edit').addEventListener('click', resetForm);
+document.getElementById('save-string-item').addEventListener('click', async () => {
+  if (!await ensureLogin()) return;
+  const payload = {
+    admin_password: adminPassword,
+    name: document.getElementById('string-item-name').value.trim(),
+    amount: Number(document.getElementById('string-item-amount').value || 0),
+  };
+  if (editingStringItemId) payload.string_item_id = editingStringItemId;
+  const resp = await fetch('/api/string-items', {
+    method: editingStringItemId ? 'PUT' : 'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(payload),
+  });
+  const data = await resp.json();
+  const msg = document.getElementById('string-item-msg');
+  if (!resp.ok) {
+    msg.style.color = '#dc2626';
+    msg.textContent = data.error || '儲存失敗';
+    return;
+  }
+  msg.style.color = '#16a34a';
+  msg.textContent = editingStringItemId ? `更新成功 #${data.string_item_id}` : `新增成功 #${data.string_item_id}`;
+  resetForm();
+  await refreshStringItems();
+});
+
+refreshStringItems();
 </script>
 </body>
 </html>
@@ -1588,6 +1763,9 @@ class BookingWebHandler(BaseHTTPRequestHandler):
         if parsed.path == "/extra-income":
             self._send_html(EXTRA_INCOME_PAGE)
             return
+        if parsed.path == "/string-items":
+            self._send_html(STRING_ITEMS_PAGE)
+            return
         if parsed.path == "/api/venues":
             with manager_lock:
                 venues = [v.__dict__ for v in manager.list_venues()]
@@ -1627,6 +1805,29 @@ class BookingWebHandler(BaseHTTPRequestHandler):
                 self._send_json({"ok": True})
             else:
                 self._send_json({"error": "密碼錯誤"}, status=HTTPStatus.UNAUTHORIZED)
+            return
+
+        if parsed.path == "/api/string-items":
+            try:
+                self._check_admin_password(payload)
+                with manager_lock:
+                    item = manager.add_string_item(
+                        name=str(payload.get("name", "")),
+                        amount=payload.get("amount", 0),
+                    )
+                self._send_json(string_item_to_dict(item), status=HTTPStatus.CREATED)
+            except ValueError as exc:
+                self._send_json({"error": str(exc)}, status=HTTPStatus.BAD_REQUEST)
+            return
+
+        if parsed.path == "/api/string-items/query":
+            try:
+                self._check_admin_password(payload)
+                with manager_lock:
+                    items = [string_item_to_dict(item) for item in manager.list_string_items()]
+                self._send_json({"items": items})
+            except ValueError as exc:
+                self._send_json({"error": str(exc)}, status=HTTPStatus.BAD_REQUEST)
             return
 
         if parsed.path in ["/api/venues", "/api/purposes"]:
@@ -1813,6 +2014,14 @@ class BookingWebHandler(BaseHTTPRequestHandler):
                     )
                     self._send_json(booking_to_dict(item))
                     return
+                if parsed.path == "/api/string-items":
+                    item = manager.update_string_item(
+                        string_item_id=int(payload.get("string_item_id", 0)),
+                        name=str(payload.get("name", "")),
+                        amount=payload.get("amount", 0),
+                    )
+                    self._send_json(string_item_to_dict(item))
+                    return
                 if parsed.path == "/api/extra-incomes":
                     item = manager.update_extra_income(
                         income_id=int(payload.get("income_id", 0)),
@@ -1847,6 +2056,8 @@ class BookingWebHandler(BaseHTTPRequestHandler):
                     ok = manager.delete_purpose(int(payload.get("purpose_id", 0)))
                 elif parsed.path == "/api/bookings":
                     ok = manager.cancel_booking(int(payload.get("booking_id", 0)))
+                elif parsed.path == "/api/string-items":
+                    ok = manager.delete_string_item(int(payload.get("string_item_id", 0)))
                 elif parsed.path == "/api/extra-incomes":
                     ok = manager.delete_extra_income(int(payload.get("income_id", 0)))
                 else:

@@ -23,6 +23,12 @@ class Purpose:
     name: str
 
 
+@dataclass
+class StringItem:
+    string_item_id: int
+    name: str
+    amount: float
+
 
 @dataclass
 class ExtraIncome:
@@ -96,6 +102,15 @@ class BookingManager:
             )
             conn.execute(
                 """
+                CREATE TABLE IF NOT EXISTS string_items (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL UNIQUE,
+                    amount REAL NOT NULL DEFAULT 0
+                )
+                """
+            )
+            conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS extra_incomes (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     customer TEXT NOT NULL,
@@ -155,6 +170,17 @@ class BookingManager:
                     ],
                 )
 
+            string_item_count = conn.execute("SELECT COUNT(*) FROM string_items").fetchone()[0]
+            if string_item_count == 0:
+                conn.executemany(
+                    "INSERT INTO string_items(name, amount) VALUES (?, ?)",
+                    [
+                        ("YONEX BG-66UM", 350),
+                        ("YONEX BG-80", 380),
+                        ("YONEX BG-65", 320),
+                    ],
+                )
+
     def list_venues(self) -> List[Venue]:
         with self._connect() as conn:
             rows = conn.execute("SELECT id, name FROM venues ORDER BY id").fetchall()
@@ -197,6 +223,44 @@ class BookingManager:
         with self._connect() as conn:
             rows = conn.execute("SELECT id, name FROM purposes ORDER BY id").fetchall()
         return [Purpose(purpose_id=row["id"], name=row["name"]) for row in rows]
+
+
+    def list_string_items(self) -> List[StringItem]:
+        with self._connect() as conn:
+            rows = conn.execute("SELECT id, name, amount FROM string_items ORDER BY id").fetchall()
+        return [StringItem(string_item_id=row["id"], name=row["name"], amount=float(row["amount"] or 0)) for row in rows]
+
+    def add_string_item(self, name: str, amount: float) -> StringItem:
+        item_name = name.strip()
+        if not item_name:
+            raise ValueError("穿線項目不可為空")
+        value = self._parse_price(amount)
+        try:
+            with self._connect() as conn:
+                cursor = conn.execute("INSERT INTO string_items(name, amount) VALUES (?, ?)", (item_name, value))
+                string_item_id = cursor.lastrowid
+            return StringItem(string_item_id=string_item_id, name=item_name, amount=value)
+        except sqlite3.IntegrityError as exc:
+            raise ValueError("穿線項目不可重複") from exc
+
+    def update_string_item(self, string_item_id: int, name: str, amount: float) -> StringItem:
+        item_name = name.strip()
+        if not item_name:
+            raise ValueError("穿線項目不可為空")
+        value = self._parse_price(amount)
+        try:
+            with self._connect() as conn:
+                cur = conn.execute("UPDATE string_items SET name = ?, amount = ? WHERE id = ?", (item_name, value, string_item_id))
+                if cur.rowcount == 0:
+                    raise ValueError("穿線項目不存在")
+            return StringItem(string_item_id=string_item_id, name=item_name, amount=value)
+        except sqlite3.IntegrityError as exc:
+            raise ValueError("穿線項目不可重複") from exc
+
+    def delete_string_item(self, string_item_id: int) -> bool:
+        with self._connect() as conn:
+            cur = conn.execute("DELETE FROM string_items WHERE id = ?", (string_item_id,))
+            return cur.rowcount > 0
 
     def add_purpose(self, name: str) -> Purpose:
         purpose_name = name.strip()

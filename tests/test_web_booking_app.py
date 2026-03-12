@@ -102,6 +102,11 @@ class TestWebBookingApp(unittest.TestCase):
         self.assertIn("預約收入明細", body)
         self.assertIn("額外收入明細", body)
 
+    def test_string_items_page_exists(self):
+        status, body = self.request("GET", "/string-items")
+        self.assertEqual(status, 200)
+        self.assertIn("穿線項目設定", body)
+
     def test_extra_income_page_exists(self):
         status, body = self.request("GET", "/extra-income")
         self.assertEqual(status, 200)
@@ -112,6 +117,8 @@ class TestWebBookingApp(unittest.TestCase):
         self.assertIn("DEFAULT_ADMIN_SESSION_TTL_MS", body)
         self.assertIn("穿線項目", body)
         self.assertIn("磅數", body)
+        self.assertIn("穿線項目設定", body)
+        self.assertIn('<select id="income-racket-model">', body)
 
     def test_export_endpoint_removed(self):
         status, _ = self.request("GET", "/api/export?format=png&date=2026-04-01&role=user")
@@ -561,6 +568,39 @@ class TestWebBookingApp(unittest.TestCase):
         self.assertEqual(data["extra_income_grand_total"], 480)
         self.assertEqual(len(data["extra_income_records"]), 1)
         self.assertEqual(data["extra_income_records"][0]["pickup_date"], "2026-04-16")
+
+
+    def test_manage_string_items_via_api(self):
+        status, body = self.request(
+            "POST",
+            "/api/string-items",
+            {"admin_password": "admin123", "name": "測試線", "amount": 399},
+        )
+        self.assertEqual(status, 201)
+        item_id = json.loads(body)["string_item_id"]
+
+        status, body = self.request(
+            "POST",
+            "/api/string-items/query",
+            {"admin_password": "admin123"},
+        )
+        self.assertEqual(status, 200)
+        self.assertTrue(any(row["name"] == "測試線" for row in json.loads(body)["items"]))
+
+        status, body = self.request(
+            "PUT",
+            "/api/string-items",
+            {"admin_password": "admin123", "string_item_id": item_id, "name": "測試線2", "amount": 420},
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(json.loads(body)["name"], "測試線2")
+
+        status, _ = self.request(
+            "DELETE",
+            "/api/string-items",
+            {"admin_password": "admin123", "string_item_id": item_id},
+        )
+        self.assertEqual(status, 200)
 
     def test_manage_venues_and_purposes_via_api(self):
         status, body = self.request(
