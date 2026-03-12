@@ -1138,6 +1138,7 @@ body { font-family: "Noto Sans TC", Arial, sans-serif; margin:0; padding:22px; b
 .top { display:flex; gap:10px; align-items:center; margin-bottom:12px; }
 .card { background:#fff; border:1px solid #dbe2f0; border-radius:14px; padding:16px; box-shadow:0 10px 25px rgba(30,64,175,.08); }
 .grid { display:grid; grid-template-columns: 1fr 1fr; gap:14px; }
+.bulk-save-row { display:flex; justify-content:flex-end; margin-bottom:12px; }
 .section-title { margin: 0 0 10px; color:#1e3a8a; }
 input, button { padding:10px 12px; border-radius:10px; border:1px solid #cbd5e1; font-size:15px; }
 button { background:#4f46e5; color:#fff; border:none; cursor:pointer; }
@@ -1164,6 +1165,9 @@ th { background:#eef2ff; }
 <div class="wrap">
   <div class="top">
     <h1 style="margin:0;">資料設定</h1>
+  </div>
+  <div class="bulk-save-row">
+    <button onclick="saveAllEditedSettings()">儲存全部用途與場地修改</button>
   </div>
   <div class="grid">
     <div class="card">
@@ -1199,6 +1203,8 @@ th { background:#eef2ff; }
 <script>
 let adminPassword = '';
 let editingStringItemId = null;
+let purposeSnapshot = [];
+let venueSnapshot = [];
 const ADMIN_PASSWORD_KEY = 'booking_admin_password';
 const ADMIN_EXPIRES_KEY = 'booking_admin_expires_at';
 const ADMIN_SESSION_TTL_MS_KEY = 'booking_admin_session_ttl_ms';
@@ -1211,15 +1217,60 @@ async function login(){ const pw = prompt('請輸入管理員密碼：'); if (pw
 async function ensureLogin(){ if (!adminPassword) adminPassword = loadAdminPassword(); if (adminPassword) { const resp = await fetch('/api/admin/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({password: adminPassword})}); if (resp.ok) return true; adminPassword = ''; } return await login(); }
 async function api(method, path, payload = {}) { const ok = await ensureLogin(); if (!ok) throw new Error('need login'); payload.admin_password = adminPassword; const resp = await fetch(path, { method, headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) }); const data = await resp.json(); if (!resp.ok) throw new Error(data.error || '操作失敗'); return data; }
 
-async function refreshPurposes(){ const purposes = await (await fetch('/api/purposes')).json(); const pt = document.getElementById('purpose-table'); pt.innerHTML = '<tr><th>ID</th><th>名稱</th><th>價格</th><th>操作</th></tr>' + purposes.map(p => `<tr><td>${p.purpose_id}</td><td><input value="${p.name}" id="purpose-${p.purpose_id}"/></td><td><input type="number" min="0" step="1" value="${Number(p.price || 0)}" id="purpose-price-${p.purpose_id}"/></td><td class="actions"><button onclick="updatePurpose(${p.purpose_id})">儲存</button><button onclick="deletePurpose(${p.purpose_id})">刪除</button></td></tr>`).join(''); }
+async function refreshPurposes(){ const purposes = await (await fetch('/api/purposes')).json(); purposeSnapshot = purposes; const pt = document.getElementById('purpose-table'); pt.innerHTML = '<tr><th>ID</th><th>名稱</th><th>價格</th><th>操作</th></tr>' + purposes.map(p => `<tr><td>${p.purpose_id}</td><td><input value="${p.name}" id="purpose-${p.purpose_id}"/></td><td><input type="number" min="0" step="1" value="${Number(p.price || 0)}" id="purpose-price-${p.purpose_id}"/></td><td class="actions"><button onclick="updatePurpose(${p.purpose_id})">儲存</button><button onclick="deletePurpose(${p.purpose_id})">刪除</button></td></tr>`).join(''); }
 async function createPurpose(){ try { await api('POST', '/api/purposes', {name: document.getElementById('new-purpose').value, price: Number(document.getElementById('new-purpose-price').value || 0)}); await refreshPurposes(); } catch (e) { alert(e.message); } }
 async function updatePurpose(id){ try { await api('PUT', '/api/purposes', {purpose_id: id, name: document.getElementById(`purpose-${id}`).value, price: Number(document.getElementById(`purpose-price-${id}`).value || 0)}); await refreshPurposes(); } catch (e) { alert(e.message); } }
 async function deletePurpose(id){ if (!confirm('確定刪除用途？')) return; try { await api('DELETE', '/api/purposes', {purpose_id: id}); await refreshPurposes(); } catch (e) { alert(e.message); } }
 
-async function refreshVenues(){ const venues = await (await fetch('/api/venues')).json(); const vt = document.getElementById('venue-table'); vt.innerHTML = '<tr><th>ID</th><th>名稱</th><th>操作</th></tr>' + venues.map(v => `<tr><td>${v.venue_id}</td><td><input value="${v.name}" id="venue-${v.venue_id}"/></td><td class="actions"><button onclick="updateVenue(${v.venue_id})">儲存</button><button onclick="deleteVenue(${v.venue_id})">刪除</button></td></tr>`).join(''); }
+async function refreshVenues(){ const venues = await (await fetch('/api/venues')).json(); venueSnapshot = venues; const vt = document.getElementById('venue-table'); vt.innerHTML = '<tr><th>ID</th><th>名稱</th><th>操作</th></tr>' + venues.map(v => `<tr><td>${v.venue_id}</td><td><input value="${v.name}" id="venue-${v.venue_id}"/></td><td class="actions"><button onclick="updateVenue(${v.venue_id})">儲存</button><button onclick="deleteVenue(${v.venue_id})">刪除</button></td></tr>`).join(''); }
 async function createVenue(){ try { await api('POST', '/api/venues', {name: document.getElementById('new-venue').value}); document.getElementById('new-venue').value=''; await refreshVenues(); } catch (e) { alert(e.message); } }
 async function updateVenue(id){ try { await api('PUT', '/api/venues', {venue_id: id, name: document.getElementById(`venue-${id}`).value}); await refreshVenues(); } catch (e) { alert(e.message); } }
 async function deleteVenue(id){ if (!confirm('確定刪除場地？')) return; try { await api('DELETE', '/api/venues', {venue_id: id}); await refreshVenues(); } catch (e) { alert(e.message); } }
+
+
+async function saveAllEditedSettings(){
+  try {
+    const changedPurposes = purposeSnapshot.map(p => ({
+      purpose_id: p.purpose_id,
+      name: document.getElementById(`purpose-${p.purpose_id}`).value,
+      price: Number(document.getElementById(`purpose-price-${p.purpose_id}`).value || 0),
+      original_name: p.name,
+      original_price: Number(p.price || 0),
+    })).filter(p => p.name !== p.original_name || p.price !== p.original_price);
+
+    const changedVenues = venueSnapshot.map(v => ({
+      venue_id: v.venue_id,
+      name: document.getElementById(`venue-${v.venue_id}`).value,
+      original_name: v.name,
+    })).filter(v => v.name !== v.original_name);
+
+    if (!changedPurposes.length && !changedVenues.length) {
+      alert('沒有偵測到用途或場地的變更');
+      return;
+    }
+
+    for (const purpose of changedPurposes) {
+      await api('PUT', '/api/purposes', {
+        purpose_id: purpose.purpose_id,
+        name: purpose.name,
+        price: purpose.price,
+      });
+    }
+
+    for (const venue of changedVenues) {
+      await api('PUT', '/api/venues', {
+        venue_id: venue.venue_id,
+        name: venue.name,
+      });
+    }
+
+    await refreshPurposes();
+    await refreshVenues();
+    alert(`已儲存 ${changedPurposes.length} 筆用途、${changedVenues.length} 筆場地變更`);
+  } catch (e) {
+    alert(e.message);
+  }
+}
 
 function resetStringItemForm() {
   editingStringItemId = null;
