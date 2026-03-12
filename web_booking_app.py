@@ -1698,8 +1698,8 @@ async function refreshReport() {
   if (!resp.ok) { alert(data.error || '查詢失敗'); return; }
 
   const table = document.getElementById('report-table');
-  table.innerHTML = '<tr><th>姓名</th><th>預約費用</th><th>額外收入</th><th>合計</th></tr>' +
-    data.items.map(item => `<tr><td>${item.customer}</td><td>$${Number(item.booking_total).toFixed(0)}</td><td>$${Number(item.extra_income_total).toFixed(0)}</td><td>$${Number(item.total_fee).toFixed(0)}</td></tr>`).join('');
+  table.innerHTML = '<tr><th>姓名</th><th>預約費用</th></tr>' +
+    data.booking_items.map(item => `<tr><td>${item.customer}</td><td>$${Number(item.total_fee).toFixed(0)}</td></tr>`).join('');
 
   const extraTable = document.getElementById('extra-income-table');
   extraTable.innerHTML = '<tr><th>時間</th><th>姓名</th><th>項目</th><th>金額</th><th>詳細/備註</th></tr>' +

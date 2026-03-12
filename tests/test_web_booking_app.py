@@ -102,6 +102,8 @@ class TestWebBookingApp(unittest.TestCase):
         self.assertIn("預約收入明細", body)
         self.assertIn("額外收入明細", body)
         self.assertIn("匯出 Excel", body)
+        self.assertNotIn("<th>額外收入</th>", body)
+        self.assertNotIn("<th>合計</th>", body)
 
     def test_string_items_page_exists(self):
         status, body = self.request("GET", "/string-items")
