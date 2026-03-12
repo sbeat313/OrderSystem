@@ -21,6 +21,7 @@ class Venue:
 class Purpose:
     purpose_id: int
     name: str
+    price: float
 
 
 @dataclass
@@ -84,7 +85,16 @@ class BookingManager:
                 """
                 CREATE TABLE IF NOT EXISTS purposes (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    name TEXT NOT NULL UNIQUE
+                    name TEXT NOT NULL UNIQUE,
+                    price REAL NOT NULL DEFAULT 0
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS settings (
+                    key TEXT PRIMARY KEY,
+                    value TEXT NOT NULL
                 )
                 """
             )
@@ -153,6 +163,10 @@ class BookingManager:
             if "pickup_date" not in extra_columns:
                 conn.execute("ALTER TABLE extra_incomes ADD COLUMN pickup_date TEXT NOT NULL DEFAULT ''")
 
+            purpose_columns = [row["name"] for row in conn.execute("PRAGMA table_info(purposes)").fetchall()]
+            if "price" not in purpose_columns:
+                conn.execute("ALTER TABLE purposes ADD COLUMN price REAL NOT NULL DEFAULT 0")
+
             count = conn.execute("SELECT COUNT(*) FROM venues").fetchone()[0]
             if count == 0:
                 conn.executemany(
@@ -163,16 +177,16 @@ class BookingManager:
             purpose_count = conn.execute("SELECT COUNT(*) FROM purposes").fetchone()[0]
             if purpose_count == 0:
                 conn.executemany(
-                    "INSERT INTO purposes(name) VALUES (?)",
+                    "INSERT INTO purposes(name, price) VALUES (?, ?)",
                     [
-                        ("單月租",),
-                        ("雙月租",),
-                        ("臨租",),
-                        ("月租球友續租",),
-                        ("股東價",),
-                        ("連假專案",),
-                        ("寒暑假專案",),
-                        ("過年專案",),
+                        ("單月租", 0),
+                        ("雙月租", 0),
+                        ("臨租", 0),
+                        ("月租球友續租", 0),
+                        ("股東價", 0),
+                        ("連假專案", 0),
+                        ("寒暑假專案", 0),
+                        ("過年專案", 0),
                     ],
                 )
 
@@ -227,8 +241,8 @@ class BookingManager:
 
     def list_purposes(self) -> List[Purpose]:
         with self._connect() as conn:
-            rows = conn.execute("SELECT id, name FROM purposes ORDER BY id").fetchall()
-        return [Purpose(purpose_id=row["id"], name=row["name"]) for row in rows]
+            rows = conn.execute("SELECT id, name, price FROM purposes ORDER BY id").fetchall()
+        return [Purpose(purpose_id=row["id"], name=row["name"], price=float(row["price"] or 0)) for row in rows]
 
 
     def list_string_items(self) -> List[StringItem]:
@@ -268,30 +282,49 @@ class BookingManager:
             cur = conn.execute("DELETE FROM string_items WHERE id = ?", (string_item_id,))
             return cur.rowcount > 0
 
-    def add_purpose(self, name: str) -> Purpose:
+    def add_purpose(self, name: str, price: float = 0) -> Purpose:
         purpose_name = name.strip()
         if not purpose_name:
             raise ValueError("用途名稱不可為空")
+        purpose_price = self._parse_price(price)
         try:
             with self._connect() as conn:
-                cursor = conn.execute("INSERT INTO purposes(name) VALUES (?)", (purpose_name,))
+                cursor = conn.execute("INSERT INTO purposes(name, price) VALUES (?, ?)", (purpose_name, purpose_price))
                 purpose_id = cursor.lastrowid
-            return Purpose(purpose_id=purpose_id, name=purpose_name)
+            return Purpose(purpose_id=purpose_id, name=purpose_name, price=purpose_price)
         except sqlite3.IntegrityError as exc:
             raise ValueError("用途名稱不可重複") from exc
 
-    def update_purpose(self, purpose_id: int, name: str) -> Purpose:
+    def update_purpose(self, purpose_id: int, name: str, price: float = 0) -> Purpose:
         purpose_name = name.strip()
         if not purpose_name:
             raise ValueError("用途名稱不可為空")
+        purpose_price = self._parse_price(price)
         try:
             with self._connect() as conn:
-                cur = conn.execute("UPDATE purposes SET name = ? WHERE id = ?", (purpose_name, purpose_id))
+                cur = conn.execute("UPDATE purposes SET name = ?, price = ? WHERE id = ?", (purpose_name, purpose_price, purpose_id))
                 if cur.rowcount == 0:
                     raise ValueError("用途不存在")
-            return Purpose(purpose_id=purpose_id, name=purpose_name)
+            return Purpose(purpose_id=purpose_id, name=purpose_name, price=purpose_price)
         except sqlite3.IntegrityError as exc:
             raise ValueError("用途名稱不可重複") from exc
+
+    def get_setting(self, key: str, default: str = "") -> str:
+        with self._connect() as conn:
+            row = conn.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
+        if row is None:
+            return default
+        return str(row["value"])
+
+    def set_setting(self, key: str, value: str) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO settings(key, value) VALUES (?, ?)
+                ON CONFLICT(key) DO UPDATE SET value = excluded.value
+                """,
+                (key, value),
+            )
 
     def delete_purpose(self, purpose_id: int) -> bool:
         with self._connect() as conn:

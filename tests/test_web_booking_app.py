@@ -64,7 +64,7 @@ class TestWebBookingApp(unittest.TestCase):
         status, body = self.request("GET", "/api/purposes")
         self.assertEqual(status, 200)
         purposes = json.loads(body)
-        self.assertIn({"purpose_id": 1, "name": "單月租"}, purposes)
+        self.assertIn({"purpose_id": 1, "name": "單月租", "price": 0.0}, purposes)
 
     def test_homepage_helper_text_removed(self):
         status, body = self.request("GET", "/")
@@ -91,8 +91,15 @@ class TestWebBookingApp(unittest.TestCase):
     def test_options_page_exists(self):
         status, body = self.request("GET", "/options")
         self.assertEqual(status, 200)
-        self.assertIn("場地 / 用途 管理", body)
+        self.assertIn("系統設定", body)
         self.assertIn("登入時效(分鐘)", body)
+        self.assertIn("更新管理員密碼", body)
+
+    def test_purposes_page_exists(self):
+        status, body = self.request("GET", "/purposes")
+        self.assertEqual(status, 200)
+        self.assertIn("用途設定", body)
+        self.assertIn("價格", body)
         self.assertIn("booking_admin_session_ttl_ms", body)
 
     def test_reports_page_exists(self):

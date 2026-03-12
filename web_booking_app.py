@@ -59,6 +59,19 @@ def string_item_to_dict(item: Any) -> dict:
     }
 
 
+def purpose_to_dict(item: Any) -> dict:
+    return {
+        "purpose_id": item.purpose_id,
+        "name": item.name,
+        "price": item.price,
+    }
+
+
+def get_admin_password() -> str:
+    with manager_lock:
+        saved = manager.get_setting("admin_password", "")
+    return saved or ADMIN_PASSWORD
+
 HTML_PAGE = """<!doctype html>
 <html lang="zh-Hant">
 <head>
@@ -174,7 +187,8 @@ td.slot.booked-user { background: #93c5fd; color: #0f172a; }
         <input id="date" type="date" />
       </div>
       <button class="chip" id="admin-view">進階檢視</button>
-      <button class="chip" id="options-link" style="display:none;" onclick="location.href='/options'">場地/用途設定</button>
+      <button class="chip" id="options-link" style="display:none;" onclick="location.href='/settings'">系統設定</button>
+      <button class="chip" id="purposes-link" style="display:none;" onclick="location.href='/purposes'">用途設定</button>
       <button class="chip" id="report-link" style="display:none;" onclick="location.href='/reports'">費用統計</button>
       <button class="chip" id="extra-income-link" style="display:none;" onclick="location.href='/extra-income'">額外收入</button>
       <button class="chip" id="open-add-modal" style="display:none;">新增預約</button>
@@ -273,7 +287,9 @@ async function loadPurposes() {
   const resp = await fetch('/api/purposes');
   purposes = await resp.json();
   const select = document.getElementById('purpose');
-  select.innerHTML = purposes.map(p => `<option value="${p.name}">${p.name}</option>`).join('');
+  select.innerHTML = purposes.map(p => `<option value="${p.name}" data-price="${Number(p.price || 0)}">${p.name}</option>`).join('');
+  const first = purposes[0];
+  if (first) document.getElementById('price').value = Number(first.price || 0);
 }
 
 async function loadBookings(date, force = false) {
@@ -328,6 +344,7 @@ function setAuthBadge() {
   document.getElementById('admin-view').classList.toggle('active', isAdmin);
   document.getElementById('admin-view').textContent = isAdmin ? '已登入（點我登出）' : '進階檢視';
   document.getElementById('options-link').style.display = isAdmin ? 'inline-block' : 'none';
+  document.getElementById('purposes-link').style.display = isAdmin ? 'inline-block' : 'none';
   document.getElementById('report-link').style.display = isAdmin ? 'inline-block' : 'none';
   document.getElementById('extra-income-link').style.display = isAdmin ? 'inline-block' : 'none';
   document.getElementById('open-add-modal').style.display = isAdmin ? 'inline-block' : 'none';
@@ -766,6 +783,11 @@ async function deleteSelectedBooking() {
   refresh();
 }
 
+document.getElementById('purpose').addEventListener('change', () => {
+  const selected = purposes.find(p => p.name === document.getElementById('purpose').value);
+  if (selected) document.getElementById('price').value = Number(selected.price || 0);
+});
+
 document.getElementById('admin-view').addEventListener('click', async () => {
   if (isAdmin) {
     logoutAdmin();
@@ -863,7 +885,7 @@ OPTIONS_PAGE = """<!doctype html>
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>場地與用途設定</title>
+<title>系統設定</title>
 <style>
 :root {
   --opt-bg:#f7f7ff;
@@ -921,8 +943,9 @@ th:last-child, td:last-child { width: 186px; }
 </head>
 <body>
 <div class="top">
-  <h1 style="margin:0;">場地 / 用途 管理</h1>
+  <h1 style="margin:0;">系統設定</h1>
   <button onclick="location.href='/'">回預約頁</button>
+  <button onclick="location.href='/purposes'">用途設定</button>
   <button onclick="logoutAdmin()">登出管理員</button>
   <div style="display:flex;align-items:center;gap:6px;margin-left:auto;">
     <span style="font-size:14px;color:#334155;">登入時效(分鐘)</span>
@@ -930,18 +953,17 @@ th:last-child, td:last-child { width: 186px; }
     <button onclick="saveSessionTtl()">儲存時效</button>
   </div>
 </div>
+<div style="max-width:1200px;margin:0 auto 12px;background:#fff;border:1px solid #d6d9ee;border-radius:12px;padding:12px;display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:end;">
+  <div><label style="font-size:14px;">新管理員密碼</label><input id="new-admin-password" type="password" placeholder="至少4碼"/></div>
+  <div><label style="font-size:14px;">再次輸入新密碼</label><input id="confirm-admin-password" type="password" placeholder="再次輸入"/></div>
+  <button onclick="updateAdminPassword()">更新管理員密碼</button>
+</div>
 <div class="wrap">
   <div class="panel">
     <h3>場地管理</h3>
     <input id="new-venue" placeholder="新增場地名稱" />
     <button class="create-btn" onclick="createVenue()">新增場地</button>
     <table id="venue-table"></table>
-  </div>
-  <div class="panel">
-    <h3>用途管理</h3>
-    <input id="new-purpose" placeholder="新增用途名稱" />
-    <button class="create-btn" onclick="createPurpose()">新增用途</button>
-    <table id="purpose-table"></table>
   </div>
 </div>
 <script>
@@ -1028,17 +1050,11 @@ async function api(method, path, payload = {}) {
 
 async function refresh() {
   const venues = await (await fetch('/api/venues')).json();
-  const purposes = await (await fetch('/api/purposes')).json();
-
   const vt = document.getElementById('venue-table');
   vt.innerHTML = '<tr><th>ID</th><th>名稱</th><th>操作</th></tr>' + venues.map(v =>
     `<tr><td>${v.venue_id}</td><td><input class="row-input" value="${v.name}" id="venue-${v.venue_id}"/></td><td class="actions"><button onclick="updateVenue(${v.venue_id})">儲存</button><button onclick="deleteVenue(${v.venue_id})">刪除</button></td></tr>`
   ).join('');
 
-  const pt = document.getElementById('purpose-table');
-  pt.innerHTML = '<tr><th>ID</th><th>名稱</th><th>操作</th></tr>' + purposes.map(p =>
-    `<tr><td>${p.purpose_id}</td><td><input class="row-input" value="${p.name}" id="purpose-${p.purpose_id}"/></td><td class="actions"><button onclick="updatePurpose(${p.purpose_id})">儲存</button><button onclick="deletePurpose(${p.purpose_id})">刪除</button></td></tr>`
-  ).join('');
 }
 
 async function createVenue() {
@@ -1055,18 +1071,19 @@ async function deleteVenue(id) {
   catch (e) { alert(e.message); }
 }
 
-async function createPurpose() {
-  try { await api('POST', '/api/purposes', {name: document.getElementById('new-purpose').value}); await refresh(); }
-  catch (e) { alert(e.message); }
-}
-async function updatePurpose(id) {
-  try { await api('PUT', '/api/purposes', {purpose_id: id, name: document.getElementById(`purpose-${id}`).value}); await refresh(); }
-  catch (e) { alert(e.message); }
-}
-async function deletePurpose(id) {
-  if (!confirm('確定刪除用途？')) return;
-  try { await api('DELETE', '/api/purposes', {purpose_id: id}); await refresh(); }
-  catch (e) { alert(e.message); }
+async function updateAdminPassword() {
+  const pw = document.getElementById('new-admin-password').value;
+  const confirm = document.getElementById('confirm-admin-password').value;
+  if (!pw || pw.length < 4) { alert('新密碼至少 4 碼'); return; }
+  if (pw !== confirm) { alert('兩次密碼不一致'); return; }
+  try {
+    await api('POST', '/api/system-settings', { new_admin_password: pw });
+    adminPassword = pw;
+    saveAdminPassword(pw);
+    document.getElementById('new-admin-password').value = '';
+    document.getElementById('confirm-admin-password').value = '';
+    alert('管理員密碼已更新');
+  } catch (e) { alert(e.message); }
 }
 
 (function initSessionTtl() {
@@ -1075,6 +1092,65 @@ async function deletePurpose(id) {
   if (input) input.value = ttlMinutes;
 })();
 
+refresh();
+</script>
+</body>
+</html>
+"""
+
+
+PURPOSES_PAGE = """<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>用途設定</title>
+<style>
+* { box-sizing: border-box; }
+body { font-family: "Noto Sans TC", Arial, sans-serif; margin:0; padding:22px; background:#f4f6ff; color:#0f172a; }
+.wrap { max-width: 900px; margin: 0 auto; }
+.top { display:flex; gap:10px; align-items:center; margin-bottom:12px; }
+.card { background:#fff; border:1px solid #dbe2f0; border-radius:14px; padding:16px; }
+input, button { padding:10px 12px; border-radius:10px; border:1px solid #cbd5e1; font-size:15px; }
+button { background:#4f46e5; color:#fff; border:none; cursor:pointer; }
+table { width:100%; border-collapse:collapse; margin-top:12px; }
+th, td { border:1px solid #dbe2f0; padding:10px; text-align:left; }
+th { background:#eef2ff; }
+.actions{display:flex;gap:8px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <h1 style="margin:0;">用途設定</h1>
+    <button onclick="location.href='/'">回預約頁</button>
+    <button onclick="location.href='/settings'">系統設定</button>
+  </div>
+  <div class="card">
+    <div style="display:grid;grid-template-columns:2fr 1fr auto;gap:10px;align-items:end;">
+      <div><label>用途名稱</label><input id="new-purpose" placeholder="新增用途名稱" /></div>
+      <div><label>價格</label><input id="new-purpose-price" type="number" min="0" step="1" value="0"/></div>
+      <button onclick="createPurpose()">新增用途</button>
+    </div>
+    <table id="purpose-table"></table>
+  </div>
+</div>
+<script>
+let adminPassword = '';
+const ADMIN_PASSWORD_KEY = 'booking_admin_password';
+const ADMIN_EXPIRES_KEY = 'booking_admin_expires_at';
+const ADMIN_SESSION_TTL_MS_KEY = 'booking_admin_session_ttl_ms';
+const DEFAULT_ADMIN_SESSION_TTL_MS = 2 * 60 * 60 * 1000;
+function getAdminSessionTtlMs(){ const raw = Number(localStorage.getItem(ADMIN_SESSION_TTL_MS_KEY) || 0); return (!raw || raw < 60*1000) ? DEFAULT_ADMIN_SESSION_TTL_MS : raw; }
+function saveAdminPassword(password){ localStorage.setItem(ADMIN_PASSWORD_KEY, password); localStorage.setItem(ADMIN_EXPIRES_KEY, String(Date.now() + getAdminSessionTtlMs())); }
+function loadAdminPassword(){ const password = localStorage.getItem(ADMIN_PASSWORD_KEY) || ''; const expiresAt = Number(localStorage.getItem(ADMIN_EXPIRES_KEY) || 0); if (!password || !expiresAt || Date.now() >= expiresAt) return ''; return password; }
+async function login(){ const pw = prompt('請輸入管理員密碼：'); if (pw === null) return false; const resp = await fetch('/api/admin/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({password: pw})}); if (!resp.ok) { alert('密碼錯誤'); return false; } adminPassword = pw; saveAdminPassword(pw); return true; }
+async function ensureLogin(){ if (!adminPassword) adminPassword = loadAdminPassword(); if (adminPassword) { const resp = await fetch('/api/admin/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({password: adminPassword})}); if (resp.ok) return true; adminPassword = ''; } return await login(); }
+async function api(method, path, payload = {}) { const ok = await ensureLogin(); if (!ok) throw new Error('need login'); payload.admin_password = adminPassword; const resp = await fetch(path, { method, headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) }); const data = await resp.json(); if (!resp.ok) throw new Error(data.error || '操作失敗'); return data; }
+async function refresh(){ const purposes = await (await fetch('/api/purposes')).json(); const pt = document.getElementById('purpose-table'); pt.innerHTML = '<tr><th>ID</th><th>名稱</th><th>價格</th><th>操作</th></tr>' + purposes.map(p => `<tr><td>${p.purpose_id}</td><td><input value="${p.name}" id="purpose-${p.purpose_id}"/></td><td><input type="number" min="0" step="1" value="${Number(p.price || 0)}" id="purpose-price-${p.purpose_id}"/></td><td class="actions"><button onclick="updatePurpose(${p.purpose_id})">儲存</button><button onclick="deletePurpose(${p.purpose_id})">刪除</button></td></tr>`).join(''); }
+async function createPurpose(){ try { await api('POST', '/api/purposes', {name: document.getElementById('new-purpose').value, price: Number(document.getElementById('new-purpose-price').value || 0)}); await refresh(); } catch (e) { alert(e.message); } }
+async function updatePurpose(id){ try { await api('PUT', '/api/purposes', {purpose_id: id, name: document.getElementById(`purpose-${id}`).value, price: Number(document.getElementById(`purpose-price-${id}`).value || 0)}); await refresh(); } catch (e) { alert(e.message); } }
+async function deletePurpose(id){ if (!confirm('確定刪除用途？')) return; try { await api('DELETE', '/api/purposes', {purpose_id: id}); await refresh(); } catch (e) { alert(e.message); } }
 refresh();
 </script>
 </body>
@@ -1796,8 +1872,11 @@ class BookingWebHandler(BaseHTTPRequestHandler):
         if parsed.path == "/":
             self._send_html(HTML_PAGE)
             return
-        if parsed.path == "/options":
+        if parsed.path in ["/options", "/settings"]:
             self._send_html(OPTIONS_PAGE)
+            return
+        if parsed.path == "/purposes":
+            self._send_html(PURPOSES_PAGE)
             return
         if parsed.path == "/reports":
             self._send_html(REPORT_PAGE)
@@ -1815,7 +1894,7 @@ class BookingWebHandler(BaseHTTPRequestHandler):
             return
         if parsed.path == "/api/purposes":
             with manager_lock:
-                purposes = [p.__dict__ for p in manager.list_purposes()]
+                purposes = [purpose_to_dict(p) for p in manager.list_purposes()]
             self._send_json(purposes)
             return
         if parsed.path == "/api/bookings":
@@ -1843,10 +1922,23 @@ class BookingWebHandler(BaseHTTPRequestHandler):
 
         if parsed.path == "/api/admin/login":
             password = str(payload.get("password", ""))
-            if secrets.compare_digest(password, ADMIN_PASSWORD):
+            if secrets.compare_digest(password, get_admin_password()):
                 self._send_json({"ok": True})
             else:
                 self._send_json({"error": "密碼錯誤"}, status=HTTPStatus.UNAUTHORIZED)
+            return
+
+        if parsed.path == "/api/system-settings":
+            try:
+                self._check_admin_password(payload)
+                new_password = str(payload.get("new_admin_password", "")).strip()
+                if len(new_password) < 4:
+                    raise ValueError("新管理員密碼至少 4 碼")
+                with manager_lock:
+                    manager.set_setting("admin_password", new_password)
+                self._send_json({"ok": True})
+            except ValueError as exc:
+                self._send_json({"error": str(exc)}, status=HTTPStatus.BAD_REQUEST)
             return
 
         if parsed.path == "/api/string-items":
@@ -1881,7 +1973,7 @@ class BookingWebHandler(BaseHTTPRequestHandler):
                         item = manager.add_venue(name)
                         self._send_json(item.__dict__, status=HTTPStatus.CREATED)
                     else:
-                        item = manager.add_purpose(name)
+                        item = manager.add_purpose(name, payload.get("price", 0))
                         self._send_json(item.__dict__, status=HTTPStatus.CREATED)
                 return
             except ValueError as exc:
@@ -2198,7 +2290,7 @@ class BookingWebHandler(BaseHTTPRequestHandler):
                     self._send_json(item.__dict__)
                     return
                 if parsed.path == "/api/purposes":
-                    item = manager.update_purpose(int(payload.get("purpose_id", 0)), str(payload.get("name", "")))
+                    item = manager.update_purpose(int(payload.get("purpose_id", 0)), str(payload.get("name", "")), payload.get("price", 0))
                     self._send_json(item.__dict__)
                     return
                 if parsed.path == "/api/bookings":
@@ -2273,7 +2365,7 @@ class BookingWebHandler(BaseHTTPRequestHandler):
     @staticmethod
     def _check_admin_password(payload: Dict[str, Any]) -> None:
         password = str(payload.get("admin_password", ""))
-        if not secrets.compare_digest(password, ADMIN_PASSWORD):
+        if not secrets.compare_digest(password, get_admin_password()):
             raise ValueError("管理員密碼錯誤")
 
 
