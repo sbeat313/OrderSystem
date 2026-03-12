@@ -55,6 +55,8 @@ class Booking:
     price: float
     start_time: datetime
     end_time: datetime
+    note: str = ""
+    created_at: str = ""
 
 
 class BookingManager:
@@ -132,6 +134,10 @@ class BookingManager:
                 conn.execute("ALTER TABLE bookings ADD COLUMN price REAL NOT NULL DEFAULT 0")
             if "rental_group_id" not in columns:
                 conn.execute("ALTER TABLE bookings ADD COLUMN rental_group_id TEXT")
+            if "note" not in columns:
+                conn.execute("ALTER TABLE bookings ADD COLUMN note TEXT NOT NULL DEFAULT ''")
+            if "created_at" not in columns:
+                conn.execute("ALTER TABLE bookings ADD COLUMN created_at TEXT NOT NULL DEFAULT ''")
 
             extra_columns = [row["name"] for row in conn.execute("PRAGMA table_info(extra_incomes)").fetchall()]
             if "contact_phone" not in extra_columns:
@@ -307,9 +313,12 @@ class BookingManager:
         end: str,
         purpose: str = "",
         price: float = 0,
+        note: str = "",
     ) -> Booking:
         start_time, end_time = self._parse_time_range(start, end)
         booking_price = self._parse_price(price)
+        note_text = note.strip()
+        created_at = datetime.now().strftime(TIME_FORMAT)
         with self._connect() as conn:
             venue = conn.execute(
                 "SELECT id, name FROM venues WHERE id = ?", (venue_id,)
@@ -350,8 +359,8 @@ class BookingManager:
 
             cursor = conn.execute(
                 """
-                INSERT INTO bookings(venue_id, customer, purpose, price, start_time, end_time, rental_group_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO bookings(venue_id, customer, purpose, price, start_time, end_time, rental_group_id, note, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     venue_id,
@@ -361,6 +370,8 @@ class BookingManager:
                     start_time.strftime(TIME_FORMAT),
                     end_time.strftime(TIME_FORMAT),
                     None,
+                    note_text,
+                    created_at,
                 ),
             )
             booking_id = cursor.lastrowid
@@ -374,6 +385,8 @@ class BookingManager:
             price=booking_price,
             start_time=start_time,
             end_time=end_time,
+            note=note_text,
+            created_at=created_at,
         )
 
     def add_bookings_for_purpose(
@@ -384,13 +397,16 @@ class BookingManager:
         end: str,
         purpose: str = "",
         price: float = 0,
+        note: str = "",
     ) -> List[Booking]:
         purpose_name = purpose.strip()
         if purpose_name not in {"單月租", "雙月租"}:
-            return [self.add_booking(venue_id, customer, start, end, purpose, price)]
+            return [self.add_booking(venue_id, customer, start, end, purpose, price, note)]
 
         start_time, end_time = self._parse_time_range(start, end)
         booking_price = self._parse_price(price)
+        note_text = note.strip()
+        created_at = datetime.now().strftime(TIME_FORMAT)
         duration = end_time - start_time
         period_end = self._month_end(start_time)
         if purpose_name == "雙月租":
@@ -436,12 +452,14 @@ class BookingManager:
                     )
 
             created: List[Booking] = []
+            note_text = note.strip()
+            created_at = datetime.now().strftime(TIME_FORMAT)
             for slot_start in slot_starts:
                 slot_end = slot_start + duration
                 cursor = conn.execute(
                     """
-                    INSERT INTO bookings(venue_id, customer, purpose, price, start_time, end_time, rental_group_id)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO bookings(venue_id, customer, purpose, price, start_time, end_time, rental_group_id, note, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         venue_id,
@@ -451,6 +469,8 @@ class BookingManager:
                         slot_start.strftime(TIME_FORMAT),
                         slot_end.strftime(TIME_FORMAT),
                         group_id,
+                        note_text,
+                        created_at,
                     ),
                 )
                 created.append(
@@ -463,6 +483,8 @@ class BookingManager:
                         price=booking_price,
                         start_time=slot_start,
                         end_time=slot_end,
+                        note=note_text,
+                        created_at=created_at,
                     )
                 )
 
@@ -528,12 +550,14 @@ class BookingManager:
         end: str,
         purpose: str = "",
         price: float = 0,
+        note: str = "",
     ) -> Booking:
         start_time, end_time = self._parse_time_range(start, end)
         booking_price = self._parse_price(price)
+        note_text = note.strip()
         with self._connect() as conn:
             existing = conn.execute(
-                "SELECT id FROM bookings WHERE id = ?",
+                "SELECT id, created_at FROM bookings WHERE id = ?",
                 (booking_id,),
             ).fetchone()
             if existing is None:
@@ -582,7 +606,7 @@ class BookingManager:
             cur = conn.execute(
                 """
                 UPDATE bookings
-                SET venue_id = ?, customer = ?, purpose = ?, price = ?, start_time = ?, end_time = ?
+                SET venue_id = ?, customer = ?, purpose = ?, price = ?, start_time = ?, end_time = ?, note = ?
                 WHERE id = ?
                 """,
                 (
@@ -592,6 +616,7 @@ class BookingManager:
                     booking_price,
                     start_time.strftime(TIME_FORMAT),
                     end_time.strftime(TIME_FORMAT),
+                    note_text,
                     booking_id,
                 ),
             )
@@ -607,11 +632,13 @@ class BookingManager:
             price=booking_price,
             start_time=start_time,
             end_time=end_time,
+            note=note_text,
+            created_at=(existing["created_at"] or ""),
         )
 
     def list_bookings(self, date: Optional[str] = None) -> List[Booking]:
         query = (
-            "SELECT b.id, b.venue_id, v.name AS venue_name, b.customer, b.purpose, b.price, b.start_time, b.end_time "
+            "SELECT b.id, b.venue_id, v.name AS venue_name, b.customer, b.purpose, b.price, b.start_time, b.end_time, b.note, b.created_at "
             "FROM bookings b JOIN venues v ON b.venue_id = v.id"
         )
         params: tuple = ()
@@ -633,6 +660,8 @@ class BookingManager:
                 price=float(row["price"]),
                 start_time=datetime.strptime(row["start_time"], TIME_FORMAT),
                 end_time=datetime.strptime(row["end_time"], TIME_FORMAT),
+                note=row["note"] or "",
+                created_at=row["created_at"] or "",
             )
             for row in rows
         ]

@@ -29,6 +29,8 @@ def booking_to_dict(booking: Booking) -> dict:
         "price": booking.price,
         "start_time": booking.start_time.strftime(TIME_FORMAT),
         "end_time": booking.end_time.strftime(TIME_FORMAT),
+        "note": booking.note,
+        "created_at": booking.created_at,
     }
 
 
@@ -194,6 +196,7 @@ td.slot.booked-user { background: #93c5fd; color: #0f172a; }
       <div><label>價錢</label><input id="price" type="number" min="0" step="1" placeholder="例如：500" /></div>
       <div><label>開始時間</label><input id="start" type="datetime-local" /></div>
       <div><label>結束時間</label><input id="end" type="datetime-local" /></div>
+      <div style="grid-column:1 / -1;"><label>備註</label><input id="booking-note" placeholder="可留空" /></div>
     </div>
     <div class="modal-actions">
       <button id="add-btn">送出預約</button>
@@ -701,6 +704,7 @@ function openBookingModal(data = null) {
     document.getElementById('price').value = Number(data.price || 0);
     document.getElementById('start').value = data.start_time.replace(' ', 'T');
     document.getElementById('end').value = data.end_time.replace(' ', 'T');
+    document.getElementById('booking-note').value = data.note || '';
   }
 }
 
@@ -728,6 +732,7 @@ function openBookingModalFromCell(cell, bookingId) {
   document.getElementById('price').value = 0;
   document.getElementById('start').value = start;
   document.getElementById('end').value = end;
+  document.getElementById('booking-note').value = '';
   openBookingModal();
 }
 
@@ -795,6 +800,7 @@ document.getElementById('add-btn').addEventListener('click', async () => {
     price: Number(document.getElementById('price').value || 0),
     start: toServerDateTime(document.getElementById('start').value),
     end: toServerDateTime(document.getElementById('end').value),
+    note: document.getElementById('booking-note').value.trim(),
     admin_password: adminPassword,
   };
 
@@ -1697,8 +1703,8 @@ async function refreshReport() {
   if (!resp.ok) { alert(data.error || '查詢失敗'); return; }
 
   const table = document.getElementById('report-table');
-  table.innerHTML = '<tr><th>姓名</th><th>用途</th><th>開始時間</th><th>結束時間</th><th>預約費用</th></tr>' +
-    data.booking_records.map(row => `<tr><td>${row.customer}</td><td>${row.purpose}</td><td>${row.start_time}</td><td>${row.end_time}</td><td>$${Number(row.price).toFixed(0)}</td></tr>`).join('');
+  table.innerHTML = '<tr><th>姓名</th><th>用途</th><th>開始時間</th><th>結束時間</th><th>新增時間</th><th>預約費用</th></tr>' +
+    data.booking_records.map(row => `<tr><td>${row.customer}</td><td>${row.purpose}</td><td>${row.start_time}</td><td>${row.end_time}</td><td>${row.created_at || ''}</td><td>$${Number(row.price).toFixed(0)}</td></tr>`).join('');
 
   const extraTable = document.getElementById('extra-income-table');
   extraTable.innerHTML = '<tr><th>時間</th><th>姓名</th><th>項目</th><th>金額</th><th>詳細/備註</th></tr>' +
@@ -2009,7 +2015,7 @@ class BookingWebHandler(BaseHTTPRequestHandler):
                     "</style></head><body>",
                     f"<h2>預約費用統計（{escape(start_date)} ~ {escape(end_date)}）</h2>",
                     "<h3>預約收入明細</h3>",
-                    "<table><tr><th>姓名</th><th>用途</th><th>開始時間</th><th>結束時間</th><th>預約費用</th></tr>",
+                    "<table><tr><th>姓名</th><th>用途</th><th>開始時間</th><th>結束時間</th><th>新增時間</th><th>預約費用</th><th>備註</th></tr>",
                 ]
                 for row in booking_records:
                     html_parts.append(
@@ -2018,7 +2024,9 @@ class BookingWebHandler(BaseHTTPRequestHandler):
                         f"<td>{escape(str(row['purpose']))}</td>"
                         f"<td>{escape(str(row['start_time']))}</td>"
                         f"<td>{escape(str(row['end_time']))}</td>"
+                        f"<td>{escape(str(row.get('created_at', '')))}</td>"
                         f"<td>${float(row['price']):.0f}</td>"
+                        f"<td>{escape(str(row.get('note', '')))}</td>"
                         "</tr>"
                     )
                 html_parts.append("</table>")
@@ -2168,6 +2176,7 @@ class BookingWebHandler(BaseHTTPRequestHandler):
                             price=payload.get("price", 0),
                             start=payload["start"],
                             end=payload["end"],
+                            note=str(payload.get("note", "")),
                         )
                     )
             first = created[0]
@@ -2201,6 +2210,7 @@ class BookingWebHandler(BaseHTTPRequestHandler):
                         price=payload.get("price", 0),
                         start=str(payload.get("start", "")),
                         end=str(payload.get("end", "")),
+                        note=str(payload.get("note", "")),
                     )
                     self._send_json(booking_to_dict(item))
                     return

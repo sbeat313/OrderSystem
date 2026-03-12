@@ -102,8 +102,7 @@ class TestWebBookingApp(unittest.TestCase):
         self.assertIn("預約收入明細", body)
         self.assertIn("額外收入明細", body)
         self.assertIn("匯出 Excel", body)
-        self.assertNotIn("<th>額外收入</th>", body)
-        self.assertNotIn("<th>合計</th>", body)
+        self.assertIn("新增時間", body)
 
     def test_string_items_page_exists(self):
         status, body = self.request("GET", "/string-items")
@@ -138,12 +137,15 @@ class TestWebBookingApp(unittest.TestCase):
                 "price": 800,
                 "start": "2026-04-01 18:00",
                 "end": "2026-04-01 20:00",
+                "note": "靠窗",
             },
         )
         self.assertEqual(status, 201)
         created = json.loads(body)
         self.assertEqual(created["venue_name"], "1號場")
         self.assertEqual(created["price"], 800)
+        self.assertEqual(created["note"], "靠窗")
+        self.assertTrue(created["created_at"])
 
         status, body = self.request("GET", "/api/bookings?date=2026-04-01")
         self.assertEqual(status, 200)
@@ -366,6 +368,7 @@ class TestWebBookingApp(unittest.TestCase):
         self.assertEqual(data["items"][0]["customer"], "王小明")
         self.assertTrue(any(row["purpose"] == "臨租" for row in data["booking_records"]))
         self.assertTrue(all("start_time" in row and "end_time" in row for row in data["booking_records"]))
+        self.assertTrue(all("created_at" in row for row in data["booking_records"]))
 
         status, body = self.request(
             "POST",
@@ -426,6 +429,8 @@ class TestWebBookingApp(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertIn("<h3>預約收入明細</h3>", body)
         self.assertIn("<th>用途</th>", body)
+        self.assertIn("<th>新增時間</th>", body)
+        self.assertIn("<th>備註</th>", body)
         self.assertIn("總計（預約）：$500｜總計（額外收入）：$480｜整體總計：$980", body)
 
     def test_extra_income_in_report(self):

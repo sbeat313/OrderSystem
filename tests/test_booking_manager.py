@@ -47,9 +47,12 @@ class BookingManagerTests(unittest.TestCase):
             price=600,
             start="2026-04-01 09:00",
             end="2026-04-01 11:00",
+            note="測試備註",
         )
         self.assertEqual(booking.booking_id, 1)
         self.assertEqual(booking.price, 600)
+        self.assertEqual(booking.note, "測試備註")
+        self.assertTrue(booking.created_at)
         self.assertEqual(len(self.manager.list_bookings("2026-04-01")), 1)
 
     def test_conflict_booking_raises_error(self):
