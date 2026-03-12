@@ -103,6 +103,39 @@ body {
 }
 .container { width: 100%; max-width: none; margin: 0; padding: 20px 24px 28px; }
 .title { margin: 0 0 16px; font-size: 34px; letter-spacing: .4px; color:#0b3a88; }
+.hover-top-zone {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 82px;
+  z-index: 40;
+  display: flex;
+  justify-content: center;
+  pointer-events: auto;
+}
+.floating-actions {
+  margin-top: 8px;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 14px;
+  border: 1px solid #d6deef;
+  border-radius: 14px;
+  background: rgba(255,255,255,.94);
+  box-shadow: 0 10px 28px rgba(15,23,42,.18);
+  opacity: 0;
+  transform: translateY(-20px);
+  pointer-events: none;
+  transition: opacity .2s ease, transform .2s ease;
+  backdrop-filter: blur(4px);
+}
+.hover-top-zone:hover .floating-actions,
+.floating-actions:focus-within {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
 .panel {
   border: 1px solid var(--border);
   border-radius: 18px;
@@ -175,9 +208,26 @@ td.slot.booked-user { background: #93c5fd; color: #0f172a; }
 .modal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .modal-actions { display: flex; gap: 8px; margin-top: 12px; }
 .btn-secondary { background: #e2e8f0; color: #111827; box-shadow:none; }
+@media (hover: none) {
+  .floating-actions {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+  }
+}
 </style>
 </head>
 <body>
+<div class="hover-top-zone">
+  <div class="floating-actions">
+    <button class="chip" id="admin-view">進階檢視</button>
+    <button class="chip" id="options-link" style="display:none;" onclick="location.href='/settings'">系統設定</button>
+    <button class="chip" id="purposes-link" style="display:none;" onclick="location.href='/purposes'">用途設定</button>
+    <button class="chip" id="report-link" style="display:none;" onclick="location.href='/reports'">費用統計</button>
+    <button class="chip" id="extra-income-link" style="display:none;" onclick="location.href='/extra-income'">額外收入</button>
+    <button class="chip" id="open-add-modal" style="display:none;">新增預約</button>
+  </div>
+</div>
 <div class="container">
   <h2 class="title">暖西羽球館預約系統</h2>
   <div class="panel">
@@ -186,12 +236,6 @@ td.slot.booked-user { background: #93c5fd; color: #0f172a; }
         <label>日期</label>
         <input id="date" type="date" />
       </div>
-      <button class="chip" id="admin-view">進階檢視</button>
-      <button class="chip" id="options-link" style="display:none;" onclick="location.href='/settings'">系統設定</button>
-      <button class="chip" id="purposes-link" style="display:none;" onclick="location.href='/purposes'">用途設定</button>
-      <button class="chip" id="report-link" style="display:none;" onclick="location.href='/reports'">費用統計</button>
-      <button class="chip" id="extra-income-link" style="display:none;" onclick="location.href='/extra-income'">額外收入</button>
-      <button class="chip" id="open-add-modal" style="display:none;">新增預約</button>
     </div>
     <div id="msg" class="note"></div>
     <div class="grid-wrap">
@@ -935,18 +979,28 @@ th:last-child, td:last-child { width: 186px; }
 .actions { display:flex; gap:8px; align-items:center; justify-content:flex-start; flex-wrap:nowrap; white-space:nowrap; }
 .actions button { margin-right: 0; padding:8px 12px; min-width:56px; }
 .top { max-width:1200px; margin:0 auto 14px; display:flex; gap:10px; align-items:center; }
+.hover-top-zone { position: fixed; top: 0; left: 0; right: 0; height: 82px; z-index: 40; display:flex; justify-content:center; }
+.floating-actions { margin-top:8px; display:flex; gap:10px; align-items:center; padding:10px 14px; border:1px solid #d6d9ee; border-radius:14px; background:rgba(255,255,255,.94); box-shadow:0 10px 24px rgba(67,56,202,.18); opacity:0; transform:translateY(-20px); pointer-events:none; transition:opacity .2s ease, transform .2s ease; }
+.hover-top-zone:hover .floating-actions, .floating-actions:focus-within { opacity:1; transform:translateY(0); pointer-events:auto; }
 .create-btn { margin-top: 10px; margin-bottom: 8px; }
 @media (max-width: 1100px) {
   .wrap { grid-template-columns: 1fr; }
 }
+@media (hover: none) {
+  .floating-actions { opacity:1; transform:translateY(0); pointer-events:auto; }
+}
 </style>
 </head>
 <body>
+<div class="hover-top-zone">
+  <div class="floating-actions">
+    <button onclick="location.href='/'">回預約頁</button>
+    <button onclick="location.href='/purposes'">用途設定</button>
+    <button onclick="logoutAdmin()">登出管理員</button>
+  </div>
+</div>
 <div class="top">
   <h1 style="margin:0;">系統設定</h1>
-  <button onclick="location.href='/'">回預約頁</button>
-  <button onclick="location.href='/purposes'">用途設定</button>
-  <button onclick="logoutAdmin()">登出管理員</button>
   <div style="display:flex;align-items:center;gap:6px;margin-left:auto;">
     <span style="font-size:14px;color:#334155;">登入時效(分鐘)</span>
     <input id="session-ttl-minutes" type="number" min="1" step="1" style="width:120px;"/>
@@ -1117,14 +1171,22 @@ table { width:100%; border-collapse:collapse; margin-top:12px; }
 th, td { border:1px solid #dbe2f0; padding:10px; text-align:left; }
 th { background:#eef2ff; }
 .actions{display:flex;gap:8px;}
+.hover-top-zone { position: fixed; top: 0; left: 0; right: 0; height: 82px; z-index: 40; display:flex; justify-content:center; }
+.floating-actions { margin-top:8px; display:flex; gap:10px; align-items:center; padding:10px 14px; border:1px solid #dbe2f0; border-radius:14px; background:rgba(255,255,255,.94); box-shadow:0 10px 24px rgba(30,64,175,.18); opacity:0; transform:translateY(-20px); pointer-events:none; transition:opacity .2s ease, transform .2s ease; }
+.hover-top-zone:hover .floating-actions, .floating-actions:focus-within { opacity:1; transform:translateY(0); pointer-events:auto; }
+@media (hover:none){ .floating-actions{ opacity:1; transform:translateY(0); pointer-events:auto; } }
 </style>
 </head>
 <body>
+<div class="hover-top-zone">
+  <div class="floating-actions">
+    <button onclick="location.href='/'">回預約頁</button>
+    <button onclick="location.href='/settings'">系統設定</button>
+  </div>
+</div>
 <div class="wrap">
   <div class="top">
     <h1 style="margin:0;">用途設定</h1>
-    <button onclick="location.href='/'">回預約頁</button>
-    <button onclick="location.href='/settings'">系統設定</button>
   </div>
   <div class="card">
     <div style="display:grid;grid-template-columns:2fr 1fr auto;gap:10px;align-items:end;">
@@ -1181,16 +1243,24 @@ th, td { border:1px solid #dbe2f0; padding:10px; text-align:left; }
 th { background:#eef2ff; }
 .note { min-height:20px; margin-top:8px; }
 .helper { font-size:13px; color:#475569; margin-top:4px; }
+.hover-top-zone { position: fixed; top: 0; left: 0; right: 0; height: 82px; z-index: 40; display:flex; justify-content:center; }
+.floating-actions { margin-top:8px; display:flex; gap:10px; align-items:center; padding:10px 14px; border:1px solid #dbe2f0; border-radius:14px; background:rgba(255,255,255,.94); box-shadow:0 10px 24px rgba(30,64,175,.18); opacity:0; transform:translateY(-20px); pointer-events:none; transition:opacity .2s ease, transform .2s ease; }
+.hover-top-zone:hover .floating-actions, .floating-actions:focus-within { opacity:1; transform:translateY(0); pointer-events:auto; }
+@media (hover:none){ .floating-actions{ opacity:1; transform:translateY(0); pointer-events:auto; } }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <div class="top">
-    <h1>額外收入登記</h1>
+<div class="hover-top-zone">
+  <div class="floating-actions">
     <button onclick="location.href='/'">回預約頁</button>
     <button onclick="location.href='/reports'">去費用統計</button>
     <button onclick="location.href='/string-items'">穿線項目設定</button>
     <button onclick="logoutAdmin()">登出管理員</button>
+  </div>
+</div>
+<div class="wrap">
+  <div class="top">
+    <h1>額外收入登記</h1>
   </div>
   <div class="card">
     <div class="filters">
@@ -1527,13 +1597,21 @@ button { background:#4f46e5; color:#fff; border:none; cursor:pointer; }
 table { width:100%; border-collapse:collapse; margin-top:12px; }
 th, td { border:1px solid #dbe2f0; padding:10px; text-align:left; }
 th { background:#eef2ff; }
+.hover-top-zone { position: fixed; top: 0; left: 0; right: 0; height: 82px; z-index: 40; display:flex; justify-content:center; }
+.floating-actions { margin-top:8px; display:flex; gap:10px; align-items:center; padding:10px 14px; border:1px solid #dbe2f0; border-radius:14px; background:rgba(255,255,255,.94); box-shadow:0 10px 24px rgba(30,64,175,.18); opacity:0; transform:translateY(-20px); pointer-events:none; transition:opacity .2s ease, transform .2s ease; }
+.hover-top-zone:hover .floating-actions, .floating-actions:focus-within { opacity:1; transform:translateY(0); pointer-events:auto; }
+@media (hover:none){ .floating-actions{ opacity:1; transform:translateY(0); pointer-events:auto; } }
 </style>
 </head>
 <body>
+<div class="hover-top-zone">
+  <div class="floating-actions">
+    <button onclick="location.href='/extra-income'">回額外收入</button>
+  </div>
+</div>
 <div class="wrap">
   <div class="top">
     <h1>穿線項目設定</h1>
-    <button onclick="location.href='/extra-income'">回額外收入</button>
   </div>
   <div class="card">
     <div style="display:flex; gap:10px; align-items:end; flex-wrap:wrap;">
@@ -1667,15 +1745,23 @@ th, td { border:1px solid #dbe2f0; padding:10px; text-align:left; }
 th { background:#eef2ff; }
 .total { margin-top:10px; font-weight:700; color:#1e3a8a; }
 .section-title { margin-top:14px; font-weight:700; color:#334155; }
+.hover-top-zone { position: fixed; top: 0; left: 0; right: 0; height: 82px; z-index: 40; display:flex; justify-content:center; }
+.floating-actions { margin-top:8px; display:flex; gap:10px; align-items:center; padding:10px 14px; border:1px solid #dbe2f0; border-radius:14px; background:rgba(255,255,255,.94); box-shadow:0 10px 24px rgba(30,64,175,.18); opacity:0; transform:translateY(-20px); pointer-events:none; transition:opacity .2s ease, transform .2s ease; }
+.hover-top-zone:hover .floating-actions, .floating-actions:focus-within { opacity:1; transform:translateY(0); pointer-events:auto; }
+@media (hover:none){ .floating-actions{ opacity:1; transform:translateY(0); pointer-events:auto; } }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <div class="top">
-    <h1>預約費用統計</h1>
+<div class="hover-top-zone">
+  <div class="floating-actions">
     <button onclick="location.href='/'">回預約頁</button>
     <button onclick="location.href='/extra-income'">額外收入登記</button>
     <button onclick="logoutAdmin()">登出管理員</button>
+  </div>
+</div>
+<div class="wrap">
+  <div class="top">
+    <h1>預約費用統計</h1>
   </div>
   <div class="card">
     <div class="filters">
