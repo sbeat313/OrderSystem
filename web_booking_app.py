@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import csv
+import io
 import json
 import os
 import secrets
@@ -1600,6 +1602,7 @@ th { background:#eef2ff; }
       <div><div>結束日期</div><input id="end-date" type="date"/></div>
       <div><div>姓名</div><input id="customer-filter" placeholder="留空=全部"/></div>
       <button id="query-btn">查詢</button>
+      <button id="export-btn">匯出 Excel</button>
     </div>
     <div class="section-title">預約收入明細</div>
     <table id="report-table"></table>
@@ -1718,7 +1721,41 @@ async function refreshReport() {
   document.getElementById('grand-total').textContent = `總計（預約）：$${Number(data.booking_grand_total).toFixed(0)}｜總計（額外收入）：$${Number(data.extra_income_grand_total).toFixed(0)}｜整體總計：$${Number(data.grand_total).toFixed(0)}`;
 }
 
+
+
+async function exportReport() {
+  if (!adminPassword) adminPassword = loadAdminPassword();
+  if (!adminPassword) {
+    const ok = await login();
+    if (!ok) return;
+  }
+  const start = document.getElementById('start-date').value;
+  const end = document.getElementById('end-date').value;
+  const customer = document.getElementById('customer-filter').value.trim();
+  const resp = await fetch('/api/reports/fees/export', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ admin_password: adminPassword, start_date: start, end_date: end, customer }),
+  });
+  if (!resp.ok) {
+    const data = await resp.json().catch(() => ({ error: '匯出失敗' }));
+    alert(data.error || '匯出失敗');
+    return;
+  }
+  const blob = await resp.blob();
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const customerPart = customer ? `_${customer}` : '';
+  a.href = url;
+  a.download = `費用統計_${start}_${end}${customerPart}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  window.URL.revokeObjectURL(url);
+}
+
 document.getElementById('query-btn').addEventListener('click', refreshReport);
+document.getElementById('export-btn').addEventListener('click', exportReport);
 (function init() {
   const now = new Date();
   const start = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -1880,6 +1917,87 @@ class BookingWebHandler(BaseHTTPRequestHandler):
                         for item in manager.list_extra_incomes(start_date=start_date, end_date=end_date, customer=customer)
                     ]
                 self._send_json({"items": items})
+            except ValueError as exc:
+                self._send_json({"error": str(exc)}, status=HTTPStatus.BAD_REQUEST)
+            return
+
+        if parsed.path == "/api/reports/fees/export":
+            try:
+                self._check_admin_password(payload)
+                start_date = str(payload.get("start_date", "")).strip()
+                end_date = str(payload.get("end_date", "")).strip()
+                if not start_date or not end_date:
+                    raise ValueError("請提供開始與結束日期")
+                customer = str(payload.get("customer", "")).strip()
+                with manager_lock:
+                    booking_items = manager.summarize_fees(start_date, end_date, customer)
+                    all_extra_records = [
+                        extra_income_to_dict(item)
+                        for item in manager.list_extra_incomes(start_date=start_date, end_date=end_date, customer=customer)
+                    ]
+
+                extra_records = []
+                for row in all_extra_records:
+                    if row["item"] != "球拍":
+                        extra_records.append(row)
+                        continue
+                    if row["payment_status"] == "結清" and row["pickup_date"]:
+                        extra_records.append(row)
+
+                booking_map = {
+                    item["customer"]: {
+                        "customer": item["customer"],
+                        "booking_total": float(item["total_fee"]),
+                        "extra_income_total": 0.0,
+                    }
+                    for item in booking_items
+                }
+                for row in extra_records:
+                    if row["customer"] not in booking_map:
+                        booking_map[row["customer"]] = {
+                            "customer": row["customer"],
+                            "booking_total": 0.0,
+                            "extra_income_total": 0.0,
+                        }
+                    booking_map[row["customer"]]["extra_income_total"] += float(row["amount"])
+
+                rows = []
+                for item in booking_map.values():
+                    total_fee = float(item["booking_total"] + item["extra_income_total"])
+                    rows.append((item["customer"], item["booking_total"], item["extra_income_total"], total_fee))
+                rows.sort(key=lambda row: (-row[3], row[0]))
+
+                output = io.StringIO()
+                writer = csv.writer(output)
+                writer.writerow(["姓名", "預約費用", "額外收入", "合計"])
+                for row in rows:
+                    writer.writerow([row[0], f"{row[1]:.0f}", f"{row[2]:.0f}", f"{row[3]:.0f}"])
+                writer.writerow([])
+                writer.writerow(["時間", "姓名", "項目", "金額", "詳細/備註"])
+                for row in extra_records:
+                    if row["item"] == "球拍":
+                        details = "｜".join(
+                            part for part in [
+                                f"電話：{row['contact_phone']}" if row["contact_phone"] else "",
+                                f"穿線：{row['racket_model']}" if row["racket_model"] else "",
+                                f"磅數：{row['string_tension']}" if row["string_tension"] else "",
+                                f"收費：{row['payment_status']}" if row["payment_status"] else "",
+                                f"球拍：{row['racket_status']}" if row["racket_status"] else "",
+                                f"取回日：{row['pickup_date']}" if row["pickup_date"] else "",
+                                f"備註：{row['note']}" if row["note"] else "",
+                            ] if part
+                        )
+                    else:
+                        details = row["note"] or ""
+                    writer.writerow([row["income_time"], row["customer"], row["item"], f"{float(row['amount']):.0f}", details])
+
+                body = output.getvalue().encode("utf-8-sig")
+                self.send_response(HTTPStatus.OK)
+                self.send_header("Content-Type", "text/csv; charset=utf-8")
+                self.send_header("Content-Disposition", "attachment; filename=fee_report.csv")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
             except ValueError as exc:
                 self._send_json({"error": str(exc)}, status=HTTPStatus.BAD_REQUEST)
             return

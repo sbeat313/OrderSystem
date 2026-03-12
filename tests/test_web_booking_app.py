@@ -101,6 +101,7 @@ class TestWebBookingApp(unittest.TestCase):
         self.assertIn("預約費用統計", body)
         self.assertIn("預約收入明細", body)
         self.assertIn("額外收入明細", body)
+        self.assertIn("匯出 Excel", body)
 
     def test_string_items_page_exists(self):
         status, body = self.request("GET", "/string-items")
@@ -377,6 +378,50 @@ class TestWebBookingApp(unittest.TestCase):
         self.assertEqual(data["grand_total"], 1200)
         self.assertEqual(len(data["items"]), 1)
         self.assertEqual(data["items"][0]["customer"], "王小明")
+
+
+    def test_fee_report_export_csv(self):
+        self.request(
+            "POST",
+            "/api/bookings",
+            {
+                "venue_id": 1,
+                "customer": "王小明",
+                "purpose": "臨租",
+                "price": 500,
+                "start": "2026-04-01 18:00",
+                "end": "2026-04-01 20:00",
+            },
+        )
+        self.request(
+            "POST",
+            "/api/extra-incomes",
+            {
+                "admin_password": "admin123",
+                "income_time": "2026-04-02 10:00",
+                "customer": "王小明",
+                "item": "球拍",
+                "amount": 480,
+                "racket_model": "YONEX BG-65",
+                "string_tension": 32,
+                "payment_status": "結清",
+                "pickup_date": "2026-04-16",
+            },
+        )
+
+        status, body = self.request(
+            "POST",
+            "/api/reports/fees/export",
+            {
+                "admin_password": "admin123",
+                "start_date": "2026-04-01",
+                "end_date": "2026-04-30",
+                "customer": "王小明",
+            },
+        )
+        self.assertEqual(status, 200)
+        self.assertIn("姓名,預約費用,額外收入,合計", body)
+        self.assertIn("王小明,500,480,980", body)
 
     def test_extra_income_in_report(self):
         self.request(
