@@ -364,6 +364,8 @@ class TestWebBookingApp(unittest.TestCase):
         data = json.loads(body)
         self.assertEqual(data["grand_total"], 1600)
         self.assertEqual(data["items"][0]["customer"], "王小明")
+        self.assertTrue(any(row["purpose"] == "臨租" for row in data["booking_records"]))
+        self.assertTrue(all("start_time" in row and "end_time" in row for row in data["booking_records"]))
 
         status, body = self.request(
             "POST",
@@ -422,8 +424,9 @@ class TestWebBookingApp(unittest.TestCase):
             },
         )
         self.assertEqual(status, 200)
-        self.assertIn("姓名,預約費用,額外收入,合計", body)
-        self.assertIn("王小明,500,480,980", body)
+        self.assertIn("<h3>預約收入明細</h3>", body)
+        self.assertIn("<th>用途</th>", body)
+        self.assertIn("總計（預約）：$500｜總計（額外收入）：$480｜整體總計：$980", body)
 
     def test_extra_income_in_report(self):
         self.request(

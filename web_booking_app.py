@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-import csv
-import io
 import json
 import os
 import secrets
 from datetime import datetime, timedelta
+from html import escape
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from threading import Lock
@@ -1698,8 +1697,8 @@ async function refreshReport() {
   if (!resp.ok) { alert(data.error || '查詢失敗'); return; }
 
   const table = document.getElementById('report-table');
-  table.innerHTML = '<tr><th>姓名</th><th>預約費用</th></tr>' +
-    data.booking_items.map(item => `<tr><td>${item.customer}</td><td>$${Number(item.total_fee).toFixed(0)}</td></tr>`).join('');
+  table.innerHTML = '<tr><th>姓名</th><th>用途</th><th>開始時間</th><th>結束時間</th><th>預約費用</th></tr>' +
+    data.booking_records.map(row => `<tr><td>${row.customer}</td><td>${row.purpose}</td><td>${row.start_time}</td><td>${row.end_time}</td><td>$${Number(row.price).toFixed(0)}</td></tr>`).join('');
 
   const extraTable = document.getElementById('extra-income-table');
   extraTable.innerHTML = '<tr><th>時間</th><th>姓名</th><th>項目</th><th>金額</th><th>詳細/備註</th></tr>' +
@@ -1747,7 +1746,7 @@ async function exportReport() {
   const a = document.createElement('a');
   const customerPart = customer ? `_${customer}` : '';
   a.href = url;
-  a.download = `費用統計_${start}_${end}${customerPart}.csv`;
+  a.download = `費用統計_${start}_${end}${customerPart}.xls`;
   document.body.appendChild(a);
   a.click();
   a.remove();
@@ -1931,10 +1930,20 @@ class BookingWebHandler(BaseHTTPRequestHandler):
                 customer = str(payload.get("customer", "")).strip()
                 with manager_lock:
                     booking_items = manager.summarize_fees(start_date, end_date, customer)
+                    all_bookings = [booking_to_dict(item) for item in manager.list_bookings()]
                     all_extra_records = [
                         extra_income_to_dict(item)
                         for item in manager.list_extra_incomes(start_date=start_date, end_date=end_date, customer=customer)
                     ]
+
+                booking_records = []
+                for row in all_bookings:
+                    booking_date = row["start_time"][:10]
+                    if booking_date < start_date or booking_date > end_date:
+                        continue
+                    if customer and row["customer"] != customer:
+                        continue
+                    booking_records.append(row)
 
                 extra_records = []
                 for row in all_extra_records:
@@ -1961,40 +1970,92 @@ class BookingWebHandler(BaseHTTPRequestHandler):
                         }
                     booking_map[row["customer"]]["extra_income_total"] += float(row["amount"])
 
-                rows = []
+                summary_rows = []
                 for item in booking_map.values():
                     total_fee = float(item["booking_total"] + item["extra_income_total"])
-                    rows.append((item["customer"], item["booking_total"], item["extra_income_total"], total_fee))
-                rows.sort(key=lambda row: (-row[3], row[0]))
+                    summary_rows.append((item["customer"], item["booking_total"], item["extra_income_total"], total_fee))
+                summary_rows.sort(key=lambda row: (-row[3], row[0]))
 
-                output = io.StringIO()
-                writer = csv.writer(output)
-                writer.writerow(["姓名", "預約費用", "額外收入", "合計"])
-                for row in rows:
-                    writer.writerow([row[0], f"{row[1]:.0f}", f"{row[2]:.0f}", f"{row[3]:.0f}"])
-                writer.writerow([])
-                writer.writerow(["時間", "姓名", "項目", "金額", "詳細/備註"])
+                booking_grand_total = sum(float(item["total_fee"]) for item in booking_items)
+                extra_income_grand_total = sum(float(row["amount"]) for row in extra_records)
+                grand_total = booking_grand_total + extra_income_grand_total
+
+                def build_racket_details(row: Dict[str, Any]) -> str:
+                    if row["item"] != "球拍":
+                        return row["note"] or ""
+                    return "｜".join(
+                        part for part in [
+                            f"電話：{row['contact_phone']}" if row["contact_phone"] else "",
+                            f"穿線：{row['racket_model']}" if row["racket_model"] else "",
+                            f"磅數：{row['string_tension']}" if row["string_tension"] else "",
+                            f"收費：{row['payment_status']}" if row["payment_status"] else "",
+                            f"球拍：{row['racket_status']}" if row["racket_status"] else "",
+                            f"取回日：{row['pickup_date']}" if row["pickup_date"] else "",
+                            f"備註：{row['note']}" if row["note"] else "",
+                        ]
+                        if part
+                    )
+
+                html_parts = [
+                    "<html><head><meta charset='utf-8'>",
+                    "<style>",
+                    "body{font-family:'Microsoft JhengHei',Arial,sans-serif;color:#0f172a;padding:14px;}",
+                    "h2{color:#1e3a8a;margin:0 0 10px;}",
+                    "h3{color:#334155;margin:18px 0 8px;}",
+                    "table{border-collapse:collapse;width:100%;margin-bottom:10px;}",
+                    "th,td{border:1px solid #94a3b8;padding:8px 10px;text-align:left;}",
+                    "th{background:#e2e8f0;font-weight:700;}",
+                    ".total{font-weight:700;color:#1e3a8a;margin:8px 0 12px;}",
+                    "</style></head><body>",
+                    f"<h2>預約費用統計（{escape(start_date)} ~ {escape(end_date)}）</h2>",
+                    "<h3>預約收入明細</h3>",
+                    "<table><tr><th>姓名</th><th>用途</th><th>開始時間</th><th>結束時間</th><th>預約費用</th></tr>",
+                ]
+                for row in booking_records:
+                    html_parts.append(
+                        "<tr>"
+                        f"<td>{escape(str(row['customer']))}</td>"
+                        f"<td>{escape(str(row['purpose']))}</td>"
+                        f"<td>{escape(str(row['start_time']))}</td>"
+                        f"<td>{escape(str(row['end_time']))}</td>"
+                        f"<td>${float(row['price']):.0f}</td>"
+                        "</tr>"
+                    )
+                html_parts.append("</table>")
+                html_parts.append("<h3>客戶合計（預約 + 額外收入）</h3>")
+                html_parts.append("<table><tr><th>姓名</th><th>預約費用</th><th>額外收入</th><th>合計</th></tr>")
+                for row in summary_rows:
+                    html_parts.append(
+                        "<tr>"
+                        f"<td>{escape(str(row[0]))}</td>"
+                        f"<td>${row[1]:.0f}</td>"
+                        f"<td>${row[2]:.0f}</td>"
+                        f"<td>${row[3]:.0f}</td>"
+                        "</tr>"
+                    )
+                html_parts.append("</table>")
+                html_parts.append("<h3>額外收入明細</h3>")
+                html_parts.append("<table><tr><th>時間</th><th>姓名</th><th>項目</th><th>金額</th><th>詳細/備註</th></tr>")
                 for row in extra_records:
-                    if row["item"] == "球拍":
-                        details = "｜".join(
-                            part for part in [
-                                f"電話：{row['contact_phone']}" if row["contact_phone"] else "",
-                                f"穿線：{row['racket_model']}" if row["racket_model"] else "",
-                                f"磅數：{row['string_tension']}" if row["string_tension"] else "",
-                                f"收費：{row['payment_status']}" if row["payment_status"] else "",
-                                f"球拍：{row['racket_status']}" if row["racket_status"] else "",
-                                f"取回日：{row['pickup_date']}" if row["pickup_date"] else "",
-                                f"備註：{row['note']}" if row["note"] else "",
-                            ] if part
-                        )
-                    else:
-                        details = row["note"] or ""
-                    writer.writerow([row["income_time"], row["customer"], row["item"], f"{float(row['amount']):.0f}", details])
+                    html_parts.append(
+                        "<tr>"
+                        f"<td>{escape(str(row['income_time']))}</td>"
+                        f"<td>{escape(str(row['customer']))}</td>"
+                        f"<td>{escape(str(row['item']))}</td>"
+                        f"<td>${float(row['amount']):.0f}</td>"
+                        f"<td>{escape(build_racket_details(row))}</td>"
+                        "</tr>"
+                    )
+                html_parts.append("</table>")
+                html_parts.append(
+                    f"<div class='total'>總計（預約）：${booking_grand_total:.0f}｜總計（額外收入）：${extra_income_grand_total:.0f}｜整體總計：${grand_total:.0f}</div>"
+                )
+                html_parts.append("</body></html>")
 
-                body = output.getvalue().encode("utf-8-sig")
+                body = "".join(html_parts).encode("utf-8-sig")
                 self.send_response(HTTPStatus.OK)
-                self.send_header("Content-Type", "text/csv; charset=utf-8")
-                self.send_header("Content-Disposition", "attachment; filename=fee_report.csv")
+                self.send_header("Content-Type", "application/vnd.ms-excel; charset=utf-8")
+                self.send_header("Content-Disposition", "attachment; filename=fee_report.xls")
                 self.send_header("Content-Length", str(len(body)))
                 self.end_headers()
                 self.wfile.write(body)
@@ -2012,10 +2073,20 @@ class BookingWebHandler(BaseHTTPRequestHandler):
                 customer = str(payload.get("customer", "")).strip()
                 with manager_lock:
                     booking_items = manager.summarize_fees(start_date, end_date, customer)
+                    all_bookings = [booking_to_dict(item) for item in manager.list_bookings()]
                     all_extra_records = [
                         extra_income_to_dict(item)
                         for item in manager.list_extra_incomes(start_date=start_date, end_date=end_date, customer=customer)
                     ]
+
+                booking_records = []
+                for row in all_bookings:
+                    booking_date = row["start_time"][:10]
+                    if booking_date < start_date or booking_date > end_date:
+                        continue
+                    if customer and row["customer"] != customer:
+                        continue
+                    booking_records.append(row)
 
                 extra_records = []
                 for row in all_extra_records:
@@ -2059,6 +2130,7 @@ class BookingWebHandler(BaseHTTPRequestHandler):
                 self._send_json({
                     "items": items,
                     "booking_items": booking_items,
+                    "booking_records": booking_records,
                     "extra_income_records": extra_records,
                     "booking_grand_total": booking_grand_total,
                     "extra_income_grand_total": extra_income_grand_total,
