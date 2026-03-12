@@ -103,6 +103,39 @@ body {
 }
 .container { width: 100%; max-width: none; margin: 0; padding: 20px 24px 28px; }
 .title { margin: 0 0 16px; font-size: 34px; letter-spacing: .4px; color:#0b3a88; }
+.hover-top-zone {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 82px;
+  z-index: 40;
+  display: flex;
+  justify-content: center;
+  pointer-events: auto;
+}
+.floating-actions {
+  margin-top: 8px;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 14px;
+  border: 1px solid #d6deef;
+  border-radius: 14px;
+  background: rgba(255,255,255,.94);
+  box-shadow: 0 10px 28px rgba(15,23,42,.18);
+  opacity: 0;
+  transform: translateY(-20px);
+  pointer-events: none;
+  transition: opacity .2s ease, transform .2s ease;
+  backdrop-filter: blur(4px);
+}
+.hover-top-zone:hover .floating-actions,
+.floating-actions:focus-within {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
 .panel {
   border: 1px solid var(--border);
   border-radius: 18px;
@@ -175,9 +208,26 @@ td.slot.booked-user { background: #93c5fd; color: #0f172a; }
 .modal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .modal-actions { display: flex; gap: 8px; margin-top: 12px; }
 .btn-secondary { background: #e2e8f0; color: #111827; box-shadow:none; }
+@media (hover: none) {
+  .floating-actions {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+  }
+}
 </style>
 </head>
 <body>
+<div class="hover-top-zone">
+  <div class="floating-actions">
+    <button class="chip" id="admin-view">進階檢視</button>
+    <button class="chip" id="options-link" style="display:none;" onclick="location.href='/settings'">系統設定</button>
+    <button class="chip" id="data-settings-link" style="display:none;" onclick="location.href='/purposes'">資料設定</button>
+    <button class="chip" id="report-link" style="display:none;" onclick="location.href='/reports'">費用統計</button>
+    <button class="chip" id="extra-income-link" style="display:none;" onclick="location.href='/extra-income'">額外收入</button>
+    <button class="chip" id="open-add-modal" style="display:none;">新增預約</button>
+  </div>
+</div>
 <div class="container">
   <h2 class="title">暖西羽球館預約系統</h2>
   <div class="panel">
@@ -186,12 +236,6 @@ td.slot.booked-user { background: #93c5fd; color: #0f172a; }
         <label>日期</label>
         <input id="date" type="date" />
       </div>
-      <button class="chip" id="admin-view">進階檢視</button>
-      <button class="chip" id="options-link" style="display:none;" onclick="location.href='/settings'">系統設定</button>
-      <button class="chip" id="purposes-link" style="display:none;" onclick="location.href='/purposes'">用途設定</button>
-      <button class="chip" id="report-link" style="display:none;" onclick="location.href='/reports'">費用統計</button>
-      <button class="chip" id="extra-income-link" style="display:none;" onclick="location.href='/extra-income'">額外收入</button>
-      <button class="chip" id="open-add-modal" style="display:none;">新增預約</button>
     </div>
     <div id="msg" class="note"></div>
     <div class="grid-wrap">
@@ -344,7 +388,7 @@ function setAuthBadge() {
   document.getElementById('admin-view').classList.toggle('active', isAdmin);
   document.getElementById('admin-view').textContent = isAdmin ? '已登入（點我登出）' : '進階檢視';
   document.getElementById('options-link').style.display = isAdmin ? 'inline-block' : 'none';
-  document.getElementById('purposes-link').style.display = isAdmin ? 'inline-block' : 'none';
+  document.getElementById('data-settings-link').style.display = isAdmin ? 'inline-block' : 'none';
   document.getElementById('report-link').style.display = isAdmin ? 'inline-block' : 'none';
   document.getElementById('extra-income-link').style.display = isAdmin ? 'inline-block' : 'none';
   document.getElementById('open-add-modal').style.display = isAdmin ? 'inline-block' : 'none';
@@ -892,8 +936,8 @@ OPTIONS_PAGE = """<!doctype html>
   --opt-border:#d6d9ee;
   --opt-primary:#4f46e5;
   --opt-primary-strong:#4338ca;
-  --opt-panel:#ffffff;
 }
+* { box-sizing: border-box; }
 body {
   font-family: "Noto Sans TC", Arial, sans-serif;
   margin: 0;
@@ -905,7 +949,8 @@ body {
   font-size: 16px;
   color:#0f172a;
 }
-.wrap { max-width: 1200px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.top { max-width:900px; margin:0 auto 14px; display:flex; gap:10px; align-items:center; }
+.wrap { max-width:900px; margin: 0 auto; display:grid; gap:14px; }
 .panel {
   background:linear-gradient(180deg,#ffffff,#fbfcff);
   border:1px solid var(--opt-border);
@@ -913,9 +958,8 @@ body {
   padding: 16px;
   box-shadow: 0 10px 28px rgba(67,56,202,.08);
 }
-* { box-sizing: border-box; }
 h1 { margin-top: 0; color:#1e3a8a; }
-h3 { margin: 0 0 8px; color:#334155; }
+h3 { margin: 0 0 10px; color:#334155; }
 input, button { padding:10px 12px; font-size:15px; border-radius:10px; border:1px solid #cbd5e1; }
 input { width: 100%; background:#fff; min-width: 0; }
 button {
@@ -926,49 +970,57 @@ button {
   box-shadow: 0 6px 14px rgba(79,70,229,.25);
 }
 button:hover { filter:brightness(.98); }
-table { width: 100%; border-collapse: separate; border-spacing: 0; margin-top: 10px; background:#fff; border-radius:10px; overflow:hidden; table-layout: fixed; }
-th, td { border:1px solid #dbe2f0; padding:10px; text-align:left; font-size:15px; vertical-align: middle; }
-th { background:#eef2ff; color:#334155; }
-th:first-child, td:first-child { width: 52px; }
-th:last-child, td:last-child { width: 186px; }
-.row-input { width: 100%; min-width: 0; }
-.actions { display:flex; gap:8px; align-items:center; justify-content:flex-start; flex-wrap:nowrap; white-space:nowrap; }
-.actions button { margin-right: 0; padding:8px 12px; min-width:56px; }
-.top { max-width:1200px; margin:0 auto 14px; display:flex; gap:10px; align-items:center; }
-.create-btn { margin-top: 10px; margin-bottom: 8px; }
-@media (max-width: 1100px) {
-  .wrap { grid-template-columns: 1fr; }
+.inline-help { font-size:13px; color:#475569; margin-top:6px; }
+.section-row { display:grid; grid-template-columns:1fr 1fr auto; gap:10px; align-items:end; }
+.hover-top-zone { position: fixed; top: 0; left: 0; right: 0; height: 82px; z-index: 40; display:flex; justify-content:center; }
+.floating-actions { margin-top:8px; display:flex; gap:10px; align-items:center; padding:10px 14px; border:1px solid #d6d9ee; border-radius:14px; background:rgba(255,255,255,.94); box-shadow:0 10px 24px rgba(67,56,202,.18); opacity:0; transform:translateY(-20px); pointer-events:none; transition:opacity .2s ease, transform .2s ease; }
+.hover-top-zone:hover .floating-actions, .floating-actions:focus-within { opacity:1; transform:translateY(0); pointer-events:auto; }
+@media (max-width: 900px) {
+  .section-row { grid-template-columns:1fr; }
+}
+@media (hover: none) {
+  .floating-actions { opacity:1; transform:translateY(0); pointer-events:auto; }
 }
 </style>
 </head>
 <body>
-<div class="top">
-  <h1 style="margin:0;">系統設定</h1>
-  <button onclick="location.href='/'">回預約頁</button>
-  <button onclick="location.href='/purposes'">用途設定</button>
-  <button onclick="logoutAdmin()">登出管理員</button>
-  <div style="display:flex;align-items:center;gap:6px;margin-left:auto;">
-    <span style="font-size:14px;color:#334155;">登入時效(分鐘)</span>
-    <input id="session-ttl-minutes" type="number" min="1" step="1" style="width:120px;"/>
-    <button onclick="saveSessionTtl()">儲存時效</button>
+<div class="hover-top-zone">
+  <div class="floating-actions">
+    <button onclick="location.href='/'">回預約頁</button>
+    <button onclick="location.href='/purposes'">資料設定</button>
+    <button onclick="location.href='/reports'">費用統計</button>
+    <button onclick="location.href='/extra-income'">額外收入</button>
+    <button onclick="logoutAdmin()">登出管理員</button>
   </div>
 </div>
-<div style="max-width:1200px;margin:0 auto 12px;background:#fff;border:1px solid #d6d9ee;border-radius:12px;padding:12px;display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:end;">
-  <div><label style="font-size:14px;">新管理員密碼</label><input id="new-admin-password" type="password" placeholder="至少4碼"/></div>
-  <div><label style="font-size:14px;">再次輸入新密碼</label><input id="confirm-admin-password" type="password" placeholder="再次輸入"/></div>
-  <button onclick="updateAdminPassword()">更新管理員密碼</button>
+<div class="top">
+  <h1 style="margin:0;">系統設定</h1>
 </div>
 <div class="wrap">
   <div class="panel">
-    <h3>場地管理</h3>
-    <input id="new-venue" placeholder="新增場地名稱" />
-    <button class="create-btn" onclick="createVenue()">新增場地</button>
-    <table id="venue-table"></table>
+    <h3>登入時效設定</h3>
+    <div class="section-row">
+      <div>
+        <label style="font-size:14px;">登入時效(分鐘)</label>
+        <input id="session-ttl-minutes" type="number" min="1" step="1" />
+        <div class="inline-help">控制管理員密碼在本機儲存與自動續期的有效時間。</div>
+      </div>
+      <div></div>
+      <button onclick="saveSessionTtl()">儲存時效</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h3>管理員密碼設定</h3>
+    <div class="section-row">
+      <div><label style="font-size:14px;">新管理員密碼</label><input id="new-admin-password" type="password" placeholder="至少4碼"/></div>
+      <div><label style="font-size:14px;">再次輸入新密碼</label><input id="confirm-admin-password" type="password" placeholder="再次輸入"/></div>
+      <button onclick="updateAdminPassword()">更新管理員密碼</button>
+    </div>
   </div>
 </div>
 <script>
 let adminPassword = '';
-let editingIncomeId = null;
 const ADMIN_PASSWORD_KEY = 'booking_admin_password';
 const ADMIN_EXPIRES_KEY = 'booking_admin_expires_at';
 const ADMIN_SESSION_TTL_MS_KEY = 'booking_admin_session_ttl_ms';
@@ -1048,29 +1100,6 @@ async function api(method, path, payload = {}) {
   return data;
 }
 
-async function refresh() {
-  const venues = await (await fetch('/api/venues')).json();
-  const vt = document.getElementById('venue-table');
-  vt.innerHTML = '<tr><th>ID</th><th>名稱</th><th>操作</th></tr>' + venues.map(v =>
-    `<tr><td>${v.venue_id}</td><td><input class="row-input" value="${v.name}" id="venue-${v.venue_id}"/></td><td class="actions"><button onclick="updateVenue(${v.venue_id})">儲存</button><button onclick="deleteVenue(${v.venue_id})">刪除</button></td></tr>`
-  ).join('');
-
-}
-
-async function createVenue() {
-  try { await api('POST', '/api/venues', {name: document.getElementById('new-venue').value}); await refresh(); }
-  catch (e) { alert(e.message); }
-}
-async function updateVenue(id) {
-  try { await api('PUT', '/api/venues', {venue_id: id, name: document.getElementById(`venue-${id}`).value}); await refresh(); }
-  catch (e) { alert(e.message); }
-}
-async function deleteVenue(id) {
-  if (!confirm('確定刪除場地？')) return;
-  try { await api('DELETE', '/api/venues', {venue_id: id}); await refresh(); }
-  catch (e) { alert(e.message); }
-}
-
 async function updateAdminPassword() {
   const pw = document.getElementById('new-admin-password').value;
   const confirm = document.getElementById('confirm-admin-password').value;
@@ -1091,52 +1120,85 @@ async function updateAdminPassword() {
   const input = document.getElementById('session-ttl-minutes');
   if (input) input.value = ttlMinutes;
 })();
-
-refresh();
 </script>
 </body>
 </html>
 """
-
 
 PURPOSES_PAGE = """<!doctype html>
 <html lang="zh-Hant">
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>用途設定</title>
+<title>資料設定</title>
 <style>
 * { box-sizing: border-box; }
 body { font-family: "Noto Sans TC", Arial, sans-serif; margin:0; padding:22px; background:#f4f6ff; color:#0f172a; }
-.wrap { max-width: 900px; margin: 0 auto; }
+.wrap { max-width: 1200px; margin: 0 auto; }
 .top { display:flex; gap:10px; align-items:center; margin-bottom:12px; }
-.card { background:#fff; border:1px solid #dbe2f0; border-radius:14px; padding:16px; }
+.card { background:#fff; border:1px solid #dbe2f0; border-radius:14px; padding:16px; box-shadow:0 10px 25px rgba(30,64,175,.08); }
+.grid { display:grid; grid-template-columns: 1fr 1fr; gap:14px; }
+.section-title { margin: 0 0 10px; color:#1e3a8a; }
 input, button { padding:10px 12px; border-radius:10px; border:1px solid #cbd5e1; font-size:15px; }
 button { background:#4f46e5; color:#fff; border:none; cursor:pointer; }
 table { width:100%; border-collapse:collapse; margin-top:12px; }
 th, td { border:1px solid #dbe2f0; padding:10px; text-align:left; }
 th { background:#eef2ff; }
 .actions{display:flex;gap:8px;}
+.hover-top-zone { position: fixed; top: 0; left: 0; right: 0; height: 82px; z-index: 40; display:flex; justify-content:center; }
+.floating-actions { margin-top:8px; display:flex; gap:10px; align-items:center; padding:10px 14px; border:1px solid #dbe2f0; border-radius:14px; background:rgba(255,255,255,.94); box-shadow:0 10px 24px rgba(30,64,175,.18); opacity:0; transform:translateY(-20px); pointer-events:none; transition:opacity .2s ease, transform .2s ease; }
+.hover-top-zone:hover .floating-actions, .floating-actions:focus-within { opacity:1; transform:translateY(0); pointer-events:auto; }
+@media (hover:none){ .floating-actions{ opacity:1; transform:translateY(0); pointer-events:auto; } }
+@media (max-width: 960px){ .grid { grid-template-columns: 1fr; } }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <div class="top">
-    <h1 style="margin:0;">用途設定</h1>
+<div class="hover-top-zone">
+  <div class="floating-actions">
     <button onclick="location.href='/'">回預約頁</button>
     <button onclick="location.href='/settings'">系統設定</button>
+    <button onclick="location.href='/reports'">費用統計</button>
+    <button onclick="location.href='/extra-income'">額外收入</button>
   </div>
-  <div class="card">
-    <div style="display:grid;grid-template-columns:2fr 1fr auto;gap:10px;align-items:end;">
-      <div><label>用途名稱</label><input id="new-purpose" placeholder="新增用途名稱" /></div>
-      <div><label>價格</label><input id="new-purpose-price" type="number" min="0" step="1" value="0"/></div>
-      <button onclick="createPurpose()">新增用途</button>
+</div>
+<div class="wrap">
+  <div class="top">
+    <h1 style="margin:0;">資料設定</h1>
+  </div>
+  <div class="grid">
+    <div class="card">
+      <h3 class="section-title">用途設定</h3>
+      <div style="display:grid;grid-template-columns:2fr 1fr auto;gap:10px;align-items:end;">
+        <div><label>用途名稱</label><input id="new-purpose" placeholder="新增用途名稱" /></div>
+        <div><label>價格</label><input id="new-purpose-price" type="number" min="0" step="1" value="0"/></div>
+        <button onclick="createPurpose()">新增用途</button>
+      </div>
+      <table id="purpose-table"></table>
     </div>
-    <table id="purpose-table"></table>
+
+    <div class="card">
+      <h3 class="section-title">場地設定</h3>
+      <input id="new-venue" placeholder="新增場地名稱" />
+      <button style="margin-top:8px;" onclick="createVenue()">新增場地</button>
+      <table id="venue-table"></table>
+    </div>
+
+    <div class="card" style="grid-column:1 / -1;">
+      <h3 class="section-title">穿線項目設定</h3>
+      <div style="display:flex; gap:10px; align-items:end; flex-wrap:wrap;">
+        <div><div>穿線項目</div><input id="string-item-name"/></div>
+        <div><div>對應金額</div><input id="string-item-amount" type="number" min="0" step="1"/></div>
+        <button id="save-string-item">新增項目</button>
+        <button id="cancel-string-item-edit" style="display:none; background:#64748b;">取消編輯</button>
+      </div>
+      <div id="string-item-msg" style="margin-top:8px;"></div>
+      <table id="string-item-table"></table>
+    </div>
   </div>
 </div>
 <script>
 let adminPassword = '';
+let editingStringItemId = null;
 const ADMIN_PASSWORD_KEY = 'booking_admin_password';
 const ADMIN_EXPIRES_KEY = 'booking_admin_expires_at';
 const ADMIN_SESSION_TTL_MS_KEY = 'booking_admin_session_ttl_ms';
@@ -1144,14 +1206,94 @@ const DEFAULT_ADMIN_SESSION_TTL_MS = 2 * 60 * 60 * 1000;
 function getAdminSessionTtlMs(){ const raw = Number(localStorage.getItem(ADMIN_SESSION_TTL_MS_KEY) || 0); return (!raw || raw < 60*1000) ? DEFAULT_ADMIN_SESSION_TTL_MS : raw; }
 function saveAdminPassword(password){ localStorage.setItem(ADMIN_PASSWORD_KEY, password); localStorage.setItem(ADMIN_EXPIRES_KEY, String(Date.now() + getAdminSessionTtlMs())); }
 function loadAdminPassword(){ const password = localStorage.getItem(ADMIN_PASSWORD_KEY) || ''; const expiresAt = Number(localStorage.getItem(ADMIN_EXPIRES_KEY) || 0); if (!password || !expiresAt || Date.now() >= expiresAt) return ''; return password; }
+
 async function login(){ const pw = prompt('請輸入管理員密碼：'); if (pw === null) return false; const resp = await fetch('/api/admin/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({password: pw})}); if (!resp.ok) { alert('密碼錯誤'); return false; } adminPassword = pw; saveAdminPassword(pw); return true; }
 async function ensureLogin(){ if (!adminPassword) adminPassword = loadAdminPassword(); if (adminPassword) { const resp = await fetch('/api/admin/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({password: adminPassword})}); if (resp.ok) return true; adminPassword = ''; } return await login(); }
 async function api(method, path, payload = {}) { const ok = await ensureLogin(); if (!ok) throw new Error('need login'); payload.admin_password = adminPassword; const resp = await fetch(path, { method, headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) }); const data = await resp.json(); if (!resp.ok) throw new Error(data.error || '操作失敗'); return data; }
-async function refresh(){ const purposes = await (await fetch('/api/purposes')).json(); const pt = document.getElementById('purpose-table'); pt.innerHTML = '<tr><th>ID</th><th>名稱</th><th>價格</th><th>操作</th></tr>' + purposes.map(p => `<tr><td>${p.purpose_id}</td><td><input value="${p.name}" id="purpose-${p.purpose_id}"/></td><td><input type="number" min="0" step="1" value="${Number(p.price || 0)}" id="purpose-price-${p.purpose_id}"/></td><td class="actions"><button onclick="updatePurpose(${p.purpose_id})">儲存</button><button onclick="deletePurpose(${p.purpose_id})">刪除</button></td></tr>`).join(''); }
-async function createPurpose(){ try { await api('POST', '/api/purposes', {name: document.getElementById('new-purpose').value, price: Number(document.getElementById('new-purpose-price').value || 0)}); await refresh(); } catch (e) { alert(e.message); } }
-async function updatePurpose(id){ try { await api('PUT', '/api/purposes', {purpose_id: id, name: document.getElementById(`purpose-${id}`).value, price: Number(document.getElementById(`purpose-price-${id}`).value || 0)}); await refresh(); } catch (e) { alert(e.message); } }
-async function deletePurpose(id){ if (!confirm('確定刪除用途？')) return; try { await api('DELETE', '/api/purposes', {purpose_id: id}); await refresh(); } catch (e) { alert(e.message); } }
-refresh();
+
+async function refreshPurposes(){ const purposes = await (await fetch('/api/purposes')).json(); const pt = document.getElementById('purpose-table'); pt.innerHTML = '<tr><th>ID</th><th>名稱</th><th>價格</th><th>操作</th></tr>' + purposes.map(p => `<tr><td>${p.purpose_id}</td><td><input value="${p.name}" id="purpose-${p.purpose_id}"/></td><td><input type="number" min="0" step="1" value="${Number(p.price || 0)}" id="purpose-price-${p.purpose_id}"/></td><td class="actions"><button onclick="updatePurpose(${p.purpose_id})">儲存</button><button onclick="deletePurpose(${p.purpose_id})">刪除</button></td></tr>`).join(''); }
+async function createPurpose(){ try { await api('POST', '/api/purposes', {name: document.getElementById('new-purpose').value, price: Number(document.getElementById('new-purpose-price').value || 0)}); await refreshPurposes(); } catch (e) { alert(e.message); } }
+async function updatePurpose(id){ try { await api('PUT', '/api/purposes', {purpose_id: id, name: document.getElementById(`purpose-${id}`).value, price: Number(document.getElementById(`purpose-price-${id}`).value || 0)}); await refreshPurposes(); } catch (e) { alert(e.message); } }
+async function deletePurpose(id){ if (!confirm('確定刪除用途？')) return; try { await api('DELETE', '/api/purposes', {purpose_id: id}); await refreshPurposes(); } catch (e) { alert(e.message); } }
+
+async function refreshVenues(){ const venues = await (await fetch('/api/venues')).json(); const vt = document.getElementById('venue-table'); vt.innerHTML = '<tr><th>ID</th><th>名稱</th><th>操作</th></tr>' + venues.map(v => `<tr><td>${v.venue_id}</td><td><input value="${v.name}" id="venue-${v.venue_id}"/></td><td class="actions"><button onclick="updateVenue(${v.venue_id})">儲存</button><button onclick="deleteVenue(${v.venue_id})">刪除</button></td></tr>`).join(''); }
+async function createVenue(){ try { await api('POST', '/api/venues', {name: document.getElementById('new-venue').value}); document.getElementById('new-venue').value=''; await refreshVenues(); } catch (e) { alert(e.message); } }
+async function updateVenue(id){ try { await api('PUT', '/api/venues', {venue_id: id, name: document.getElementById(`venue-${id}`).value}); await refreshVenues(); } catch (e) { alert(e.message); } }
+async function deleteVenue(id){ if (!confirm('確定刪除場地？')) return; try { await api('DELETE', '/api/venues', {venue_id: id}); await refreshVenues(); } catch (e) { alert(e.message); } }
+
+function resetStringItemForm() {
+  editingStringItemId = null;
+  document.getElementById('string-item-name').value = '';
+  document.getElementById('string-item-amount').value = '';
+  document.getElementById('save-string-item').textContent = '新增項目';
+  document.getElementById('cancel-string-item-edit').style.display = 'none';
+}
+
+function editStringItem(id, name, amount) {
+  editingStringItemId = Number(id);
+  document.getElementById('string-item-name').value = name;
+  document.getElementById('string-item-amount').value = amount;
+  document.getElementById('save-string-item').textContent = '儲存修改';
+  document.getElementById('cancel-string-item-edit').style.display = 'inline-block';
+}
+
+async function refreshStringItems() {
+  if (!await ensureLogin()) return;
+  const resp = await fetch('/api/string-items/query', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ admin_password: adminPassword }),
+  });
+  const data = await resp.json();
+  if (!resp.ok) { alert(data.error || '讀取失敗'); return; }
+  document.getElementById('string-item-table').innerHTML = '<tr><th>項目</th><th>金額</th><th>操作</th></tr>' +
+    data.items.map(row => `<tr><td>${row.name}</td><td>$${Number(row.amount).toFixed(0)}</td><td><button style="padding:6px 10px; margin-right:6px;" onclick="editStringItem(${row.string_item_id}, '${row.name.replace(/'/g, "\'")}', ${Number(row.amount)})">編輯</button><button style="padding:6px 10px; background:#dc2626;" onclick="deleteStringItem(${row.string_item_id})">刪除</button></td></tr>`).join('');
+}
+
+async function deleteStringItem(id) {
+  if (!confirm(`確定刪除穿線項目 #${id}？`)) return;
+  if (!await ensureLogin()) return;
+  const resp = await fetch('/api/string-items', {
+    method:'DELETE', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ admin_password: adminPassword, string_item_id: Number(id) }),
+  });
+  const data = await resp.json();
+  if (!resp.ok) { alert(data.error || '刪除失敗'); return; }
+  if (editingStringItemId === Number(id)) resetStringItemForm();
+  await refreshStringItems();
+}
+
+document.getElementById('cancel-string-item-edit').addEventListener('click', resetStringItemForm);
+document.getElementById('save-string-item').addEventListener('click', async () => {
+  if (!await ensureLogin()) return;
+  const payload = {
+    admin_password: adminPassword,
+    name: document.getElementById('string-item-name').value.trim(),
+    amount: Number(document.getElementById('string-item-amount').value || 0),
+  };
+  if (editingStringItemId) payload.string_item_id = editingStringItemId;
+  const resp = await fetch('/api/string-items', {
+    method: editingStringItemId ? 'PUT' : 'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(payload),
+  });
+  const data = await resp.json();
+  const msg = document.getElementById('string-item-msg');
+  if (!resp.ok) {
+    msg.style.color = '#dc2626';
+    msg.textContent = data.error || '儲存失敗';
+    return;
+  }
+  msg.style.color = '#16a34a';
+  msg.textContent = editingStringItemId ? `更新成功 #${data.string_item_id}` : `新增成功 #${data.string_item_id}`;
+  resetStringItemForm();
+  await refreshStringItems();
+});
+
+(async function init(){
+  await refreshPurposes();
+  await refreshVenues();
+  await refreshStringItems();
+})();
 </script>
 </body>
 </html>
@@ -1181,16 +1323,25 @@ th, td { border:1px solid #dbe2f0; padding:10px; text-align:left; }
 th { background:#eef2ff; }
 .note { min-height:20px; margin-top:8px; }
 .helper { font-size:13px; color:#475569; margin-top:4px; }
+.hover-top-zone { position: fixed; top: 0; left: 0; right: 0; height: 82px; z-index: 40; display:flex; justify-content:center; }
+.floating-actions { margin-top:8px; display:flex; gap:10px; align-items:center; padding:10px 14px; border:1px solid #dbe2f0; border-radius:14px; background:rgba(255,255,255,.94); box-shadow:0 10px 24px rgba(30,64,175,.18); opacity:0; transform:translateY(-20px); pointer-events:none; transition:opacity .2s ease, transform .2s ease; }
+.hover-top-zone:hover .floating-actions, .floating-actions:focus-within { opacity:1; transform:translateY(0); pointer-events:auto; }
+@media (hover:none){ .floating-actions{ opacity:1; transform:translateY(0); pointer-events:auto; } }
 </style>
 </head>
 <body>
+<div class="hover-top-zone">
+  <div class="floating-actions">
+    <button onclick="location.href='/'">回預約頁</button>
+    <button onclick="location.href='/settings'">系統設定</button>
+    <button onclick="location.href='/purposes'">資料設定</button>
+    <button onclick="location.href='/reports'">去費用統計</button>
+    <button onclick="logoutAdmin()">登出管理員</button>
+  </div>
+</div>
 <div class="wrap">
   <div class="top">
     <h1>額外收入登記</h1>
-    <button onclick="location.href='/'">回預約頁</button>
-    <button onclick="location.href='/reports'">去費用統計</button>
-    <button onclick="location.href='/string-items'">穿線項目設定</button>
-    <button onclick="logoutAdmin()">登出管理員</button>
   </div>
   <div class="card">
     <div class="filters">
@@ -1527,13 +1678,24 @@ button { background:#4f46e5; color:#fff; border:none; cursor:pointer; }
 table { width:100%; border-collapse:collapse; margin-top:12px; }
 th, td { border:1px solid #dbe2f0; padding:10px; text-align:left; }
 th { background:#eef2ff; }
+.hover-top-zone { position: fixed; top: 0; left: 0; right: 0; height: 82px; z-index: 40; display:flex; justify-content:center; }
+.floating-actions { margin-top:8px; display:flex; gap:10px; align-items:center; padding:10px 14px; border:1px solid #dbe2f0; border-radius:14px; background:rgba(255,255,255,.94); box-shadow:0 10px 24px rgba(30,64,175,.18); opacity:0; transform:translateY(-20px); pointer-events:none; transition:opacity .2s ease, transform .2s ease; }
+.hover-top-zone:hover .floating-actions, .floating-actions:focus-within { opacity:1; transform:translateY(0); pointer-events:auto; }
+@media (hover:none){ .floating-actions{ opacity:1; transform:translateY(0); pointer-events:auto; } }
 </style>
 </head>
 <body>
+<div class="hover-top-zone">
+  <div class="floating-actions">
+    <button onclick="location.href='/'">回預約頁</button>
+    <button onclick="location.href='/settings'">系統設定</button>
+    <button onclick="location.href='/purposes'">資料設定</button>
+    <button onclick="location.href='/extra-income'">額外收入</button>
+  </div>
+</div>
 <div class="wrap">
   <div class="top">
     <h1>穿線項目設定</h1>
-    <button onclick="location.href='/extra-income'">回額外收入</button>
   </div>
   <div class="card">
     <div style="display:flex; gap:10px; align-items:end; flex-wrap:wrap;">
@@ -1667,15 +1829,25 @@ th, td { border:1px solid #dbe2f0; padding:10px; text-align:left; }
 th { background:#eef2ff; }
 .total { margin-top:10px; font-weight:700; color:#1e3a8a; }
 .section-title { margin-top:14px; font-weight:700; color:#334155; }
+.hover-top-zone { position: fixed; top: 0; left: 0; right: 0; height: 82px; z-index: 40; display:flex; justify-content:center; }
+.floating-actions { margin-top:8px; display:flex; gap:10px; align-items:center; padding:10px 14px; border:1px solid #dbe2f0; border-radius:14px; background:rgba(255,255,255,.94); box-shadow:0 10px 24px rgba(30,64,175,.18); opacity:0; transform:translateY(-20px); pointer-events:none; transition:opacity .2s ease, transform .2s ease; }
+.hover-top-zone:hover .floating-actions, .floating-actions:focus-within { opacity:1; transform:translateY(0); pointer-events:auto; }
+@media (hover:none){ .floating-actions{ opacity:1; transform:translateY(0); pointer-events:auto; } }
 </style>
 </head>
 <body>
+<div class="hover-top-zone">
+  <div class="floating-actions">
+    <button onclick="location.href='/'">回預約頁</button>
+    <button onclick="location.href='/settings'">系統設定</button>
+    <button onclick="location.href='/purposes'">資料設定</button>
+    <button onclick="location.href='/extra-income'">額外收入登記</button>
+    <button onclick="logoutAdmin()">登出管理員</button>
+  </div>
+</div>
 <div class="wrap">
   <div class="top">
     <h1>預約費用統計</h1>
-    <button onclick="location.href='/'">回預約頁</button>
-    <button onclick="location.href='/extra-income'">額外收入登記</button>
-    <button onclick="logoutAdmin()">登出管理員</button>
   </div>
   <div class="card">
     <div class="filters">
