@@ -936,8 +936,8 @@ OPTIONS_PAGE = """<!doctype html>
   --opt-border:#d6d9ee;
   --opt-primary:#4f46e5;
   --opt-primary-strong:#4338ca;
-  --opt-panel:#ffffff;
 }
+* { box-sizing: border-box; }
 body {
   font-family: "Noto Sans TC", Arial, sans-serif;
   margin: 0;
@@ -949,7 +949,8 @@ body {
   font-size: 16px;
   color:#0f172a;
 }
-.wrap { max-width: 1200px; margin: 0 auto; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.top { max-width:900px; margin:0 auto 14px; display:flex; gap:10px; align-items:center; }
+.wrap { max-width:900px; margin: 0 auto; display:grid; gap:14px; }
 .panel {
   background:linear-gradient(180deg,#ffffff,#fbfcff);
   border:1px solid var(--opt-border);
@@ -957,9 +958,8 @@ body {
   padding: 16px;
   box-shadow: 0 10px 28px rgba(67,56,202,.08);
 }
-* { box-sizing: border-box; }
 h1 { margin-top: 0; color:#1e3a8a; }
-h3 { margin: 0 0 8px; color:#334155; }
+h3 { margin: 0 0 10px; color:#334155; }
 input, button { padding:10px 12px; font-size:15px; border-radius:10px; border:1px solid #cbd5e1; }
 input { width: 100%; background:#fff; min-width: 0; }
 button {
@@ -970,21 +970,13 @@ button {
   box-shadow: 0 6px 14px rgba(79,70,229,.25);
 }
 button:hover { filter:brightness(.98); }
-table { width: 100%; border-collapse: separate; border-spacing: 0; margin-top: 10px; background:#fff; border-radius:10px; overflow:hidden; table-layout: fixed; }
-th, td { border:1px solid #dbe2f0; padding:10px; text-align:left; font-size:15px; vertical-align: middle; }
-th { background:#eef2ff; color:#334155; }
-th:first-child, td:first-child { width: 52px; }
-th:last-child, td:last-child { width: 186px; }
-.row-input { width: 100%; min-width: 0; }
-.actions { display:flex; gap:8px; align-items:center; justify-content:flex-start; flex-wrap:nowrap; white-space:nowrap; }
-.actions button { margin-right: 0; padding:8px 12px; min-width:56px; }
-.top { max-width:1200px; margin:0 auto 14px; display:flex; gap:10px; align-items:center; }
+.inline-help { font-size:13px; color:#475569; margin-top:6px; }
+.section-row { display:grid; grid-template-columns:1fr 1fr auto; gap:10px; align-items:end; }
 .hover-top-zone { position: fixed; top: 0; left: 0; right: 0; height: 82px; z-index: 40; display:flex; justify-content:center; }
 .floating-actions { margin-top:8px; display:flex; gap:10px; align-items:center; padding:10px 14px; border:1px solid #d6d9ee; border-radius:14px; background:rgba(255,255,255,.94); box-shadow:0 10px 24px rgba(67,56,202,.18); opacity:0; transform:translateY(-20px); pointer-events:none; transition:opacity .2s ease, transform .2s ease; }
 .hover-top-zone:hover .floating-actions, .floating-actions:focus-within { opacity:1; transform:translateY(0); pointer-events:auto; }
-.create-btn { margin-top: 10px; margin-bottom: 8px; }
-@media (max-width: 1100px) {
-  .wrap { grid-template-columns: 1fr; }
+@media (max-width: 900px) {
+  .section-row { grid-template-columns:1fr; }
 }
 @media (hover: none) {
   .floating-actions { opacity:1; transform:translateY(0); pointer-events:auto; }
@@ -1003,28 +995,32 @@ th:last-child, td:last-child { width: 186px; }
 </div>
 <div class="top">
   <h1 style="margin:0;">系統設定</h1>
-  <div style="display:flex;align-items:center;gap:6px;margin-left:auto;">
-    <span style="font-size:14px;color:#334155;">登入時效(分鐘)</span>
-    <input id="session-ttl-minutes" type="number" min="1" step="1" style="width:120px;"/>
-    <button onclick="saveSessionTtl()">儲存時效</button>
-  </div>
-</div>
-<div style="max-width:1200px;margin:0 auto 12px;background:#fff;border:1px solid #d6d9ee;border-radius:12px;padding:12px;display:grid;grid-template-columns:1fr 1fr auto;gap:10px;align-items:end;">
-  <div><label style="font-size:14px;">新管理員密碼</label><input id="new-admin-password" type="password" placeholder="至少4碼"/></div>
-  <div><label style="font-size:14px;">再次輸入新密碼</label><input id="confirm-admin-password" type="password" placeholder="再次輸入"/></div>
-  <button onclick="updateAdminPassword()">更新管理員密碼</button>
 </div>
 <div class="wrap">
   <div class="panel">
-    <h3>場地管理</h3>
-    <input id="new-venue" placeholder="新增場地名稱" />
-    <button class="create-btn" onclick="createVenue()">新增場地</button>
-    <table id="venue-table"></table>
+    <h3>登入時效設定</h3>
+    <div class="section-row">
+      <div>
+        <label style="font-size:14px;">登入時效(分鐘)</label>
+        <input id="session-ttl-minutes" type="number" min="1" step="1" />
+        <div class="inline-help">控制管理員密碼在本機儲存與自動續期的有效時間。</div>
+      </div>
+      <div></div>
+      <button onclick="saveSessionTtl()">儲存時效</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h3>管理員密碼設定</h3>
+    <div class="section-row">
+      <div><label style="font-size:14px;">新管理員密碼</label><input id="new-admin-password" type="password" placeholder="至少4碼"/></div>
+      <div><label style="font-size:14px;">再次輸入新密碼</label><input id="confirm-admin-password" type="password" placeholder="再次輸入"/></div>
+      <button onclick="updateAdminPassword()">更新管理員密碼</button>
+    </div>
   </div>
 </div>
 <script>
 let adminPassword = '';
-let editingIncomeId = null;
 const ADMIN_PASSWORD_KEY = 'booking_admin_password';
 const ADMIN_EXPIRES_KEY = 'booking_admin_expires_at';
 const ADMIN_SESSION_TTL_MS_KEY = 'booking_admin_session_ttl_ms';
@@ -1104,29 +1100,6 @@ async function api(method, path, payload = {}) {
   return data;
 }
 
-async function refresh() {
-  const venues = await (await fetch('/api/venues')).json();
-  const vt = document.getElementById('venue-table');
-  vt.innerHTML = '<tr><th>ID</th><th>名稱</th><th>操作</th></tr>' + venues.map(v =>
-    `<tr><td>${v.venue_id}</td><td><input class="row-input" value="${v.name}" id="venue-${v.venue_id}"/></td><td class="actions"><button onclick="updateVenue(${v.venue_id})">儲存</button><button onclick="deleteVenue(${v.venue_id})">刪除</button></td></tr>`
-  ).join('');
-
-}
-
-async function createVenue() {
-  try { await api('POST', '/api/venues', {name: document.getElementById('new-venue').value}); await refresh(); }
-  catch (e) { alert(e.message); }
-}
-async function updateVenue(id) {
-  try { await api('PUT', '/api/venues', {venue_id: id, name: document.getElementById(`venue-${id}`).value}); await refresh(); }
-  catch (e) { alert(e.message); }
-}
-async function deleteVenue(id) {
-  if (!confirm('確定刪除場地？')) return;
-  try { await api('DELETE', '/api/venues', {venue_id: id}); await refresh(); }
-  catch (e) { alert(e.message); }
-}
-
 async function updateAdminPassword() {
   const pw = document.getElementById('new-admin-password').value;
   const confirm = document.getElementById('confirm-admin-password').value;
@@ -1147,13 +1120,10 @@ async function updateAdminPassword() {
   const input = document.getElementById('session-ttl-minutes');
   if (input) input.value = ttlMinutes;
 })();
-
-refresh();
 </script>
 </body>
 </html>
 """
-
 
 PURPOSES_PAGE = """<!doctype html>
 <html lang="zh-Hant">
