@@ -101,8 +101,8 @@ body {
     radial-gradient(circle at 55% 100%, #f9edff 0%, rgba(249,237,255,0) 40%),
     var(--bg);
 }
-.container { width: 100%; max-width: none; margin: 0; padding: 20px 24px 28px; }
-.title { margin: 0 0 16px; font-size: 34px; letter-spacing: .4px; color:#0b3a88; }
+.container { width: 100%; max-width: none; margin: 0; padding: 18px 20px 26px; }
+.title { margin: 0 0 10px; font-size: 48px; letter-spacing: .8px; color:#18396f; font-weight: 900; }
 .hover-top-zone {
   position: fixed;
   top: 0;
@@ -137,11 +137,11 @@ body {
   pointer-events: auto;
 }
 .panel {
-  border: 1px solid var(--border);
-  border-radius: 18px;
-  padding: 16px;
-  background: linear-gradient(180deg, #ffffff, #f8fbff);
-  box-shadow: 0 14px 40px rgba(76,29,149,.10);
+  border: 1px solid #d9e4f2;
+  border-radius: 20px;
+  padding: 14px;
+  background: linear-gradient(180deg, #f7fbff, #f4f8ff);
+  box-shadow: 0 8px 26px rgba(30,64,175,.08);
   min-height: calc(100vh - 96px);
 }
 label { display: block; margin-top: 0; font-weight: 700; color: #1f2937; font-size: 16px; }
@@ -157,7 +157,13 @@ button {
 }
 button:hover { filter: brightness(.98); transform: translateY(-1px); }
 .note { margin-top: 10px; min-height: 22px; font-size: 15px; }
-.toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; margin-bottom: 10px; }
+.title-row { display:flex; align-items:center; gap:10px; margin-bottom: 8px; }
+.title-icon { font-size: 44px; opacity:.35; line-height:1; }
+.control-row { display:flex; align-items:flex-end; gap:10px; flex-wrap:wrap; margin-bottom: 10px; }
+.week-nav { display:flex; gap:8px; align-items:center; }
+.week-nav button { width:auto; padding:10px 12px; border-radius:10px; box-shadow:none; margin-top:0; }
+.week-label { background:#fff; border:1px solid #d5dfef; border-radius:10px; padding:10px 12px; color:#334155; font-weight:700; }
+.toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; margin-bottom: 0; }
 .toolbar .field { min-width: 150px; }
 .toolbar input,.toolbar select { width: auto; min-width: 170px; }
 .chip {
@@ -172,7 +178,7 @@ button:hover { filter: brightness(.98); transform: translateY(-1px); }
   box-shadow: inset 0 1px 0 rgba(255,255,255,.6);
 }
 table { border-collapse: separate; border-spacing: 0; width: max-content; min-width: 100%; background: #fff; }
-th, td { border: 1px solid #d3deef; text-align: center; font-size: 16px; padding: 8px; min-width: 48px; }
+th, td { border: 1px solid #dbe5f2; text-align: center; font-size: 16px; padding: 8px; min-width: 48px; }
 th {
   background: linear-gradient(180deg, #f5f7ff, #eaf1ff);
   height: 32px; position: sticky; top: 0; z-index: 6;
@@ -191,9 +197,10 @@ td.venue {
   border-right: 1px solid #b6c7e5; box-shadow: inset -1px 0 0 #b6c7e5;
 }
 td.slot-time { min-width: var(--sticky-time); font-weight: 600; background: #f8fafc; position: sticky; left: var(--sticky-venue); z-index: 3; }
-td.slot { height: 56px; background: #fcfdff; }
-td.slot.available { background: #dcfce7; color: #166534; font-weight: 700; }
-td.slot.full { background: #fee2e2; color: #991b1b; font-weight: 700; }
+td.slot { height: 54px; background: #fcfdff; border-radius: 8px; }
+td.slot.available { background: #e7f8eb; color: #166534; font-weight: 700; }
+td.slot.pending { background: #fff1cf; color: #8a5a00; font-weight: 700; }
+td.slot.full { background: #ffdfe0; color: #991b1b; font-weight: 700; }
 th.day-block-start, td.day-block-start { border-left: 4px solid #64748b; }
 th.weekend-head {
   background: linear-gradient(180deg, #fde047, #facc15);
@@ -212,8 +219,9 @@ td.weekend-time {
   border-left: 3px solid #f59e0b;
   border-right: 3px solid #f59e0b;
 }
-td.slot.weekend-time.available { background: #fef08a; color: #713f12; }
-td.slot.weekend-time.full { background: #fee2e2; color: #991b1b; }
+td.slot.weekend-time.available { background: #f4fde2; color: #4d5f1f; }
+td.slot.weekend-time.pending { background: #ffefbd; color: #7a4b00; }
+td.slot.weekend-time.full { background: #ffdede; color: #8f1d1d; }
 td.slot.booked-admin { background: #bbf7d0; }
 td.slot.booked-user { background: #93c5fd; color: #0f172a; }
 .small { font-size: 15px; line-height: 1.35; white-space: pre-line; }
@@ -245,14 +253,24 @@ td.slot.booked-user { background: #93c5fd; color: #0f172a; }
   </div>
 </div>
 <div class="container">
-  <h2 class="title">暖西羽球館預約系統</h2>
-  <div class="panel">
+  <div class="title-row">
+    <h2 class="title">暖西羽球館預約系統</h2>
+    <div class="title-icon">🏸</div>
+  </div>
+  <div class="control-row">
     <div class="toolbar">
       <div class="field">
         <label>日期</label>
         <input id="date" type="date" />
       </div>
     </div>
+    <div class="week-nav">
+      <button id="prev-week" class="btn-secondary" type="button">‹ 上一週</button>
+      <span id="week-label" class="week-label"></span>
+      <button id="next-week" class="btn-secondary" type="button">下一週 ›</button>
+    </div>
+  </div>
+  <div class="panel">
     <div id="msg" class="note"></div>
     <div class="grid-wrap">
       <table id="grid"></table>
@@ -395,8 +413,15 @@ function availableVenueCountForSlot(slotHour, bookings) {
 }
 
 function makeAvailabilityCell(day, hour, availableCount) {
-  const cls = availableCount > 0 ? 'slot available' : 'slot full';
-  const text = availableCount > 0 ? '可預約' : '已滿';
+  let cls = 'slot available';
+  let text = '✓ 可預約';
+  if (availableCount === 0) {
+    cls = 'slot full';
+    text = '🔒 已滿';
+  } else if (availableCount === 1) {
+    cls = 'slot pending';
+    text = '◉ 預約中';
+  }
   return `<td class="${cls}" data-day="${day}" data-hour="${hour}"><div class="small">${text}</div></td>`;
 }
 
@@ -721,6 +746,21 @@ $${Number(b.price || 0).toFixed(0)}`;
 async function refresh() {
   const date = document.getElementById('date').value;
   renderWeekly(await loadRangeBookings(date, 14), date, 14);
+  updateWeekLabel();
+}
+
+function shiftDateByDays(days) {
+  const current = new Date(`${document.getElementById('date').value}T00:00:00`);
+  current.setDate(current.getDate() + days);
+  document.getElementById('date').value = fmtDate(current);
+}
+
+function updateWeekLabel() {
+  const date = document.getElementById('date').value;
+  const start = weekStart(date);
+  const end = new Date(start);
+  end.setDate(start.getDate() + 6);
+  document.getElementById('week-label').textContent = `${fmtDate(start)} ~ ${fmtDate(end)}`;
 }
 
 async function requestAdmin() {
@@ -862,6 +902,8 @@ document.getElementById('admin-view').addEventListener('click', async () => {
 });
 
 document.getElementById('date').addEventListener('change', refresh);
+document.getElementById('prev-week').addEventListener('click', async () => { shiftDateByDays(-7); await refresh(); });
+document.getElementById('next-week').addEventListener('click', async () => { shiftDateByDays(7); await refresh(); });
 document.getElementById('open-add-modal').addEventListener('click', () => openBookingModal());
 document.getElementById('close-add-modal').addEventListener('click', closeBookingModal);
 document.addEventListener('keydown', (event) => {
