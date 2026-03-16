@@ -245,6 +245,10 @@ td.slot.weekend-time.full .availability-pill { background: #ffdede; color: #8f1d
 th.weekend-head.day-block-start,
 th.weekend-date-label.day-block-start,
 td.slot.weekend-time.day-block-start { border-left: 3px solid #f59e0b; }
+th.weekend-head:last-child,
+th.weekend-date-label:last-child,
+td.slot.weekend-time:last-child { border-right: 3px solid #f59e0b; }
+#grid-sections table tr:last-child td.slot.weekend-time { border-bottom: 3px solid #f59e0b; }
 td.slot.booked-admin,
 td.slot.booked-user { background: #fcfdff; color: #0f172a; }
 .booking-pill {
