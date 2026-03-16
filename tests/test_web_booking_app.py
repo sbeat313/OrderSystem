@@ -86,7 +86,8 @@ class TestWebBookingApp(unittest.TestCase):
         self.assertNotIn('顯示模式', body)
         self.assertIn('renderWeekly(await loadRangeBookings(date, 14), date, 14);', body)
         self.assertIn('const daysPerRow = isAdmin ? 2 : 7;', body)
-        self.assertIn("const text = availableCount > 0 ? '可預約' : '已滿';", body)
+        self.assertIn("text = '◉ 預約中';", body)
+        self.assertIn("text = '🔒 已滿';", body)
 
     def test_options_page_exists(self):
         status, body = self.request("GET", "/options")
