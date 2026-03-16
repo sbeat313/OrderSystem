@@ -205,12 +205,12 @@ td.venue {
   border-right: 1px solid #b6c7e5; box-shadow: inset -1px 0 0 #b6c7e5;
 }
 td.slot-time { min-width: var(--sticky-time); font-weight: 600; background: #f8fafc; position: sticky; left: var(--sticky-venue); z-index: 3; }
-td.slot { height: 54px; background: #fcfdff; border-radius: 8px; }
+td.slot { height: 54px; background: #fcfdff; border-radius: 0; }
 td.slot.available,
 td.slot.pending,
 td.slot.full { background: #fcfdff; color: #0f172a; }
 .availability-pill {
-  width: 70%;
+  width: 85%;
   margin: 0 auto;
   border-radius: 10px;
   padding: 8px 4px;
@@ -244,7 +244,7 @@ td.slot.weekend-time.full .availability-pill { background: #ffdede; color: #8f1d
 td.slot.booked-admin,
 td.slot.booked-user { background: #fcfdff; color: #0f172a; }
 .booking-pill {
-  width: 70%;
+  width: 85%;
   margin: 0 auto;
   border-radius: 10px;
   padding: 6px 4px;
