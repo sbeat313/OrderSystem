@@ -1297,6 +1297,7 @@ th { background:#eef2ff; }
 <div class="wrap">
   <div class="top">
     <h1 style="margin:0;">資料設定</h1>
+    <button onclick="saveAllChanges()">一次儲存全部變更</button>
   </div>
   <div class="grid">
     <div class="card">
@@ -1353,6 +1354,34 @@ async function refreshVenues(){ const venues = await (await fetch('/api/venues')
 async function createVenue(){ try { await api('POST', '/api/venues', {name: document.getElementById('new-venue').value}); document.getElementById('new-venue').value=''; await refreshVenues(); } catch (e) { alert(e.message); } }
 async function updateVenue(id){ try { await api('PUT', '/api/venues', {venue_id: id, name: document.getElementById(`venue-${id}`).value}); await refreshVenues(); } catch (e) { alert(e.message); } }
 async function deleteVenue(id){ if (!confirm('確定刪除場地？')) return; try { await api('DELETE', '/api/venues', {venue_id: id}); await refreshVenues(); } catch (e) { alert(e.message); } }
+
+async function saveAllChanges() {
+  try {
+    const purposeIds = Array.from(document.querySelectorAll('#purpose-table input[id^="purpose-"]'))
+      .map(input => Number(input.id.replace('purpose-', '')));
+    for (const id of purposeIds) {
+      await api('PUT', '/api/purposes', {
+        purpose_id: id,
+        name: document.getElementById(`purpose-${id}`).value,
+        price: Number(document.getElementById(`purpose-price-${id}`).value || 0),
+      });
+    }
+
+    const venueIds = Array.from(document.querySelectorAll('#venue-table input[id^="venue-"]'))
+      .map(input => Number(input.id.replace('venue-', '')));
+    for (const id of venueIds) {
+      await api('PUT', '/api/venues', {
+        venue_id: id,
+        name: document.getElementById(`venue-${id}`).value,
+      });
+    }
+
+    await Promise.all([refreshPurposes(), refreshVenues()]);
+    alert('已一次儲存用途與場地的全部變更。');
+  } catch (e) {
+    alert(`一次儲存失敗：${e.message}`);
+  }
+}
 
 function resetStringItemForm() {
   editingStringItemId = null;
