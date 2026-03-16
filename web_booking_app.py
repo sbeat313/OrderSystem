@@ -196,24 +196,24 @@ td.slot.available { background: #dcfce7; color: #166534; font-weight: 700; }
 td.slot.full { background: #fee2e2; color: #991b1b; font-weight: 700; }
 th.day-block-start, td.day-block-start { border-left: 4px solid #64748b; }
 th.weekend-head {
-  background: linear-gradient(180deg, #dbeafe, #bfdbfe);
-  color: #1e3a8a;
-  border-top: 3px solid #38bdf8;
-  border-bottom: 3px solid #38bdf8;
+  background: linear-gradient(180deg, #fde047, #facc15);
+  color: #713f12;
+  border-top: 3px solid #f59e0b;
+  border-bottom: 3px solid #f59e0b;
 }
 th.weekend-date-label {
-  background: linear-gradient(180deg, #ecfeff, #cffafe);
-  color: #0f766e;
-  border-bottom: 2px solid #22d3ee;
+  background: linear-gradient(180deg, #fef08a, #fde047);
+  color: #713f12;
+  border-bottom: 2px solid #f59e0b;
 }
 td.weekend-time {
-  background: #f0fdfa;
-  color: #0f766e;
-  border-left: 3px solid #22d3ee;
-  border-right: 3px solid #22d3ee;
+  background: #fef9c3;
+  color: #713f12;
+  border-left: 3px solid #f59e0b;
+  border-right: 3px solid #f59e0b;
 }
-td.slot.weekend-time.available { background: #bbf7d0; }
-td.slot.weekend-time.full { background: #fde68a; color: #78350f; }
+td.slot.weekend-time.available { background: #fef08a; color: #713f12; }
+td.slot.weekend-time.full { background: #fcd34d; color: #78350f; }
 td.slot.booked-admin { background: #bbf7d0; }
 td.slot.booked-user { background: #93c5fd; color: #0f172a; }
 .small { font-size: 15px; line-height: 1.35; white-space: pre-line; }
@@ -1895,7 +1895,7 @@ th { background:#eef2ff; }
 let adminPassword = '';
 let bookingPage = 1;
 let extraIncomePage = 1;
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 10;
 const ADMIN_PASSWORD_KEY = 'booking_admin_password';
 const ADMIN_EXPIRES_KEY = 'booking_admin_expires_at';
 const ADMIN_SESSION_TTL_MS_KEY = 'booking_admin_session_ttl_ms';
@@ -2413,7 +2413,7 @@ class BookingWebHandler(BaseHTTPRequestHandler):
                 if not start_date or not end_date:
                     raise ValueError("請提供開始與結束日期")
                 customer = str(payload.get("customer", "")).strip()
-                page_size = max(1, min(100, int(payload.get("page_size", 20) or 20)))
+                page_size = max(1, min(100, int(payload.get("page_size", 10) or 10)))
                 booking_page = max(1, int(payload.get("booking_page", 1) or 1))
                 extra_income_page = max(1, int(payload.get("extra_income_page", 1) or 1))
                 with manager_lock:

@@ -416,15 +416,14 @@ class TestWebBookingApp(unittest.TestCase):
                 "admin_password": "admin123",
                 "start_date": "2026-04-01",
                 "end_date": "2026-04-30",
-                "page_size": 20,
                 "booking_page": 1,
             },
         )
         self.assertEqual(status, 200)
         data = json.loads(body)
-        self.assertEqual(len(data["booking_records"]), 20)
+        self.assertEqual(len(data["booking_records"]), 10)
         self.assertEqual(data["booking_total_records"], 25)
-        self.assertEqual(data["booking_total_pages"], 2)
+        self.assertEqual(data["booking_total_pages"], 3)
         self.assertEqual(data["booking_page"], 1)
         self.assertEqual(data["booking_grand_total"], 2500)
         self.assertEqual(data["grand_total"], 2500)
@@ -436,14 +435,13 @@ class TestWebBookingApp(unittest.TestCase):
                 "admin_password": "admin123",
                 "start_date": "2026-04-01",
                 "end_date": "2026-04-30",
-                "page_size": 20,
-                "booking_page": 2,
+                "booking_page": 3,
             },
         )
         self.assertEqual(status, 200)
         page_two = json.loads(body)
         self.assertEqual(len(page_two["booking_records"]), 5)
-        self.assertEqual(page_two["booking_page"], 2)
+        self.assertEqual(page_two["booking_page"], 3)
         self.assertEqual(page_two["booking_grand_total"], 2500)
         self.assertEqual(page_two["grand_total"], 2500)
 
