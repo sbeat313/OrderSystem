@@ -208,7 +208,6 @@ td.venue {
 td.slot-time { min-width: var(--sticky-time); font-weight: 600; background: #f8fafc; position: sticky; left: var(--sticky-venue); z-index: 3; }
 td.slot { height: 54px; background: #fcfdff; border-radius: 0; }
 td.slot.available,
-td.slot.pending,
 td.slot.full { background: #fcfdff; color: #0f172a; }
 .availability-pill {
   width: 85%;
@@ -219,7 +218,6 @@ td.slot.full { background: #fcfdff; color: #0f172a; }
   box-shadow: inset 0 1px 0 rgba(255,255,255,.55);
 }
 td.slot.available .availability-pill { background: #e7f8eb; color: #166534; }
-td.slot.pending .availability-pill { background: #fff1cf; color: #8a5a00; }
 td.slot.full .availability-pill { background: #ffdfe0; color: #991b1b; }
 th.day-block-start, td.day-block-start { border-left: 3px solid #cbd5e1; }
 th.weekend-head {
@@ -241,7 +239,6 @@ td.weekend-time {
   border-right: 1px solid #dbe5f2;
 }
 td.slot.weekend-time.available .availability-pill { background: #f4fde2; color: #4d5f1f; }
-td.slot.weekend-time.pending .availability-pill { background: #ffefbd; color: #7a4b00; }
 td.slot.weekend-time.full .availability-pill { background: #ffdede; color: #8f1d1d; }
 th.weekend-head.day-block-start,
 th.weekend-date-label.day-block-start,
@@ -466,9 +463,6 @@ function makeAvailabilityCell(day, hour, availableCount) {
   if (availableCount === 0) {
     cls = 'slot full';
     text = '🔒 已滿';
-  } else if (availableCount === 1) {
-    cls = 'slot pending';
-    text = '◉ 預約中';
   }
   return `<td class="${cls}" data-day="${day}" data-hour="${hour}"><div class="small availability-pill">${text}</div></td>`;
 }
