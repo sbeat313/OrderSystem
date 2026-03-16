@@ -157,17 +157,13 @@ button {
 }
 button:hover { filter: brightness(.98); transform: translateY(-1px); }
 .note { margin-top: 10px; min-height: 22px; font-size: 15px; }
-.hero { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 8px; }
-.hero-art { font-size: 76px; opacity:.2; line-height:1; margin-right: 12px; }
-.success-badge {
-  background: #eefbf1; border:1px solid #cdebd6; color:#1f5134;
-  border-radius: 10px; padding: 12px 16px; min-width: 320px; font-weight: 700;
-  box-shadow: 0 6px 20px rgba(31,81,52,.08); text-align:left;
-}
-.week-nav { display:flex; gap:8px; align-items:center; margin-top: 6px; }
-.week-nav button { width:auto; padding:10px 12px; border-radius:10px; box-shadow:none; }
+.title-row { display:flex; align-items:center; gap:10px; margin-bottom: 8px; }
+.title-icon { font-size: 44px; opacity:.35; line-height:1; }
+.control-row { display:flex; align-items:flex-end; gap:10px; flex-wrap:wrap; margin-bottom: 10px; }
+.week-nav { display:flex; gap:8px; align-items:center; }
+.week-nav button { width:auto; padding:10px 12px; border-radius:10px; box-shadow:none; margin-top:0; }
 .week-label { background:#fff; border:1px solid #d5dfef; border-radius:10px; padding:10px 12px; color:#334155; font-weight:700; }
-.toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; margin-bottom: 10px; }
+.toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; margin-bottom: 0; }
 .toolbar .field { min-width: 150px; }
 .toolbar input,.toolbar select { width: auto; min-width: 170px; }
 .chip {
@@ -257,24 +253,21 @@ td.slot.booked-user { background: #93c5fd; color: #0f172a; }
   </div>
 </div>
 <div class="container">
-  <div class="hero">
-    <div>
-      <h2 class="title">暖西羽球館預約系統</h2>
-      <div class="toolbar">
-        <div class="field">
-          <label>日期</label>
-          <input id="date" type="date" />
-        </div>
-      </div>
-      <div class="week-nav">
-        <button id="prev-week" class="btn-secondary" type="button">‹ 上一週</button>
-        <span id="week-label" class="week-label"></span>
-        <button id="next-week" class="btn-secondary" type="button">下一週 ›</button>
+  <div class="title-row">
+    <h2 class="title">暖西羽球館預約系統</h2>
+    <div class="title-icon">🏸</div>
+  </div>
+  <div class="control-row">
+    <div class="toolbar">
+      <div class="field">
+        <label>日期</label>
+        <input id="date" type="date" />
       </div>
     </div>
-    <div style="display:flex; align-items:flex-start; gap:10px;">
-      <div class="hero-art">🏸</div>
-      <div id="success-badge" class="success-badge">✅ 目前可預約時段載入完成</div>
+    <div class="week-nav">
+      <button id="prev-week" class="btn-secondary" type="button">‹ 上一週</button>
+      <span id="week-label" class="week-label"></span>
+      <button id="next-week" class="btn-secondary" type="button">下一週 ›</button>
     </div>
   </div>
   <div class="panel">
