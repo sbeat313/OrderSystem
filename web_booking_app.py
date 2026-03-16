@@ -160,8 +160,23 @@ button:hover { filter: brightness(.98); transform: translateY(-1px); }
 #msg:empty { display: none; }
 .title-row { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; margin-bottom: 8px; }
 .title-wrap { display:flex; align-items:center; gap:10px; }
-.contact-info { text-align:right; color:#334155; font-weight:700; line-height:1.45; font-size:15px; }
-.contact-info .phone { font-size:16px; color:#1e3a8a; }
+.contact-info {
+  text-align:right;
+  color:#334155;
+  font-weight:700;
+  line-height:1.45;
+  font-size:16px;
+  background: linear-gradient(180deg, #ffffff, #eef4ff);
+  border: 1px solid #cddaf2;
+  border-radius: 14px;
+  padding: 10px 14px;
+  box-shadow: 0 6px 18px rgba(30,64,175,.12);
+}
+.contact-line { display:flex; align-items:center; justify-content:flex-end; gap:8px; }
+.contact-line + .contact-line { margin-top: 4px; }
+.contact-icon { font-size:18px; line-height:1; }
+.contact-info .address { font-size:17px; color:#1f2937; }
+.contact-info .phone { font-size:20px; color:#1e3a8a; font-weight:800; }
 .title-icon { font-size: 44px; opacity:.35; line-height:1; }
 .control-row { display:flex; align-items:flex-end; gap:10px; flex-wrap:wrap; margin-bottom: 10px; }
 .week-nav { display:flex; gap:8px; align-items:center; }
@@ -296,8 +311,14 @@ td.slot.booked-user .booking-pill { background: #93c5fd; }
       <div class="title-icon">🏸</div>
     </div>
     <div class="contact-info">
-      <div>205基隆市暖暖區暖暖街350號</div>
-      <div class="phone">(02)2457-0277</div>
+      <div class="contact-line address">
+        <span class="contact-icon">📍</span>
+        <span>205基隆市暖暖區暖暖街350號</span>
+      </div>
+      <div class="contact-line phone">
+        <span class="contact-icon">☎️</span>
+        <span>(02)2457-0277</span>
+      </div>
     </div>
   </div>
   <div class="control-row">
