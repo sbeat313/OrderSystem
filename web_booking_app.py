@@ -206,9 +206,20 @@ td.venue {
 }
 td.slot-time { min-width: var(--sticky-time); font-weight: 600; background: #f8fafc; position: sticky; left: var(--sticky-venue); z-index: 3; }
 td.slot { height: 54px; background: #fcfdff; border-radius: 8px; }
-td.slot.available { background: #e7f8eb; color: #166534; font-weight: 700; }
-td.slot.pending { background: #fff1cf; color: #8a5a00; font-weight: 700; }
-td.slot.full { background: #ffdfe0; color: #991b1b; font-weight: 700; }
+td.slot.available,
+td.slot.pending,
+td.slot.full { background: #fcfdff; color: #0f172a; }
+.availability-pill {
+  width: 70%;
+  margin: 0 auto;
+  border-radius: 10px;
+  padding: 8px 4px;
+  font-weight: 700;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.55);
+}
+td.slot.available .availability-pill { background: #e7f8eb; color: #166534; }
+td.slot.pending .availability-pill { background: #fff1cf; color: #8a5a00; }
+td.slot.full .availability-pill { background: #ffdfe0; color: #991b1b; }
 th.day-block-start, td.day-block-start { border-left: 4px solid #64748b; }
 th.weekend-head {
   background: linear-gradient(180deg, #fde047, #facc15);
@@ -222,14 +233,14 @@ th.weekend-date-label {
   border-bottom: 2px solid #f59e0b;
 }
 td.weekend-time {
-  background: #fef9c3;
+  background: #fcfdff;
   color: #713f12;
   border-left: 3px solid #f59e0b;
   border-right: 3px solid #f59e0b;
 }
-td.slot.weekend-time.available { background: #f4fde2; color: #4d5f1f; }
-td.slot.weekend-time.pending { background: #ffefbd; color: #7a4b00; }
-td.slot.weekend-time.full { background: #ffdede; color: #8f1d1d; }
+td.slot.weekend-time.available .availability-pill { background: #f4fde2; color: #4d5f1f; }
+td.slot.weekend-time.pending .availability-pill { background: #ffefbd; color: #7a4b00; }
+td.slot.weekend-time.full .availability-pill { background: #ffdede; color: #8f1d1d; }
 td.slot.booked-admin,
 td.slot.booked-user { background: #fcfdff; color: #0f172a; }
 .booking-pill {
@@ -369,6 +380,19 @@ function weekStart(dateStr) {
   return d;
 }
 
+function formatWeekSectionLabel(baseDate, startOffsetDays = 0) {
+  const start = weekStart(baseDate);
+  start.setDate(start.getDate() + startOffsetDays);
+  const end = new Date(start);
+  end.setDate(start.getDate() + 6);
+  const startText = `${start.getFullYear()}/${String(start.getMonth() + 1).padStart(2, '0')}/${String(start.getDate()).padStart(2, '0')}`;
+  if (start.getFullYear() === end.getFullYear() && start.getMonth() === end.getMonth()) {
+    return `${startText}-${String(end.getDate()).padStart(2, '0')}`;
+  }
+  const endText = `${end.getFullYear()}/${String(end.getMonth() + 1).padStart(2, '0')}/${String(end.getDate()).padStart(2, '0')}`;
+  return `${startText}-${endText}`;
+}
+
 async function loadVenues() {
   const resp = await fetch('/api/venues');
   venues = await resp.json();
@@ -437,7 +461,7 @@ function makeAvailabilityCell(day, hour, availableCount) {
     cls = 'slot pending';
     text = '◉ 預約中';
   }
-  return `<td class="${cls}" data-day="${day}" data-hour="${hour}"><div class="small">${text}</div></td>`;
+  return `<td class="${cls}" data-day="${day}" data-hour="${hour}"><div class="small availability-pill">${text}</div></td>`;
 }
 
 function setAuthBadge() {
@@ -768,13 +792,15 @@ async function refresh() {
     gridSections.innerHTML = '<div class="grid-wrap"><table id="grid-admin"></table></div>';
     renderWeekly(weekData, date, 14, document.getElementById('grid-admin'));
   } else {
+    const week1Label = formatWeekSectionLabel(date, 0);
+    const week2Label = formatWeekSectionLabel(date, 7);
     gridSections.innerHTML = [
       '<div class="grid-section">',
-      '  <h3 class="grid-section-title">第 1 週</h3>',
+      `  <h3 class="grid-section-title">${week1Label}</h3>`,
       '  <div class="grid-wrap"><table id="grid-week-1"></table></div>',
       '</div>',
       '<div class="grid-section">',
-      '  <h3 class="grid-section-title">第 2 週</h3>',
+      `  <h3 class="grid-section-title">${week2Label}</h3>`,
       '  <div class="grid-wrap"><table id="grid-week-2"></table></div>',
       '</div>',
     ].join('');
