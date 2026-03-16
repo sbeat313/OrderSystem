@@ -297,7 +297,7 @@ td.slot.booked-user .booking-pill { background: #93c5fd; }
   <div class="control-row">
     <div class="toolbar">
       <div class="field">
-        <label>日期</label>
+        <label>&nbsp;</label>
         <input id="date" type="date" />
       </div>
     </div>
