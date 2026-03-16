@@ -196,13 +196,13 @@ th.top-row { top: 0; }
 th.second-row { top: 44px; z-index: 7; }
 th.sticky-left-1 {
   left: 0; min-width: var(--sticky-venue); z-index: 9;
-  border-right: 1px solid #b6c7e5; box-shadow: inset -1px 0 0 #b6c7e5;
+  border-right: 1px solid #dbe5f2; box-shadow: inset -1px 0 0 #dbe5f2;
 }
 th.sticky-left-2 { left: var(--sticky-venue); min-width: var(--sticky-time); z-index: 9; }
 td.venue {
   min-width: var(--sticky-venue); font-weight: 700; color:#0f2f66;
   background: #f8fbff; position: sticky; left: 0; z-index: 4;
-  border-right: 1px solid #b6c7e5; box-shadow: inset -1px 0 0 #b6c7e5;
+  border-right: 1px solid #dbe5f2; box-shadow: inset -1px 0 0 #dbe5f2;
 }
 td.slot-time { min-width: var(--sticky-time); font-weight: 600; background: #f8fafc; position: sticky; left: var(--sticky-venue); z-index: 3; }
 td.slot { height: 54px; background: #fcfdff; border-radius: 0; }
@@ -220,12 +220,13 @@ td.slot.full { background: #fcfdff; color: #0f172a; }
 td.slot.available .availability-pill { background: #e7f8eb; color: #166534; }
 td.slot.pending .availability-pill { background: #fff1cf; color: #8a5a00; }
 td.slot.full .availability-pill { background: #ffdfe0; color: #991b1b; }
-th.day-block-start, td.day-block-start { border-left: 4px solid #64748b; }
+th.day-block-start, td.day-block-start { border-left: 3px solid #cbd5e1; }
 th.weekend-head {
   background: linear-gradient(180deg, #fde047, #facc15);
   color: #713f12;
   border-top: 3px solid #f59e0b;
   border-bottom: 3px solid #f59e0b;
+  border-right: 1px solid #dbe5f2;
 }
 th.weekend-date-label {
   background: linear-gradient(180deg, #fef08a, #fde047);
@@ -235,12 +236,15 @@ th.weekend-date-label {
 td.weekend-time {
   background: #fcfdff;
   color: #713f12;
-  border-left: 3px solid #f59e0b;
-  border-right: 3px solid #f59e0b;
+  border-left: 1px solid #dbe5f2;
+  border-right: 1px solid #dbe5f2;
 }
 td.slot.weekend-time.available .availability-pill { background: #f4fde2; color: #4d5f1f; }
 td.slot.weekend-time.pending .availability-pill { background: #ffefbd; color: #7a4b00; }
 td.slot.weekend-time.full .availability-pill { background: #ffdede; color: #8f1d1d; }
+th.weekend-head.day-block-start,
+th.weekend-date-label.day-block-start,
+td.slot.weekend-time.day-block-start { border-left: 3px solid #f59e0b; }
 td.slot.booked-admin,
 td.slot.booked-user { background: #fcfdff; color: #0f172a; }
 .booking-pill {
