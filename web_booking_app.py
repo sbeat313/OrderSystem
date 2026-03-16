@@ -157,6 +157,7 @@ button {
 }
 button:hover { filter: brightness(.98); transform: translateY(-1px); }
 .note { margin-top: 10px; min-height: 22px; font-size: 15px; }
+#msg:empty { display: none; }
 .title-row { display:flex; align-items:center; gap:10px; margin-bottom: 8px; }
 .title-icon { font-size: 44px; opacity:.35; line-height:1; }
 .control-row { display:flex; align-items:flex-end; gap:10px; flex-wrap:wrap; margin-bottom: 10px; }
