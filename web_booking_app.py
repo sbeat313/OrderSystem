@@ -1297,7 +1297,6 @@ th { background:#eef2ff; }
 <div class="wrap">
   <div class="top">
     <h1 style="margin:0;">資料設定</h1>
-    <button onclick="saveAllChanges()">一次儲存全部變更</button>
   </div>
   <div class="grid">
     <div class="card">
@@ -1323,11 +1322,14 @@ th { background:#eef2ff; }
         <div><div>穿線項目</div><input id="string-item-name"/></div>
         <div><div>對應金額</div><input id="string-item-amount" type="number" min="0" step="1"/></div>
         <button id="save-string-item">新增項目</button>
-        <button id="cancel-string-item-edit" style="display:none; background:#64748b;">取消編輯</button>
+        <button id="cancel-string-item-edit" style="display:none; background:#64748b;">取消</button>
       </div>
       <div id="string-item-msg" style="margin-top:8px;"></div>
       <table id="string-item-table"></table>
     </div>
+  </div>
+  <div style="margin-top:14px; display:flex; justify-content:flex-end;">
+    <button onclick="saveAllChanges()">一次儲存全部變更</button>
   </div>
 </div>
 <script>
@@ -1345,12 +1347,12 @@ async function login(){ const pw = prompt('請輸入管理員密碼：'); if (pw
 async function ensureLogin(){ if (!adminPassword) adminPassword = loadAdminPassword(); if (adminPassword) { const resp = await fetch('/api/admin/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({password: adminPassword})}); if (resp.ok) return true; adminPassword = ''; } return await login(); }
 async function api(method, path, payload = {}) { const ok = await ensureLogin(); if (!ok) throw new Error('need login'); payload.admin_password = adminPassword; const resp = await fetch(path, { method, headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) }); const data = await resp.json(); if (!resp.ok) throw new Error(data.error || '操作失敗'); return data; }
 
-async function refreshPurposes(){ const purposes = await (await fetch('/api/purposes')).json(); const pt = document.getElementById('purpose-table'); pt.innerHTML = '<tr><th>ID</th><th>名稱</th><th>價格</th><th>操作</th></tr>' + purposes.map(p => `<tr><td>${p.purpose_id}</td><td><input value="${p.name}" id="purpose-${p.purpose_id}"/></td><td><input type="number" min="0" step="1" value="${Number(p.price || 0)}" id="purpose-price-${p.purpose_id}"/></td><td class="actions"><button onclick="updatePurpose(${p.purpose_id})">儲存</button><button onclick="deletePurpose(${p.purpose_id})">刪除</button></td></tr>`).join(''); }
+async function refreshPurposes(){ const purposes = await (await fetch('/api/purposes')).json(); const pt = document.getElementById('purpose-table'); pt.innerHTML = '<tr><th>ID</th><th>名稱</th><th>價格</th><th>操作</th></tr>' + purposes.map(p => `<tr><td>${p.purpose_id}</td><td><input value="${p.name}" id="purpose-${p.purpose_id}"/></td><td><input type="number" min="0" step="1" value="${Number(p.price || 0)}" id="purpose-price-${p.purpose_id}"/></td><td class="actions"><button onclick="updatePurpose(${p.purpose_id})">儲存</button><button style="background:#dc2626;" onclick="deletePurpose(${p.purpose_id})">刪除</button></td></tr>`).join(''); }
 async function createPurpose(){ try { await api('POST', '/api/purposes', {name: document.getElementById('new-purpose').value, price: Number(document.getElementById('new-purpose-price').value || 0)}); await refreshPurposes(); } catch (e) { alert(e.message); } }
 async function updatePurpose(id){ try { await api('PUT', '/api/purposes', {purpose_id: id, name: document.getElementById(`purpose-${id}`).value, price: Number(document.getElementById(`purpose-price-${id}`).value || 0)}); await refreshPurposes(); } catch (e) { alert(e.message); } }
 async function deletePurpose(id){ if (!confirm('確定刪除用途？')) return; try { await api('DELETE', '/api/purposes', {purpose_id: id}); await refreshPurposes(); } catch (e) { alert(e.message); } }
 
-async function refreshVenues(){ const venues = await (await fetch('/api/venues')).json(); const vt = document.getElementById('venue-table'); vt.innerHTML = '<tr><th>ID</th><th>名稱</th><th>操作</th></tr>' + venues.map(v => `<tr><td>${v.venue_id}</td><td><input value="${v.name}" id="venue-${v.venue_id}"/></td><td class="actions"><button onclick="updateVenue(${v.venue_id})">儲存</button><button onclick="deleteVenue(${v.venue_id})">刪除</button></td></tr>`).join(''); }
+async function refreshVenues(){ const venues = await (await fetch('/api/venues')).json(); const vt = document.getElementById('venue-table'); vt.innerHTML = '<tr><th>ID</th><th>名稱</th><th>操作</th></tr>' + venues.map(v => `<tr><td>${v.venue_id}</td><td><input value="${v.name}" id="venue-${v.venue_id}"/></td><td class="actions"><button onclick="updateVenue(${v.venue_id})">儲存</button><button style="background:#dc2626;" onclick="deleteVenue(${v.venue_id})">刪除</button></td></tr>`).join(''); }
 async function createVenue(){ try { await api('POST', '/api/venues', {name: document.getElementById('new-venue').value}); document.getElementById('new-venue').value=''; await refreshVenues(); } catch (e) { alert(e.message); } }
 async function updateVenue(id){ try { await api('PUT', '/api/venues', {venue_id: id, name: document.getElementById(`venue-${id}`).value}); await refreshVenues(); } catch (e) { alert(e.message); } }
 async function deleteVenue(id){ if (!confirm('確定刪除場地？')) return; try { await api('DELETE', '/api/venues', {venue_id: id}); await refreshVenues(); } catch (e) { alert(e.message); } }
@@ -1395,7 +1397,7 @@ function editStringItem(id, name, amount) {
   editingStringItemId = Number(id);
   document.getElementById('string-item-name').value = name;
   document.getElementById('string-item-amount').value = amount;
-  document.getElementById('save-string-item').textContent = '儲存修改';
+  document.getElementById('save-string-item').textContent = '儲存';
   document.getElementById('cancel-string-item-edit').style.display = 'inline-block';
 }
 
@@ -1408,7 +1410,7 @@ async function refreshStringItems() {
   const data = await resp.json();
   if (!resp.ok) { alert(data.error || '讀取失敗'); return; }
   document.getElementById('string-item-table').innerHTML = '<tr><th>項目</th><th>金額</th><th>操作</th></tr>' +
-    data.items.map(row => `<tr><td>${row.name}</td><td>$${Number(row.amount).toFixed(0)}</td><td><button style="padding:6px 10px; margin-right:6px;" onclick="editStringItem(${row.string_item_id}, '${row.name.replace(/'/g, "\'")}', ${Number(row.amount)})">編輯</button><button style="padding:6px 10px; background:#dc2626;" onclick="deleteStringItem(${row.string_item_id})">刪除</button></td></tr>`).join('');
+    data.items.map(row => `<tr><td>${row.name}</td><td>$${Number(row.amount).toFixed(0)}</td><td><button style="padding:6px 10px; margin-right:6px;" onclick="editStringItem(${row.string_item_id}, '${row.name.replace(/'/g, "\'")}', ${Number(row.amount)})">儲存</button><button style="padding:6px 10px; background:#dc2626;" onclick="deleteStringItem(${row.string_item_id})">刪除</button></td></tr>`).join('');
 }
 
 async function deleteStringItem(id) {
