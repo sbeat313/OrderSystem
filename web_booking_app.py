@@ -158,7 +158,10 @@ button {
 button:hover { filter: brightness(.98); transform: translateY(-1px); }
 .note { margin-top: 10px; min-height: 22px; font-size: 15px; }
 #msg:empty { display: none; }
-.title-row { display:flex; align-items:center; gap:10px; margin-bottom: 8px; }
+.title-row { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; margin-bottom: 8px; }
+.title-wrap { display:flex; align-items:center; gap:10px; }
+.contact-info { text-align:right; color:#334155; font-weight:700; line-height:1.45; font-size:15px; }
+.contact-info .phone { font-size:16px; color:#1e3a8a; }
 .title-icon { font-size: 44px; opacity:.35; line-height:1; }
 .control-row { display:flex; align-items:flex-end; gap:10px; flex-wrap:wrap; margin-bottom: 10px; }
 .week-nav { display:flex; gap:8px; align-items:center; }
@@ -288,8 +291,14 @@ td.slot.booked-user .booking-pill { background: #93c5fd; }
 </div>
 <div class="container">
   <div class="title-row">
-    <h2 class="title">暖西羽球館預約系統</h2>
-    <div class="title-icon">🏸</div>
+    <div class="title-wrap">
+      <h2 class="title">暖西羽球館預約系統</h2>
+      <div class="title-icon">🏸</div>
+    </div>
+    <div class="contact-info">
+      <div>205基隆市暖暖區暖暖街350號</div>
+      <div class="phone">(02)2457-0277</div>
+    </div>
   </div>
   <div class="control-row">
     <div class="toolbar">

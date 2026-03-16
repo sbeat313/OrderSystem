@@ -91,6 +91,8 @@ class TestWebBookingApp(unittest.TestCase):
         self.assertIn('const week2Label = formatWeekSectionLabel(date, 7);', body)
         self.assertIn('availability-pill', body)
         self.assertIn('const daysPerRow = isAdmin ? 2 : 7;', body)
+        self.assertIn('205基隆市暖暖區暖暖街350號', body)
+        self.assertIn('(02)2457-0277', body)
         self.assertNotIn("text = '◉ 預約中';", body)
         self.assertIn("text = '🔒 已滿';", body)
 
