@@ -393,6 +393,58 @@ class TestWebBookingApp(unittest.TestCase):
         self.assertEqual(len(data["items"]), 1)
         self.assertEqual(data["items"][0]["customer"], "王小明")
 
+    def test_fee_report_pagination_keeps_grand_totals(self):
+        for i in range(25):
+            day = (i % 28) + 1
+            self.request(
+                "POST",
+                "/api/bookings",
+                {
+                    "venue_id": 1,
+                    "customer": f"顧客{i:02d}",
+                    "purpose": "臨租",
+                    "price": 100,
+                    "start": f"2026-04-{day:02d} 18:00",
+                    "end": f"2026-04-{day:02d} 19:00",
+                },
+            )
+
+        status, body = self.request(
+            "POST",
+            "/api/reports/fees",
+            {
+                "admin_password": "admin123",
+                "start_date": "2026-04-01",
+                "end_date": "2026-04-30",
+                "booking_page": 1,
+            },
+        )
+        self.assertEqual(status, 200)
+        data = json.loads(body)
+        self.assertEqual(len(data["booking_records"]), 10)
+        self.assertEqual(data["booking_total_records"], 25)
+        self.assertEqual(data["booking_total_pages"], 3)
+        self.assertEqual(data["booking_page"], 1)
+        self.assertEqual(data["booking_grand_total"], 2500)
+        self.assertEqual(data["grand_total"], 2500)
+
+        status, body = self.request(
+            "POST",
+            "/api/reports/fees",
+            {
+                "admin_password": "admin123",
+                "start_date": "2026-04-01",
+                "end_date": "2026-04-30",
+                "booking_page": 3,
+            },
+        )
+        self.assertEqual(status, 200)
+        page_two = json.loads(body)
+        self.assertEqual(len(page_two["booking_records"]), 5)
+        self.assertEqual(page_two["booking_page"], 3)
+        self.assertEqual(page_two["booking_grand_total"], 2500)
+        self.assertEqual(page_two["grand_total"], 2500)
+
 
     def test_fee_report_export_csv(self):
         self.request(

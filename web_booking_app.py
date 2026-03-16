@@ -195,9 +195,25 @@ td.slot { height: 56px; background: #fcfdff; }
 td.slot.available { background: #dcfce7; color: #166534; font-weight: 700; }
 td.slot.full { background: #fee2e2; color: #991b1b; font-weight: 700; }
 th.day-block-start, td.day-block-start { border-left: 4px solid #64748b; }
-th.weekend-head { background: linear-gradient(180deg, #fee2e2, #fecaca); color: #7f1d1d; }
-td.weekend-date { background: #fff1f2; color: #9f1239; font-weight: 800; }
-td.weekend-time { background: #fff7ed; color: #9a3412; }
+th.weekend-head {
+  background: linear-gradient(180deg, #fde047, #facc15);
+  color: #713f12;
+  border-top: 3px solid #f59e0b;
+  border-bottom: 3px solid #f59e0b;
+}
+th.weekend-date-label {
+  background: linear-gradient(180deg, #fef08a, #fde047);
+  color: #713f12;
+  border-bottom: 2px solid #f59e0b;
+}
+td.weekend-time {
+  background: #fef9c3;
+  color: #713f12;
+  border-left: 3px solid #f59e0b;
+  border-right: 3px solid #f59e0b;
+}
+td.slot.weekend-time.available { background: #fef08a; color: #713f12; }
+td.slot.weekend-time.full { background: #fee2e2; color: #991b1b; }
 td.slot.booked-admin { background: #bbf7d0; }
 td.slot.booked-user { background: #93c5fd; color: #0f172a; }
 .small { font-size: 15px; line-height: 1.35; white-space: pre-line; }
@@ -643,6 +659,7 @@ function renderWeekly(weekData, baseDate, days = 14) {
     html += '</th>';
 
     for (const [dayIndex, day] of blockDays.entries()) {
+      const isWeekendDay = isWeekend(day);
       if (isAdmin) {
         for (const [index, venue] of venues.entries()) {
           const classes = [];
@@ -650,8 +667,10 @@ function renderWeekly(weekData, baseDate, days = 14) {
           html += `<th class="${classes.join(' ')}">${venue.name}</th>`;
         }
       } else {
-        const classes = dayIndex > 0 ? 'day-block-start' : '';
-        html += `<th class="${classes}">時段狀態</th>`;
+        const classes = [];
+        if (dayIndex > 0) classes.push('day-block-start');
+        if (isWeekendDay) classes.push('weekend-date-label');
+        html += `<th class="${classes.join(' ')}">時段狀態</th>`;
       }
     }
     html += '</tr>';
@@ -660,11 +679,13 @@ function renderWeekly(weekData, baseDate, days = 14) {
       html += `<tr><td class="venue">${String(h).padStart(2, '0')}-${String(h + 1).padStart(2, '0')}</td>`;
       for (const [dayIndex, day] of blockDays.entries()) {
         const bookings = weekData[day] || [];
+        const isWeekendDay = isWeekend(day);
 
         if (!isAdmin) {
           const availableCount = availableVenueCountForSlot(h, bookings);
           let cell = makeAvailabilityCell(day, h, availableCount);
           if (dayIndex > 0) cell = cell.replace('class="slot', 'class="slot day-block-start');
+          if (isWeekendDay) cell = cell.replace('class="slot', 'class="slot weekend-time');
           html += cell;
           continue;
         }
@@ -1829,6 +1850,10 @@ th, td { border:1px solid #dbe2f0; padding:10px; text-align:left; }
 th { background:#eef2ff; }
 .total { margin-top:10px; font-weight:700; color:#1e3a8a; }
 .section-title { margin-top:14px; font-weight:700; color:#334155; }
+.pagination { margin-top:8px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+.pagination button { width:auto; padding:8px 12px; font-size:14px; background:#6366f1; }
+.pagination button:disabled { opacity:.45; cursor:not-allowed; }
+.pagination .info { color:#475569; font-size:14px; }
 .hover-top-zone { position: fixed; top: 0; left: 0; right: 0; height: 82px; z-index: 40; display:flex; justify-content:center; }
 .floating-actions { margin-top:8px; display:flex; gap:10px; align-items:center; padding:10px 14px; border:1px solid #dbe2f0; border-radius:14px; background:rgba(255,255,255,.94); box-shadow:0 10px 24px rgba(30,64,175,.18); opacity:0; transform:translateY(-20px); pointer-events:none; transition:opacity .2s ease, transform .2s ease; }
 .hover-top-zone:hover .floating-actions, .floating-actions:focus-within { opacity:1; transform:translateY(0); pointer-events:auto; }
@@ -1859,13 +1884,18 @@ th { background:#eef2ff; }
     </div>
     <div class="section-title">預約收入明細</div>
     <table id="report-table"></table>
+    <div id="booking-pagination" class="pagination"></div>
     <div class="section-title">額外收入明細</div>
     <table id="extra-income-table"></table>
+    <div id="extra-pagination" class="pagination"></div>
     <div class="total" id="grand-total"></div>
   </div>
 </div>
 <script>
 let adminPassword = '';
+let bookingPage = 1;
+let extraIncomePage = 1;
+const PAGE_SIZE = 10;
 const ADMIN_PASSWORD_KEY = 'booking_admin_password';
 const ADMIN_EXPIRES_KEY = 'booking_admin_expires_at';
 const ADMIN_SESSION_TTL_MS_KEY = 'booking_admin_session_ttl_ms';
@@ -1945,7 +1975,15 @@ async function refreshReport() {
   const resp = await fetch('/api/reports/fees', {
     method:'POST',
     headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({ admin_password: adminPassword, start_date: start, end_date: end, customer }),
+    body: JSON.stringify({
+      admin_password: adminPassword,
+      start_date: start,
+      end_date: end,
+      customer,
+      booking_page: bookingPage,
+      extra_income_page: extraIncomePage,
+      page_size: PAGE_SIZE,
+    }),
   });
   const data = await resp.json();
   if (!resp.ok) { alert(data.error || '查詢失敗'); return; }
@@ -1953,6 +1991,7 @@ async function refreshReport() {
   const table = document.getElementById('report-table');
   table.innerHTML = '<tr><th>姓名</th><th>用途</th><th>開始時間</th><th>結束時間</th><th>新增時間</th><th>預約費用</th></tr>' +
     data.booking_records.map(row => `<tr><td>${row.customer}</td><td>${row.purpose}</td><td>${row.start_time}</td><td>${row.end_time}</td><td>${row.created_at || ''}</td><td>$${Number(row.price).toFixed(0)}</td></tr>`).join('');
+  renderPagination('booking-pagination', 'booking', data.booking_page, data.booking_total_pages, data.booking_total_records);
 
   const extraTable = document.getElementById('extra-income-table');
   extraTable.innerHTML = '<tr><th>時間</th><th>姓名</th><th>項目</th><th>金額</th><th>詳細/備註</th></tr>' +
@@ -1970,8 +2009,23 @@ async function refreshReport() {
         : (row.note || '');
       return `<tr><td>${row.income_time}</td><td>${row.customer}</td><td>${row.item}</td><td>$${Number(row.amount).toFixed(0)}</td><td>${details}</td></tr>`;
     }).join('');
+  renderPagination('extra-pagination', 'extra', data.extra_income_page, data.extra_income_total_pages, data.extra_income_total_records);
 
   document.getElementById('grand-total').textContent = `總計（預約）：$${Number(data.booking_grand_total).toFixed(0)}｜總計（額外收入）：$${Number(data.extra_income_grand_total).toFixed(0)}｜整體總計：$${Number(data.grand_total).toFixed(0)}`;
+}
+
+function renderPagination(containerId, type, page, totalPages, totalRecords) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  const safeTotalPages = Math.max(1, Number(totalPages || 1));
+  const safePage = Math.min(Math.max(1, Number(page || 1)), safeTotalPages);
+  const disabledPrev = safePage <= 1 ? 'disabled' : '';
+  const disabledNext = safePage >= safeTotalPages ? 'disabled' : '';
+  container.innerHTML = `
+    <button ${disabledPrev} data-type="${type}" data-action="prev">上一頁</button>
+    <button ${disabledNext} data-type="${type}" data-action="next">下一頁</button>
+    <span class="info">第 ${safePage} / ${safeTotalPages} 頁（共 ${Number(totalRecords || 0)} 筆）</span>
+  `;
 }
 
 
@@ -2007,8 +2061,24 @@ async function exportReport() {
   window.URL.revokeObjectURL(url);
 }
 
-document.getElementById('query-btn').addEventListener('click', refreshReport);
+document.getElementById('query-btn').addEventListener('click', () => {
+  bookingPage = 1;
+  extraIncomePage = 1;
+  refreshReport();
+});
 document.getElementById('export-btn').addEventListener('click', exportReport);
+document.addEventListener('click', (event) => {
+  const button = event.target.closest('[data-action]');
+  if (!button) return;
+  const type = button.dataset.type;
+  const action = button.dataset.action;
+  if (type === 'booking') {
+    bookingPage = Math.max(1, bookingPage + (action === 'next' ? 1 : -1));
+  } else if (type === 'extra') {
+    extraIncomePage = Math.max(1, extraIncomePage + (action === 'next' ? 1 : -1));
+  }
+  refreshReport();
+});
 (function init() {
   const now = new Date();
   const start = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -2343,6 +2413,9 @@ class BookingWebHandler(BaseHTTPRequestHandler):
                 if not start_date or not end_date:
                     raise ValueError("請提供開始與結束日期")
                 customer = str(payload.get("customer", "")).strip()
+                page_size = max(1, min(100, int(payload.get("page_size", 10) or 10)))
+                booking_page = max(1, int(payload.get("booking_page", 1) or 1))
+                extra_income_page = max(1, int(payload.get("extra_income_page", 1) or 1))
                 with manager_lock:
                     booking_items = manager.summarize_fees(start_date, end_date, customer)
                     all_bookings = [booking_to_dict(item) for item in manager.list_bookings()]
@@ -2399,11 +2472,30 @@ class BookingWebHandler(BaseHTTPRequestHandler):
                 booking_grand_total = sum(float(item["total_fee"]) for item in booking_items)
                 extra_income_grand_total = sum(float(row["amount"]) for row in extra_records)
                 grand_total = booking_grand_total + extra_income_grand_total
+
+                booking_total_records = len(booking_records)
+                extra_income_total_records = len(extra_records)
+                booking_total_pages = max(1, (booking_total_records + page_size - 1) // page_size)
+                extra_income_total_pages = max(1, (extra_income_total_records + page_size - 1) // page_size)
+                booking_page = min(booking_page, booking_total_pages)
+                extra_income_page = min(extra_income_page, extra_income_total_pages)
+
+                booking_start_idx = (booking_page - 1) * page_size
+                booking_end_idx = booking_start_idx + page_size
+                extra_start_idx = (extra_income_page - 1) * page_size
+                extra_end_idx = extra_start_idx + page_size
+
                 self._send_json({
                     "items": items,
                     "booking_items": booking_items,
-                    "booking_records": booking_records,
-                    "extra_income_records": extra_records,
+                    "booking_records": booking_records[booking_start_idx:booking_end_idx],
+                    "extra_income_records": extra_records[extra_start_idx:extra_end_idx],
+                    "booking_total_records": booking_total_records,
+                    "extra_income_total_records": extra_income_total_records,
+                    "booking_page": booking_page,
+                    "extra_income_page": extra_income_page,
+                    "booking_total_pages": booking_total_pages,
+                    "extra_income_total_pages": extra_income_total_pages,
                     "booking_grand_total": booking_grand_total,
                     "extra_income_grand_total": extra_income_grand_total,
                     "grand_total": grand_total,
