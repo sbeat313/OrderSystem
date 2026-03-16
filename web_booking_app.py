@@ -157,6 +157,7 @@ button {
 }
 button:hover { filter: brightness(.98); transform: translateY(-1px); }
 .note { margin-top: 10px; min-height: 22px; font-size: 15px; }
+#msg:empty { display: none; }
 .title-row { display:flex; align-items:center; gap:10px; margin-bottom: 8px; }
 .title-icon { font-size: 44px; opacity:.35; line-height:1; }
 .control-row { display:flex; align-items:flex-end; gap:10px; flex-wrap:wrap; margin-bottom: 10px; }
@@ -177,6 +178,14 @@ button:hover { filter: brightness(.98); transform: translateY(-1px); }
   border: 1px solid var(--border); border-radius: 12px; background:#fff;
   box-shadow: inset 0 1px 0 rgba(255,255,255,.6);
 }
+.grid-section { margin-bottom: 14px; }
+.grid-section:last-child { margin-bottom: 0; }
+.grid-section-title {
+  margin: 0 0 6px;
+  font-size: 16px;
+  color: #334155;
+  font-weight: 800;
+}
 table { border-collapse: separate; border-spacing: 0; width: max-content; min-width: 100%; background: #fff; }
 th, td { border: 1px solid #dbe5f2; text-align: center; font-size: 16px; padding: 8px; min-width: 48px; }
 th {
@@ -188,25 +197,37 @@ th.top-row { top: 0; }
 th.second-row { top: 44px; z-index: 7; }
 th.sticky-left-1 {
   left: 0; min-width: var(--sticky-venue); z-index: 9;
-  border-right: 1px solid #b6c7e5; box-shadow: inset -1px 0 0 #b6c7e5;
+  border-right: 1px solid #dbe5f2; box-shadow: inset -1px 0 0 #dbe5f2;
 }
 th.sticky-left-2 { left: var(--sticky-venue); min-width: var(--sticky-time); z-index: 9; }
 td.venue {
   min-width: var(--sticky-venue); font-weight: 700; color:#0f2f66;
   background: #f8fbff; position: sticky; left: 0; z-index: 4;
-  border-right: 1px solid #b6c7e5; box-shadow: inset -1px 0 0 #b6c7e5;
+  border-right: 1px solid #dbe5f2; box-shadow: inset -1px 0 0 #dbe5f2;
 }
 td.slot-time { min-width: var(--sticky-time); font-weight: 600; background: #f8fafc; position: sticky; left: var(--sticky-venue); z-index: 3; }
-td.slot { height: 54px; background: #fcfdff; border-radius: 8px; }
-td.slot.available { background: #e7f8eb; color: #166534; font-weight: 700; }
-td.slot.pending { background: #fff1cf; color: #8a5a00; font-weight: 700; }
-td.slot.full { background: #ffdfe0; color: #991b1b; font-weight: 700; }
-th.day-block-start, td.day-block-start { border-left: 4px solid #64748b; }
+td.slot { height: 54px; background: #fcfdff; border-radius: 0; }
+td.slot.available,
+td.slot.pending,
+td.slot.full { background: #fcfdff; color: #0f172a; }
+.availability-pill {
+  width: 85%;
+  margin: 0 auto;
+  border-radius: 10px;
+  padding: 8px 4px;
+  font-weight: 700;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.55);
+}
+td.slot.available .availability-pill { background: #e7f8eb; color: #166534; }
+td.slot.pending .availability-pill { background: #fff1cf; color: #8a5a00; }
+td.slot.full .availability-pill { background: #ffdfe0; color: #991b1b; }
+th.day-block-start, td.day-block-start { border-left: 3px solid #cbd5e1; }
 th.weekend-head {
   background: linear-gradient(180deg, #fde047, #facc15);
   color: #713f12;
   border-top: 3px solid #f59e0b;
   border-bottom: 3px solid #f59e0b;
+  border-right: 1px solid #dbe5f2;
 }
 th.weekend-date-label {
   background: linear-gradient(180deg, #fef08a, #fde047);
@@ -214,16 +235,32 @@ th.weekend-date-label {
   border-bottom: 2px solid #f59e0b;
 }
 td.weekend-time {
-  background: #fef9c3;
+  background: #fcfdff;
   color: #713f12;
-  border-left: 3px solid #f59e0b;
-  border-right: 3px solid #f59e0b;
+  border-left: 1px solid #dbe5f2;
+  border-right: 1px solid #dbe5f2;
 }
-td.slot.weekend-time.available { background: #f4fde2; color: #4d5f1f; }
-td.slot.weekend-time.pending { background: #ffefbd; color: #7a4b00; }
-td.slot.weekend-time.full { background: #ffdede; color: #8f1d1d; }
-td.slot.booked-admin { background: #bbf7d0; }
-td.slot.booked-user { background: #93c5fd; color: #0f172a; }
+td.slot.weekend-time.available .availability-pill { background: #f4fde2; color: #4d5f1f; }
+td.slot.weekend-time.pending .availability-pill { background: #ffefbd; color: #7a4b00; }
+td.slot.weekend-time.full .availability-pill { background: #ffdede; color: #8f1d1d; }
+th.weekend-head.day-block-start,
+th.weekend-date-label.day-block-start,
+td.slot.weekend-time.day-block-start { border-left: 3px solid #f59e0b; }
+th.weekend-head:last-child,
+th.weekend-date-label:last-child,
+td.slot.weekend-time:last-child { border-right: 3px solid #f59e0b; }
+#grid-sections table tr:last-child td.slot.weekend-time { border-bottom: 3px solid #f59e0b; }
+td.slot.booked-admin,
+td.slot.booked-user { background: #fcfdff; color: #0f172a; }
+.booking-pill {
+  width: 85%;
+  margin: 0 auto;
+  border-radius: 10px;
+  padding: 6px 4px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.55);
+}
+td.slot.booked-admin .booking-pill { background: #bbf7d0; }
+td.slot.booked-user .booking-pill { background: #93c5fd; }
 .small { font-size: 15px; line-height: 1.35; white-space: pre-line; }
 .slot.selected { outline: 3px solid #f59e0b; outline-offset: -3px; }
 .helper { margin: 6px 0 0; font-size: 14px; color: var(--muted); }
@@ -260,7 +297,7 @@ td.slot.booked-user { background: #93c5fd; color: #0f172a; }
   <div class="control-row">
     <div class="toolbar">
       <div class="field">
-        <label>日期</label>
+        <label>&nbsp;</label>
         <input id="date" type="date" />
       </div>
     </div>
@@ -272,9 +309,7 @@ td.slot.booked-user { background: #93c5fd; color: #0f172a; }
   </div>
   <div class="panel">
     <div id="msg" class="note"></div>
-    <div class="grid-wrap">
-      <table id="grid"></table>
-    </div>
+    <div id="grid-sections"></div>
   </div>
 </div>
 
@@ -354,6 +389,19 @@ function weekStart(dateStr) {
   return d;
 }
 
+function formatWeekSectionLabel(baseDate, startOffsetDays = 0) {
+  const start = weekStart(baseDate);
+  start.setDate(start.getDate() + startOffsetDays);
+  const end = new Date(start);
+  end.setDate(start.getDate() + 6);
+  const startText = `${start.getFullYear()}/${String(start.getMonth() + 1).padStart(2, '0')}/${String(start.getDate()).padStart(2, '0')}`;
+  if (start.getFullYear() === end.getFullYear() && start.getMonth() === end.getMonth()) {
+    return `${startText}-${String(end.getDate()).padStart(2, '0')}`;
+  }
+  const endText = `${end.getFullYear()}/${String(end.getMonth() + 1).padStart(2, '0')}/${String(end.getDate()).padStart(2, '0')}`;
+  return `${startText}-${endText}`;
+}
+
 async function loadVenues() {
   const resp = await fetch('/api/venues');
   venues = await resp.json();
@@ -422,7 +470,7 @@ function makeAvailabilityCell(day, hour, availableCount) {
     cls = 'slot pending';
     text = '◉ 預約中';
   }
-  return `<td class="${cls}" data-day="${day}" data-hour="${hour}"><div class="small">${text}</div></td>`;
+  return `<td class="${cls}" data-day="${day}" data-hour="${hour}"><div class="small availability-pill">${text}</div></td>`;
 }
 
 function setAuthBadge() {
@@ -442,18 +490,20 @@ function makeSlotCell(day, hour, venueId, booking, text, rowspan = 1) {
   const bookingId = booking ? booking.booking_id : '';
   const rowspanAttr = rowspan > 1 ? ` rowspan="${rowspan}"` : '';
   const draggableAttr = booking && isAdmin ? ' draggable="true"' : '';
-  return `<td class="${cls}"${rowspanAttr}${draggableAttr} data-day="${day}" data-hour="${hour}" data-venue-id="${venueId}" data-booking-id="${bookingId}"><div class="small">${text}</div></td>`;
+  const content = booking
+    ? `<div class="small booking-pill">${text}</div>`
+    : `<div class="small">${text}</div>`;
+  return `<td class="${cls}"${rowspanAttr}${draggableAttr} data-day="${day}" data-hour="${hour}" data-venue-id="${venueId}" data-booking-id="${bookingId}">${content}</td>`;
 }
 
 function bindGridEvents() {
-  const grid = document.getElementById('grid');
-  const slots = grid.querySelectorAll('td.slot');
+  const slots = document.querySelectorAll('#grid-sections td.slot');
   slots.forEach(cell => {
     cell.addEventListener('click', () => {
       if (!isAdmin) return;
       const bookingId = Number(cell.dataset.bookingId || 0);
       selectedBookingId = bookingId || null;
-      grid.querySelectorAll('td.slot.selected').forEach(node => node.classList.remove('selected'));
+      document.querySelectorAll('#grid-sections td.slot.selected').forEach(node => node.classList.remove('selected'));
       if (selectedBookingId) cell.classList.add('selected');
     });
 
@@ -565,7 +615,7 @@ async function handleBookingDrop(targetCell, dragData, copyMode) {
 }
 
 function renderDaily(bookings) {
-  const grid = document.getElementById('grid');
+  const grid = document.querySelector('#grid-sections table');
   const day = document.getElementById('date').value;
   let html = '<tr><th class="sticky-left-1">時段</th>';
   for (const venue of venues) html += `<th>${venue.name}</th>`;
@@ -600,7 +650,7 @@ function isWeekend(day) {
 }
 
 function renderTwoDay(dayData, baseDate) {
-  const grid = document.getElementById('grid');
+  const grid = document.querySelector('#grid-sections table');
   const firstDay = new Date(`${baseDate}T00:00:00`);
   const secondDay = new Date(firstDay);
   secondDay.setDate(secondDay.getDate() + 1);
@@ -654,14 +704,13 @@ $${Number(b.price || 0).toFixed(0)}` : '已預約';
   bindGridEvents();
 }
 
-function renderWeekly(weekData, baseDate, days = 14) {
-  const grid = document.getElementById('grid');
+function renderWeekly(weekData, baseDate, days = 14, grid, startOffsetDays = 0) {
   const start = weekStart(baseDate);
   const daysPerRow = isAdmin ? 2 : 7;
   const dates = [];
   for (let i = 0; i < days; i++) {
     const d = new Date(start);
-    d.setDate(start.getDate() + i);
+    d.setDate(start.getDate() + startOffsetDays + i);
     dates.push(fmtDate(d));
   }
 
@@ -745,7 +794,28 @@ $${Number(b.price || 0).toFixed(0)}`;
 
 async function refresh() {
   const date = document.getElementById('date').value;
-  renderWeekly(await loadRangeBookings(date, 14), date, 14);
+  const gridSections = document.getElementById('grid-sections');
+  const weekData = await loadRangeBookings(date, 14);
+
+  if (isAdmin) {
+    gridSections.innerHTML = '<div class="grid-wrap"><table id="grid-admin"></table></div>';
+    renderWeekly(weekData, date, 14, document.getElementById('grid-admin'));
+  } else {
+    const week1Label = formatWeekSectionLabel(date, 0);
+    const week2Label = formatWeekSectionLabel(date, 7);
+    gridSections.innerHTML = [
+      '<div class="grid-section">',
+      `  <h3 class="grid-section-title">${week1Label}</h3>`,
+      '  <div class="grid-wrap"><table id="grid-week-1"></table></div>',
+      '</div>',
+      '<div class="grid-section">',
+      `  <h3 class="grid-section-title">${week2Label}</h3>`,
+      '  <div class="grid-wrap"><table id="grid-week-2"></table></div>',
+      '</div>',
+    ].join('');
+    renderWeekly(weekData, date, 7, document.getElementById('grid-week-1'), 0);
+    renderWeekly(weekData, date, 7, document.getElementById('grid-week-2'), 7);
+  }
   updateWeekLabel();
 }
 
