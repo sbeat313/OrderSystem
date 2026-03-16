@@ -177,6 +177,14 @@ button:hover { filter: brightness(.98); transform: translateY(-1px); }
   border: 1px solid var(--border); border-radius: 12px; background:#fff;
   box-shadow: inset 0 1px 0 rgba(255,255,255,.6);
 }
+.grid-section { margin-bottom: 14px; }
+.grid-section:last-child { margin-bottom: 0; }
+.grid-section-title {
+  margin: 0 0 6px;
+  font-size: 16px;
+  color: #334155;
+  font-weight: 800;
+}
 table { border-collapse: separate; border-spacing: 0; width: max-content; min-width: 100%; background: #fff; }
 th, td { border: 1px solid #dbe5f2; text-align: center; font-size: 16px; padding: 8px; min-width: 48px; }
 th {
@@ -222,8 +230,17 @@ td.weekend-time {
 td.slot.weekend-time.available { background: #f4fde2; color: #4d5f1f; }
 td.slot.weekend-time.pending { background: #ffefbd; color: #7a4b00; }
 td.slot.weekend-time.full { background: #ffdede; color: #8f1d1d; }
-td.slot.booked-admin { background: #bbf7d0; }
-td.slot.booked-user { background: #93c5fd; color: #0f172a; }
+td.slot.booked-admin,
+td.slot.booked-user { background: #fcfdff; color: #0f172a; }
+.booking-pill {
+  width: 70%;
+  margin: 0 auto;
+  border-radius: 10px;
+  padding: 6px 4px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.55);
+}
+td.slot.booked-admin .booking-pill { background: #bbf7d0; }
+td.slot.booked-user .booking-pill { background: #93c5fd; }
 .small { font-size: 15px; line-height: 1.35; white-space: pre-line; }
 .slot.selected { outline: 3px solid #f59e0b; outline-offset: -3px; }
 .helper { margin: 6px 0 0; font-size: 14px; color: var(--muted); }
@@ -272,9 +289,7 @@ td.slot.booked-user { background: #93c5fd; color: #0f172a; }
   </div>
   <div class="panel">
     <div id="msg" class="note"></div>
-    <div class="grid-wrap">
-      <table id="grid"></table>
-    </div>
+    <div id="grid-sections"></div>
   </div>
 </div>
 
@@ -442,18 +457,20 @@ function makeSlotCell(day, hour, venueId, booking, text, rowspan = 1) {
   const bookingId = booking ? booking.booking_id : '';
   const rowspanAttr = rowspan > 1 ? ` rowspan="${rowspan}"` : '';
   const draggableAttr = booking && isAdmin ? ' draggable="true"' : '';
-  return `<td class="${cls}"${rowspanAttr}${draggableAttr} data-day="${day}" data-hour="${hour}" data-venue-id="${venueId}" data-booking-id="${bookingId}"><div class="small">${text}</div></td>`;
+  const content = booking
+    ? `<div class="small booking-pill">${text}</div>`
+    : `<div class="small">${text}</div>`;
+  return `<td class="${cls}"${rowspanAttr}${draggableAttr} data-day="${day}" data-hour="${hour}" data-venue-id="${venueId}" data-booking-id="${bookingId}">${content}</td>`;
 }
 
 function bindGridEvents() {
-  const grid = document.getElementById('grid');
-  const slots = grid.querySelectorAll('td.slot');
+  const slots = document.querySelectorAll('#grid-sections td.slot');
   slots.forEach(cell => {
     cell.addEventListener('click', () => {
       if (!isAdmin) return;
       const bookingId = Number(cell.dataset.bookingId || 0);
       selectedBookingId = bookingId || null;
-      grid.querySelectorAll('td.slot.selected').forEach(node => node.classList.remove('selected'));
+      document.querySelectorAll('#grid-sections td.slot.selected').forEach(node => node.classList.remove('selected'));
       if (selectedBookingId) cell.classList.add('selected');
     });
 
@@ -565,7 +582,7 @@ async function handleBookingDrop(targetCell, dragData, copyMode) {
 }
 
 function renderDaily(bookings) {
-  const grid = document.getElementById('grid');
+  const grid = document.querySelector('#grid-sections table');
   const day = document.getElementById('date').value;
   let html = '<tr><th class="sticky-left-1">時段</th>';
   for (const venue of venues) html += `<th>${venue.name}</th>`;
@@ -600,7 +617,7 @@ function isWeekend(day) {
 }
 
 function renderTwoDay(dayData, baseDate) {
-  const grid = document.getElementById('grid');
+  const grid = document.querySelector('#grid-sections table');
   const firstDay = new Date(`${baseDate}T00:00:00`);
   const secondDay = new Date(firstDay);
   secondDay.setDate(secondDay.getDate() + 1);
@@ -654,14 +671,13 @@ $${Number(b.price || 0).toFixed(0)}` : '已預約';
   bindGridEvents();
 }
 
-function renderWeekly(weekData, baseDate, days = 14) {
-  const grid = document.getElementById('grid');
+function renderWeekly(weekData, baseDate, days = 14, grid, startOffsetDays = 0) {
   const start = weekStart(baseDate);
   const daysPerRow = isAdmin ? 2 : 7;
   const dates = [];
   for (let i = 0; i < days; i++) {
     const d = new Date(start);
-    d.setDate(start.getDate() + i);
+    d.setDate(start.getDate() + startOffsetDays + i);
     dates.push(fmtDate(d));
   }
 
@@ -745,7 +761,26 @@ $${Number(b.price || 0).toFixed(0)}`;
 
 async function refresh() {
   const date = document.getElementById('date').value;
-  renderWeekly(await loadRangeBookings(date, 14), date, 14);
+  const gridSections = document.getElementById('grid-sections');
+  const weekData = await loadRangeBookings(date, 14);
+
+  if (isAdmin) {
+    gridSections.innerHTML = '<div class="grid-wrap"><table id="grid-admin"></table></div>';
+    renderWeekly(weekData, date, 14, document.getElementById('grid-admin'));
+  } else {
+    gridSections.innerHTML = [
+      '<div class="grid-section">',
+      '  <h3 class="grid-section-title">第 1 週</h3>',
+      '  <div class="grid-wrap"><table id="grid-week-1"></table></div>',
+      '</div>',
+      '<div class="grid-section">',
+      '  <h3 class="grid-section-title">第 2 週</h3>',
+      '  <div class="grid-wrap"><table id="grid-week-2"></table></div>',
+      '</div>',
+    ].join('');
+    renderWeekly(weekData, date, 7, document.getElementById('grid-week-1'), 0);
+    renderWeekly(weekData, date, 7, document.getElementById('grid-week-2'), 7);
+  }
   updateWeekLabel();
 }
 
