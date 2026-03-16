@@ -160,6 +160,69 @@ button:hover { filter: brightness(.98); transform: translateY(-1px); }
 #msg:empty { display: none; }
 .title-row { display:flex; align-items:center; gap:10px; margin-bottom: 8px; }
 .title-icon { font-size: 44px; opacity:.35; line-height:1; }
+.hero {
+  display: grid;
+  grid-template-columns: 1.6fr 1fr;
+  gap: 14px;
+  margin-bottom: 12px;
+}
+.hero-card {
+  border-radius: 18px;
+  border: 1px solid #d7e3f5;
+  overflow: hidden;
+  background: #fff;
+  box-shadow: 0 10px 24px rgba(37,99,235,.12);
+}
+.hero-main {
+  position: relative;
+  min-height: 180px;
+  background-image:
+    linear-gradient(110deg, rgba(15,23,42,.75), rgba(37,99,235,.48)),
+    url('https://images.unsplash.com/photo-1507078866477-bf4b30d7f6d3?auto=format&fit=crop&w=1400&q=80');
+  background-size: cover;
+  background-position: center;
+  padding: 22px;
+  color: #fff;
+}
+.hero-main h3 { margin: 0 0 8px; font-size: 30px; }
+.hero-main p { margin: 0; max-width: 420px; line-height: 1.5; color: rgba(255,255,255,.92); }
+.hero-highlight {
+  margin-top: 14px;
+  display: inline-block;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.18);
+  border: 1px solid rgba(255,255,255,.3);
+  font-size: 14px;
+}
+.hero-gallery {
+  display: grid;
+  gap: 10px;
+  padding: 10px;
+  grid-template-rows: 1fr 1fr;
+}
+.hero-gallery-item {
+  border-radius: 12px;
+  overflow: hidden;
+  position: relative;
+}
+.hero-gallery-item img {
+  width: 100%;
+  height: 100%;
+  min-height: 80px;
+  object-fit: cover;
+  display: block;
+}
+.hero-gallery-item span {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  font-size: 13px;
+  color: #fff;
+  background: rgba(15,23,42,.55);
+  padding: 4px 8px;
+  border-radius: 8px;
+}
 .control-row { display:flex; align-items:flex-end; gap:10px; flex-wrap:wrap; margin-bottom: 10px; }
 .week-nav { display:flex; gap:8px; align-items:center; }
 .week-nav button { width:auto; padding:10px 12px; border-radius:10px; box-shadow:none; margin-top:0; }
@@ -276,6 +339,9 @@ td.slot.booked-user .booking-pill { background: #93c5fd; }
     pointer-events: auto;
   }
 }
+@media (max-width: 900px) {
+  .hero { grid-template-columns: 1fr; }
+}
 </style>
 </head>
 <body>
@@ -294,6 +360,23 @@ td.slot.booked-user .booking-pill { background: #93c5fd; }
     <h2 class="title">暖西羽球館預約系統</h2>
     <div class="title-icon">🏸</div>
   </div>
+  <section class="hero">
+    <article class="hero-card hero-main">
+      <h3>本週場地一覽</h3>
+      <p>快速查看各場地時段狀態，使用上方工具列切換週次與管理功能，讓預約安排更直覺。</p>
+      <div class="hero-highlight">即時更新・可視化檢視・一鍵管理</div>
+    </article>
+    <aside class="hero-card hero-gallery">
+      <div class="hero-gallery-item">
+        <img src="https://images.unsplash.com/photo-1613918108466-292b78a8ef95?auto=format&fit=crop&w=900&q=80" alt="羽球拍與羽球" />
+        <span>設備維護</span>
+      </div>
+      <div class="hero-gallery-item">
+        <img src="https://images.unsplash.com/photo-1626224583764-f87db24ac4ea?auto=format&fit=crop&w=900&q=80" alt="球場地板" />
+        <span>場地排程</span>
+      </div>
+    </aside>
+  </section>
   <div class="control-row">
     <div class="toolbar">
       <div class="field">
