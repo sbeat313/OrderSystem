@@ -213,7 +213,7 @@ td.weekend-time {
   border-right: 3px solid #f59e0b;
 }
 td.slot.weekend-time.available { background: #fef08a; color: #713f12; }
-td.slot.weekend-time.full { background: #fcd34d; color: #78350f; }
+td.slot.weekend-time.full { background: #fee2e2; color: #991b1b; }
 td.slot.booked-admin { background: #bbf7d0; }
 td.slot.booked-user { background: #93c5fd; color: #0f172a; }
 .small { font-size: 15px; line-height: 1.35; white-space: pre-line; }
