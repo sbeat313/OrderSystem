@@ -1266,7 +1266,7 @@ PURPOSES_PAGE = """<!doctype html>
 <title>資料設定</title>
 <style>
 * { box-sizing: border-box; }
-body { font-family: "Noto Sans TC", Arial, sans-serif; margin:0; padding:22px; background:#f4f6ff; color:#0f172a; }
+body { font-family: "Noto Sans TC", Arial, sans-serif; margin:0; padding:96px 22px 22px; background:#f4f6ff; color:#0f172a; }
 .wrap { max-width: 1200px; margin: 0 auto; }
 .top { display:flex; gap:10px; align-items:center; margin-bottom:12px; }
 .card { background:#fff; border:1px solid #dbe2f0; border-radius:14px; padding:16px; box-shadow:0 10px 25px rgba(30,64,175,.08); }
