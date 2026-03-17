@@ -158,7 +158,25 @@ button {
 button:hover { filter: brightness(.98); transform: translateY(-1px); }
 .note { margin-top: 10px; min-height: 22px; font-size: 15px; }
 #msg:empty { display: none; }
-.title-row { display:flex; align-items:center; gap:10px; margin-bottom: 8px; }
+.title-row { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; margin-bottom: 8px; }
+.title-wrap { display:flex; align-items:center; gap:10px; }
+.contact-info {
+  text-align:right;
+  color:#334155;
+  font-weight:700;
+  line-height:1.45;
+  font-size:16px;
+  background: linear-gradient(180deg, #ffffff, #eef4ff);
+  border: 1px solid #cddaf2;
+  border-radius: 14px;
+  padding: 10px 14px;
+  box-shadow: 0 6px 18px rgba(30,64,175,.12);
+}
+.contact-line { display:flex; align-items:center; justify-content:flex-end; gap:8px; }
+.contact-line + .contact-line { margin-top: 4px; }
+.contact-icon { font-size:18px; line-height:1; }
+.contact-info .address { font-size:17px; color:#1f2937; }
+.contact-info .phone { font-size:20px; color:#1e3a8a; font-weight:800; }
 .title-icon { font-size: 44px; opacity:.35; line-height:1; }
 .control-row { display:flex; align-items:flex-end; gap:10px; flex-wrap:wrap; margin-bottom: 10px; }
 .week-nav { display:flex; gap:8px; align-items:center; }
@@ -208,7 +226,6 @@ td.venue {
 td.slot-time { min-width: var(--sticky-time); font-weight: 600; background: #f8fafc; position: sticky; left: var(--sticky-venue); z-index: 3; }
 td.slot { height: 54px; background: #fcfdff; border-radius: 0; }
 td.slot.available,
-td.slot.pending,
 td.slot.full { background: #fcfdff; color: #0f172a; }
 .availability-pill {
   width: 85%;
@@ -219,7 +236,6 @@ td.slot.full { background: #fcfdff; color: #0f172a; }
   box-shadow: inset 0 1px 0 rgba(255,255,255,.55);
 }
 td.slot.available .availability-pill { background: #e7f8eb; color: #166534; }
-td.slot.pending .availability-pill { background: #fff1cf; color: #8a5a00; }
 td.slot.full .availability-pill { background: #ffdfe0; color: #991b1b; }
 th.day-block-start, td.day-block-start { border-left: 3px solid #cbd5e1; }
 th.weekend-head {
@@ -241,7 +257,6 @@ td.weekend-time {
   border-right: 1px solid #dbe5f2;
 }
 td.slot.weekend-time.available .availability-pill { background: #f4fde2; color: #4d5f1f; }
-td.slot.weekend-time.pending .availability-pill { background: #ffefbd; color: #7a4b00; }
 td.slot.weekend-time.full .availability-pill { background: #ffdede; color: #8f1d1d; }
 th.weekend-head.day-block-start,
 th.weekend-date-label.day-block-start,
@@ -291,8 +306,20 @@ td.slot.booked-user .booking-pill { background: #93c5fd; }
 </div>
 <div class="container">
   <div class="title-row">
-    <h2 class="title">暖西羽球館預約系統</h2>
-    <div class="title-icon">🏸</div>
+    <div class="title-wrap">
+      <h2 class="title">暖西羽球館預約系統</h2>
+      <div class="title-icon">🏸</div>
+    </div>
+    <div class="contact-info">
+      <div class="contact-line address">
+        <span class="contact-icon">📍</span>
+        <span>205基隆市暖暖區暖暖街350號</span>
+      </div>
+      <div class="contact-line phone">
+        <span class="contact-icon">☎️</span>
+        <span>(02)2457-0277</span>
+      </div>
+    </div>
   </div>
   <div class="control-row">
     <div class="toolbar">
@@ -466,9 +493,6 @@ function makeAvailabilityCell(day, hour, availableCount) {
   if (availableCount === 0) {
     cls = 'slot full';
     text = '🔒 已滿';
-  } else if (availableCount === 1) {
-    cls = 'slot pending';
-    text = '◉ 預約中';
   }
   return `<td class="${cls}" data-day="${day}" data-hour="${hour}"><div class="small availability-pill">${text}</div></td>`;
 }
@@ -1270,10 +1294,12 @@ body { font-family: "Noto Sans TC", Arial, sans-serif; margin:0; padding:22px; b
 .wrap { max-width: 1200px; margin: 0 auto; }
 .top { display:flex; gap:10px; align-items:center; margin-bottom:12px; }
 .card { background:#fff; border:1px solid #dbe2f0; border-radius:14px; padding:16px; box-shadow:0 10px 25px rgba(30,64,175,.08); }
-.grid { display:grid; grid-template-columns: 1fr 1fr; gap:14px; }
+.stack { display:flex; flex-direction:column; gap:14px; }
 .section-title { margin: 0 0 10px; color:#1e3a8a; }
 input, button { padding:10px 12px; border-radius:10px; border:1px solid #cbd5e1; font-size:15px; }
 button { background:#4f46e5; color:#fff; border:none; cursor:pointer; }
+.btn-danger { background:#dc2626 !important; }
+.toolbar { display:flex; justify-content:flex-end; margin-bottom:10px; }
 table { width:100%; border-collapse:collapse; margin-top:12px; }
 th, td { border:1px solid #dbe2f0; padding:10px; text-align:left; }
 th { background:#eef2ff; }
@@ -1282,7 +1308,6 @@ th { background:#eef2ff; }
 .floating-actions { margin-top:8px; display:flex; gap:10px; align-items:center; padding:10px 14px; border:1px solid #dbe2f0; border-radius:14px; background:rgba(255,255,255,.94); box-shadow:0 10px 24px rgba(30,64,175,.18); opacity:0; transform:translateY(-20px); pointer-events:none; transition:opacity .2s ease, transform .2s ease; }
 .hover-top-zone:hover .floating-actions, .floating-actions:focus-within { opacity:1; transform:translateY(0); pointer-events:auto; }
 @media (hover:none){ .floating-actions{ opacity:1; transform:translateY(0); pointer-events:auto; } }
-@media (max-width: 960px){ .grid { grid-template-columns: 1fr; } }
 </style>
 </head>
 <body>
@@ -1298,7 +1323,17 @@ th { background:#eef2ff; }
   <div class="top">
     <h1 style="margin:0;">資料設定</h1>
   </div>
-  <div class="grid">
+  <div class="toolbar">
+    <button onclick="saveAllChanges()">批次儲存</button>
+  </div>
+  <div class="stack">
+    <div class="card">
+      <h3 class="section-title">場地設定</h3>
+      <input id="new-venue" placeholder="新增場地名稱" />
+      <button style="margin-top:8px;" onclick="createVenue()">新增場地</button>
+      <table id="venue-table"></table>
+    </div>
+
     <div class="card">
       <h3 class="section-title">用途設定</h3>
       <div style="display:grid;grid-template-columns:2fr 1fr auto;gap:10px;align-items:end;">
@@ -1310,18 +1345,11 @@ th { background:#eef2ff; }
     </div>
 
     <div class="card">
-      <h3 class="section-title">場地設定</h3>
-      <input id="new-venue" placeholder="新增場地名稱" />
-      <button style="margin-top:8px;" onclick="createVenue()">新增場地</button>
-      <table id="venue-table"></table>
-    </div>
-
-    <div class="card" style="grid-column:1 / -1;">
       <h3 class="section-title">穿線項目設定</h3>
       <div style="display:flex; gap:10px; align-items:end; flex-wrap:wrap;">
         <div><div>穿線項目</div><input id="string-item-name"/></div>
         <div><div>對應金額</div><input id="string-item-amount" type="number" min="0" step="1"/></div>
-        <button id="save-string-item">新增項目</button>
+        <button id="save-string-item">儲存</button>
         <button id="cancel-string-item-edit" style="display:none; background:#64748b;">取消編輯</button>
       </div>
       <div id="string-item-msg" style="margin-top:8px;"></div>
@@ -1344,21 +1372,44 @@ async function login(){ const pw = prompt('請輸入管理員密碼：'); if (pw
 async function ensureLogin(){ if (!adminPassword) adminPassword = loadAdminPassword(); if (adminPassword) { const resp = await fetch('/api/admin/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({password: adminPassword})}); if (resp.ok) return true; adminPassword = ''; } return await login(); }
 async function api(method, path, payload = {}) { const ok = await ensureLogin(); if (!ok) throw new Error('need login'); payload.admin_password = adminPassword; const resp = await fetch(path, { method, headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) }); const data = await resp.json(); if (!resp.ok) throw new Error(data.error || '操作失敗'); return data; }
 
-async function refreshPurposes(){ const purposes = await (await fetch('/api/purposes')).json(); const pt = document.getElementById('purpose-table'); pt.innerHTML = '<tr><th>ID</th><th>名稱</th><th>價格</th><th>操作</th></tr>' + purposes.map(p => `<tr><td>${p.purpose_id}</td><td><input value="${p.name}" id="purpose-${p.purpose_id}"/></td><td><input type="number" min="0" step="1" value="${Number(p.price || 0)}" id="purpose-price-${p.purpose_id}"/></td><td class="actions"><button onclick="updatePurpose(${p.purpose_id})">儲存</button><button onclick="deletePurpose(${p.purpose_id})">刪除</button></td></tr>`).join(''); }
+async function refreshPurposes(){ const purposes = await (await fetch('/api/purposes')).json(); const pt = document.getElementById('purpose-table'); pt.innerHTML = '<tr><th>ID</th><th>名稱</th><th>價格</th><th>操作</th></tr>' + purposes.map(p => `<tr><td>${p.purpose_id}</td><td><input value="${p.name}" id="purpose-${p.purpose_id}"/></td><td><input type="number" min="0" step="1" value="${Number(p.price || 0)}" id="purpose-price-${p.purpose_id}"/></td><td class="actions"><button onclick="updatePurpose(${p.purpose_id})">儲存</button><button class="btn-danger" onclick="deletePurpose(${p.purpose_id})">刪除</button></td></tr>`).join(''); }
 async function createPurpose(){ try { await api('POST', '/api/purposes', {name: document.getElementById('new-purpose').value, price: Number(document.getElementById('new-purpose-price').value || 0)}); await refreshPurposes(); } catch (e) { alert(e.message); } }
 async function updatePurpose(id){ try { await api('PUT', '/api/purposes', {purpose_id: id, name: document.getElementById(`purpose-${id}`).value, price: Number(document.getElementById(`purpose-price-${id}`).value || 0)}); await refreshPurposes(); } catch (e) { alert(e.message); } }
 async function deletePurpose(id){ if (!confirm('確定刪除用途？')) return; try { await api('DELETE', '/api/purposes', {purpose_id: id}); await refreshPurposes(); } catch (e) { alert(e.message); } }
 
-async function refreshVenues(){ const venues = await (await fetch('/api/venues')).json(); const vt = document.getElementById('venue-table'); vt.innerHTML = '<tr><th>ID</th><th>名稱</th><th>操作</th></tr>' + venues.map(v => `<tr><td>${v.venue_id}</td><td><input value="${v.name}" id="venue-${v.venue_id}"/></td><td class="actions"><button onclick="updateVenue(${v.venue_id})">儲存</button><button onclick="deleteVenue(${v.venue_id})">刪除</button></td></tr>`).join(''); }
+async function refreshVenues(){ const venues = await (await fetch('/api/venues')).json(); const vt = document.getElementById('venue-table'); vt.innerHTML = '<tr><th>ID</th><th>名稱</th><th>操作</th></tr>' + venues.map(v => `<tr><td>${v.venue_id}</td><td><input value="${v.name}" id="venue-${v.venue_id}"/></td><td class="actions"><button onclick="updateVenue(${v.venue_id})">儲存</button><button class="btn-danger" onclick="deleteVenue(${v.venue_id})">刪除</button></td></tr>`).join(''); }
 async function createVenue(){ try { await api('POST', '/api/venues', {name: document.getElementById('new-venue').value}); document.getElementById('new-venue').value=''; await refreshVenues(); } catch (e) { alert(e.message); } }
 async function updateVenue(id){ try { await api('PUT', '/api/venues', {venue_id: id, name: document.getElementById(`venue-${id}`).value}); await refreshVenues(); } catch (e) { alert(e.message); } }
 async function deleteVenue(id){ if (!confirm('確定刪除場地？')) return; try { await api('DELETE', '/api/venues', {venue_id: id}); await refreshVenues(); } catch (e) { alert(e.message); } }
+
+async function saveAllChanges(){
+  try {
+    const purposes = await (await fetch('/api/purposes')).json();
+    const venues = await (await fetch('/api/venues')).json();
+    for (const p of purposes) {
+      await api('PUT', '/api/purposes', {
+        purpose_id: p.purpose_id,
+        name: document.getElementById(`purpose-${p.purpose_id}`).value,
+        price: Number(document.getElementById(`purpose-price-${p.purpose_id}`).value || 0),
+      });
+    }
+    for (const v of venues) {
+      await api('PUT', '/api/venues', {
+        venue_id: v.venue_id,
+        name: document.getElementById(`venue-${v.venue_id}`).value,
+      });
+    }
+    await refreshPurposes();
+    await refreshVenues();
+    alert('批次儲存完成');
+  } catch (e) { alert(e.message); }
+}
 
 function resetStringItemForm() {
   editingStringItemId = null;
   document.getElementById('string-item-name').value = '';
   document.getElementById('string-item-amount').value = '';
-  document.getElementById('save-string-item').textContent = '新增項目';
+  document.getElementById('save-string-item').textContent = '儲存';
   document.getElementById('cancel-string-item-edit').style.display = 'none';
 }
 
@@ -1366,7 +1417,7 @@ function editStringItem(id, name, amount) {
   editingStringItemId = Number(id);
   document.getElementById('string-item-name').value = name;
   document.getElementById('string-item-amount').value = amount;
-  document.getElementById('save-string-item').textContent = '儲存修改';
+  document.getElementById('save-string-item').textContent = '儲存';
   document.getElementById('cancel-string-item-edit').style.display = 'inline-block';
 }
 
@@ -1379,7 +1430,7 @@ async function refreshStringItems() {
   const data = await resp.json();
   if (!resp.ok) { alert(data.error || '讀取失敗'); return; }
   document.getElementById('string-item-table').innerHTML = '<tr><th>項目</th><th>金額</th><th>操作</th></tr>' +
-    data.items.map(row => `<tr><td>${row.name}</td><td>$${Number(row.amount).toFixed(0)}</td><td><button style="padding:6px 10px; margin-right:6px;" onclick="editStringItem(${row.string_item_id}, '${row.name.replace(/'/g, "\'")}', ${Number(row.amount)})">編輯</button><button style="padding:6px 10px; background:#dc2626;" onclick="deleteStringItem(${row.string_item_id})">刪除</button></td></tr>`).join('');
+    data.items.map(row => `<tr><td>${row.name}</td><td>$${Number(row.amount).toFixed(0)}</td><td><button style="padding:6px 10px; margin-right:6px;" onclick="editStringItem(${row.string_item_id}, '${row.name.replace(/'/g, "\'")}', ${Number(row.amount)})">儲存</button><button class="btn-danger" style="padding:6px 10px;" onclick="deleteStringItem(${row.string_item_id})">刪除</button></td></tr>`).join('');
 }
 
 async function deleteStringItem(id) {
@@ -1870,7 +1921,7 @@ function resetForm() {
   editingStringItemId = null;
   document.getElementById('string-item-name').value = '';
   document.getElementById('string-item-amount').value = '';
-  document.getElementById('save-string-item').textContent = '新增項目';
+  document.getElementById('save-string-item').textContent = '儲存';
   document.getElementById('cancel-string-item-edit').style.display = 'none';
 }
 
@@ -1883,14 +1934,14 @@ async function refreshStringItems() {
   const data = await resp.json();
   if (!resp.ok) { alert(data.error || '讀取失敗'); return; }
   document.getElementById('string-item-table').innerHTML = '<tr><th>項目</th><th>金額</th><th>操作</th></tr>' +
-    data.items.map(row => `<tr><td>${row.name}</td><td>$${Number(row.amount).toFixed(0)}</td><td><button style="padding:6px 10px; margin-right:6px;" onclick="editStringItem(${row.string_item_id}, '${row.name.replace(/'/g, "\'")}', ${Number(row.amount)})">編輯</button><button style="padding:6px 10px; background:#dc2626;" onclick="deleteStringItem(${row.string_item_id})">刪除</button></td></tr>`).join('');
+    data.items.map(row => `<tr><td>${row.name}</td><td>$${Number(row.amount).toFixed(0)}</td><td><button style="padding:6px 10px; margin-right:6px;" onclick="editStringItem(${row.string_item_id}, '${row.name.replace(/'/g, "\'")}', ${Number(row.amount)})">儲存</button><button class="btn-danger" style="padding:6px 10px;" onclick="deleteStringItem(${row.string_item_id})">刪除</button></td></tr>`).join('');
 }
 
 function editStringItem(id, name, amount) {
   editingStringItemId = Number(id);
   document.getElementById('string-item-name').value = name;
   document.getElementById('string-item-amount').value = amount;
-  document.getElementById('save-string-item').textContent = '儲存修改';
+  document.getElementById('save-string-item').textContent = '儲存';
   document.getElementById('cancel-string-item-edit').style.display = 'inline-block';
 }
 
