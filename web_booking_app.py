@@ -158,7 +158,25 @@ button {
 button:hover { filter: brightness(.98); transform: translateY(-1px); }
 .note { margin-top: 10px; min-height: 22px; font-size: 15px; }
 #msg:empty { display: none; }
-.title-row { display:flex; align-items:center; gap:10px; margin-bottom: 8px; }
+.title-row { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; margin-bottom: 8px; }
+.title-wrap { display:flex; align-items:center; gap:10px; }
+.contact-info {
+  text-align:right;
+  color:#334155;
+  font-weight:700;
+  line-height:1.45;
+  font-size:16px;
+  background: linear-gradient(180deg, #ffffff, #eef4ff);
+  border: 1px solid #cddaf2;
+  border-radius: 14px;
+  padding: 10px 14px;
+  box-shadow: 0 6px 18px rgba(30,64,175,.12);
+}
+.contact-line { display:flex; align-items:center; justify-content:flex-end; gap:8px; }
+.contact-line + .contact-line { margin-top: 4px; }
+.contact-icon { font-size:18px; line-height:1; }
+.contact-info .address { font-size:17px; color:#1f2937; }
+.contact-info .phone { font-size:20px; color:#1e3a8a; font-weight:800; }
 .title-icon { font-size: 44px; opacity:.35; line-height:1; }
 .control-row { display:flex; align-items:flex-end; gap:10px; flex-wrap:wrap; margin-bottom: 10px; }
 .week-nav { display:flex; gap:8px; align-items:center; }
@@ -208,7 +226,6 @@ td.venue {
 td.slot-time { min-width: var(--sticky-time); font-weight: 600; background: #f8fafc; position: sticky; left: var(--sticky-venue); z-index: 3; }
 td.slot { height: 54px; background: #fcfdff; border-radius: 0; }
 td.slot.available,
-td.slot.pending,
 td.slot.full { background: #fcfdff; color: #0f172a; }
 .availability-pill {
   width: 85%;
@@ -219,7 +236,6 @@ td.slot.full { background: #fcfdff; color: #0f172a; }
   box-shadow: inset 0 1px 0 rgba(255,255,255,.55);
 }
 td.slot.available .availability-pill { background: #e7f8eb; color: #166534; }
-td.slot.pending .availability-pill { background: #fff1cf; color: #8a5a00; }
 td.slot.full .availability-pill { background: #ffdfe0; color: #991b1b; }
 th.day-block-start, td.day-block-start { border-left: 3px solid #cbd5e1; }
 th.weekend-head {
@@ -241,7 +257,6 @@ td.weekend-time {
   border-right: 1px solid #dbe5f2;
 }
 td.slot.weekend-time.available .availability-pill { background: #f4fde2; color: #4d5f1f; }
-td.slot.weekend-time.pending .availability-pill { background: #ffefbd; color: #7a4b00; }
 td.slot.weekend-time.full .availability-pill { background: #ffdede; color: #8f1d1d; }
 th.weekend-head.day-block-start,
 th.weekend-date-label.day-block-start,
@@ -291,8 +306,20 @@ td.slot.booked-user .booking-pill { background: #93c5fd; }
 </div>
 <div class="container">
   <div class="title-row">
-    <h2 class="title">暖西羽球館預約系統</h2>
-    <div class="title-icon">🏸</div>
+    <div class="title-wrap">
+      <h2 class="title">暖西羽球館預約系統</h2>
+      <div class="title-icon">🏸</div>
+    </div>
+    <div class="contact-info">
+      <div class="contact-line address">
+        <span class="contact-icon">📍</span>
+        <span>205基隆市暖暖區暖暖街350號</span>
+      </div>
+      <div class="contact-line phone">
+        <span class="contact-icon">☎️</span>
+        <span>(02)2457-0277</span>
+      </div>
+    </div>
   </div>
   <div class="control-row">
     <div class="toolbar">
@@ -466,9 +493,6 @@ function makeAvailabilityCell(day, hour, availableCount) {
   if (availableCount === 0) {
     cls = 'slot full';
     text = '🔒 已滿';
-  } else if (availableCount === 1) {
-    cls = 'slot pending';
-    text = '◉ 預約中';
   }
   return `<td class="${cls}" data-day="${day}" data-hour="${hour}"><div class="small availability-pill">${text}</div></td>`;
 }
