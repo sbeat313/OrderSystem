@@ -588,9 +588,12 @@ class BookingManager:
         start_time, end_time = self._parse_time_range(start, end)
         booking_price = self._parse_price(price)
         note_text = note.strip()
+        duration = end_time - start_time
+        if duration <= timedelta(0):
+            raise ValueError("結束時間必須晚於開始時間")
         with self._connect() as conn:
             existing = conn.execute(
-                "SELECT id, created_at FROM bookings WHERE id = ?",
+                "SELECT id, venue_id, customer, purpose, start_time, end_time, rental_group_id, created_at FROM bookings WHERE id = ?",
                 (booking_id,),
             ).fetchone()
             if existing is None:
@@ -613,48 +616,116 @@ class BookingManager:
             if purpose_row is None:
                 raise ValueError("用途不存在，請從選單選擇")
 
-            conflict = conn.execute(
-                """
-                SELECT b.id, b.start_time, b.end_time
-                FROM bookings b
-                WHERE b.venue_id = ?
-                  AND b.id != ?
-                  AND b.start_time < ?
-                  AND b.end_time > ?
-                LIMIT 1
-                """,
-                (
-                    venue_id,
-                    booking_id,
-                    end_time.strftime(TIME_FORMAT),
-                    start_time.strftime(TIME_FORMAT),
-                ),
-            ).fetchone()
-            if conflict:
-                raise ValueError(
-                    f"時段衝突：{venue['name']} 已有預約 "
-                    f"({conflict['start_time']} - {conflict['end_time']})"
-                )
+            rows_to_update = [
+                {
+                    "id": existing["id"],
+                    "start_time": datetime.strptime(existing["start_time"], TIME_FORMAT),
+                }
+            ]
+            original_start = rows_to_update[0]["start_time"]
 
-            cur = conn.execute(
-                """
-                UPDATE bookings
-                SET venue_id = ?, customer = ?, purpose = ?, price = ?, start_time = ?, end_time = ?, note = ?
-                WHERE id = ?
-                """,
-                (
-                    venue_id,
-                    customer.strip(),
-                    purpose_name,
-                    booking_price,
-                    start_time.strftime(TIME_FORMAT),
-                    end_time.strftime(TIME_FORMAT),
-                    note_text,
-                    booking_id,
-                ),
-            )
-            if cur.rowcount == 0:
-                raise ValueError("預約不存在")
+            if existing["rental_group_id"]:
+                group_rows = conn.execute(
+                    """
+                    SELECT id, start_time
+                    FROM bookings
+                    WHERE rental_group_id = ?
+                    ORDER BY start_time
+                    """,
+                    (existing["rental_group_id"],),
+                ).fetchall()
+                if group_rows:
+                    rows_to_update = [
+                        {
+                            "id": row["id"],
+                            "start_time": datetime.strptime(row["start_time"], TIME_FORMAT),
+                        }
+                        for row in group_rows
+                    ]
+            elif existing["purpose"] in {"單月租", "雙月租"}:
+                legacy_period_end = self._month_end(original_start)
+                if existing["purpose"] == "雙月租":
+                    legacy_period_end = self._month_end(self._next_month_start(original_start))
+                legacy_rows = conn.execute(
+                    """
+                    SELECT id, start_time
+                    FROM bookings
+                    WHERE venue_id = ?
+                      AND customer = ?
+                      AND purpose = ?
+                      AND date(start_time) BETWEEN date(?) AND date(?)
+                      AND time(start_time) = time(?)
+                      AND time(end_time) = time(?)
+                    ORDER BY start_time
+                    """,
+                    (
+                        existing["venue_id"],
+                        existing["customer"],
+                        existing["purpose"],
+                        original_start.strftime("%Y-%m-%d"),
+                        legacy_period_end.strftime("%Y-%m-%d"),
+                        existing["start_time"],
+                        existing["end_time"],
+                    ),
+                ).fetchall()
+                if legacy_rows:
+                    rows_to_update = [
+                        {
+                            "id": row["id"],
+                            "start_time": datetime.strptime(row["start_time"], TIME_FORMAT),
+                        }
+                        for row in legacy_rows
+                    ]
+
+            start_delta = start_time - original_start
+            update_targets = []
+            row_ids = {row["id"] for row in rows_to_update}
+            for row in rows_to_update:
+                row_start = row["start_time"] + start_delta
+                row_end = row_start + duration
+                update_targets.append((row["id"], row_start, row_end))
+
+                conflict = conn.execute(
+                    """
+                    SELECT b.id, b.start_time, b.end_time
+                    FROM bookings b
+                    WHERE b.venue_id = ?
+                      AND b.id NOT IN ({ids})
+                      AND b.start_time < ?
+                      AND b.end_time > ?
+                    LIMIT 1
+                    """.format(ids=",".join(["?"] * len(row_ids))),
+                    (
+                        venue_id,
+                        *row_ids,
+                        row_end.strftime(TIME_FORMAT),
+                        row_start.strftime(TIME_FORMAT),
+                    ),
+                ).fetchone()
+                if conflict:
+                    raise ValueError(
+                        f"時段衝突：{venue['name']} 已有預約 "
+                        f"({conflict['start_time']} - {conflict['end_time']})"
+                    )
+
+            for row_id, row_start, row_end in update_targets:
+                conn.execute(
+                    """
+                    UPDATE bookings
+                    SET venue_id = ?, customer = ?, purpose = ?, price = ?, start_time = ?, end_time = ?, note = ?
+                    WHERE id = ?
+                    """,
+                    (
+                        venue_id,
+                        customer.strip(),
+                        purpose_name,
+                        booking_price,
+                        row_start.strftime(TIME_FORMAT),
+                        row_end.strftime(TIME_FORMAT),
+                        note_text,
+                        row_id,
+                    ),
+                )
 
         return Booking(
             booking_id=booking_id,

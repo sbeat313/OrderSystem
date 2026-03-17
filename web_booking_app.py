@@ -1303,7 +1303,10 @@ button { background:#4f46e5; color:#fff; border:none; cursor:pointer; }
 table { width:100%; border-collapse:collapse; margin-top:12px; }
 th, td { border:1px solid #dbe2f0; padding:10px; text-align:left; }
 th { background:#eef2ff; }
-.actions{display:flex;gap:8px;}
+.actions{display:flex;gap:8px;align-items:center;}
+.actions button{margin:0;}
+.editor-row{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;}
+.editor-row > div{display:flex;flex-direction:column;gap:4px;}
 .hover-top-zone { position: fixed; top: 0; left: 0; right: 0; height: 82px; z-index: 40; display:flex; justify-content:center; }
 .floating-actions { margin-top:8px; display:flex; gap:10px; align-items:center; padding:10px 14px; border:1px solid #dbe2f0; border-radius:14px; background:rgba(255,255,255,.94); box-shadow:0 10px 24px rgba(30,64,175,.18); opacity:0; transform:translateY(-20px); pointer-events:none; transition:opacity .2s ease, transform .2s ease; }
 .hover-top-zone:hover .floating-actions, .floating-actions:focus-within { opacity:1; transform:translateY(0); pointer-events:auto; }
@@ -1329,8 +1332,10 @@ th { background:#eef2ff; }
   <div class="stack">
     <div class="card">
       <h3 class="section-title">場地設定</h3>
-      <input id="new-venue" placeholder="新增場地名稱" />
-      <button style="margin-top:8px;" onclick="createVenue()">新增場地</button>
+      <div class="editor-row">
+        <div><label>場地名稱</label><input id="new-venue" placeholder="新增場地名稱" /></div>
+        <button onclick="createVenue()">新增場地</button>
+      </div>
       <table id="venue-table"></table>
     </div>
 
@@ -1430,7 +1435,7 @@ async function refreshStringItems() {
   const data = await resp.json();
   if (!resp.ok) { alert(data.error || '讀取失敗'); return; }
   document.getElementById('string-item-table').innerHTML = '<tr><th>項目</th><th>金額</th><th>操作</th></tr>' +
-    data.items.map(row => `<tr><td>${row.name}</td><td>$${Number(row.amount).toFixed(0)}</td><td><button style="padding:6px 10px; margin-right:6px;" onclick="editStringItem(${row.string_item_id}, '${row.name.replace(/'/g, "\'")}', ${Number(row.amount)})">儲存</button><button class="btn-danger" style="padding:6px 10px;" onclick="deleteStringItem(${row.string_item_id})">刪除</button></td></tr>`).join('');
+    data.items.map(row => `<tr><td>${row.name}</td><td>$${Number(row.amount).toFixed(0)}</td><td class="actions"><button onclick="editStringItem(${row.string_item_id}, '${row.name.replace(/'/g, \"\'\")}', ${Number(row.amount)})">儲存</button><button class="btn-danger" onclick="deleteStringItem(${row.string_item_id})">刪除</button></td></tr>`).join('');
 }
 
 async function deleteStringItem(id) {

@@ -121,6 +121,65 @@ class BookingManagerTests(unittest.TestCase):
         self.assertEqual(len(self.manager.list_bookings("2026-04-01")), 0)
         self.assertEqual(len(self.manager.list_bookings("2026-05-27")), 0)
 
+    def test_update_single_month_rent_updates_related_bookings(self):
+        items = self.manager.add_bookings_for_purpose(
+            venue_id=1,
+            customer="王小明",
+            purpose="單月租",
+            price=500,
+            start="2026-04-01 09:00",
+            end="2026-04-01 11:00",
+        )
+
+        self.manager.update_booking(
+            booking_id=items[0].booking_id,
+            venue_id=2,
+            customer="王小明-更新",
+            purpose="單月租",
+            price=650,
+            start="2026-04-01 10:00",
+            end="2026-04-01 12:00",
+            note="整組更新",
+        )
+
+        updated = self.manager.list_bookings("2026-04-08")
+        self.assertEqual(len(updated), 1)
+        self.assertEqual(updated[0].venue_id, 2)
+        self.assertEqual(updated[0].customer, "王小明-更新")
+        self.assertEqual(updated[0].purpose, "單月租")
+        self.assertEqual(updated[0].price, 650)
+        self.assertEqual(updated[0].start_time.strftime("%Y-%m-%d %H:%M"), "2026-04-08 10:00")
+        self.assertEqual(updated[0].end_time.strftime("%Y-%m-%d %H:%M"), "2026-04-08 12:00")
+        self.assertEqual(updated[0].note, "整組更新")
+
+    def test_update_double_month_rent_updates_related_bookings(self):
+        items = self.manager.add_bookings_for_purpose(
+            venue_id=1,
+            customer="王小明",
+            purpose="雙月租",
+            price=500,
+            start="2026-04-01 09:00",
+            end="2026-04-01 11:00",
+        )
+
+        self.manager.update_booking(
+            booking_id=items[-1].booking_id,
+            venue_id=3,
+            customer="王小明-雙月",
+            purpose="雙月租",
+            price=700,
+            start="2026-05-27 08:00",
+            end="2026-05-27 10:00",
+            note="雙月整組更新",
+        )
+
+        updated = self.manager.list_bookings("2026-04-01")
+        self.assertEqual(len(updated), 1)
+        self.assertEqual(updated[0].venue_id, 3)
+        self.assertEqual(updated[0].customer, "王小明-雙月")
+        self.assertEqual(updated[0].start_time.strftime("%Y-%m-%d %H:%M"), "2026-04-01 08:00")
+        self.assertEqual(updated[0].end_time.strftime("%Y-%m-%d %H:%M"), "2026-04-01 10:00")
+
     def test_persistence(self):
         self.manager.add_booking(2, "王小明", "2026-04-01 09:00", "2026-04-01 10:00", "臨租")
         manager2 = BookingManager(db_path=f"{self.tmp.name}/test.db")
