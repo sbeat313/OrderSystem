@@ -224,6 +224,33 @@ class BookingManagerTests(unittest.TestCase):
         self.assertEqual(updated.amount, 520)
         self.assertEqual(updated.payment_status, "結清")
 
+    def test_extra_income_pickup_date_normalizes_slash_separator(self):
+        created = self.manager.add_extra_income(
+            customer="王小明",
+            item="球拍",
+            amount=440,
+            income_time="2026-04-02 10:00",
+            racket_model="YONEX BG-66UM",
+            string_tension=34,
+            pickup_date="2026/04/06",
+        )
+        self.assertEqual(created.pickup_date, "2026-04-06")
+
+        updated = self.manager.update_extra_income(
+            income_id=created.income_id,
+            customer="王小明",
+            item="球拍",
+            amount=520,
+            income_time="2026-04-03 09:00",
+            racket_model="YONEX BG-80",
+            string_tension=33,
+            pickup_date="2026/04/07",
+        )
+        self.assertEqual(updated.pickup_date, "2026-04-07")
+
+        listed = self.manager.list_extra_incomes(start_date="2026-04-01", end_date="2026-04-10")
+        self.assertEqual(listed[0].pickup_date, "2026-04-07")
+
 
 
 if __name__ == "__main__":

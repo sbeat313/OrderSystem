@@ -824,7 +824,7 @@ class BookingManager:
         racket = racket_model.strip()
         paid_status = payment_status.strip()
         racket_state = racket_status.strip()
-        pickup = pickup_date.strip()
+        pickup = self._normalize_date_separator(pickup_date.strip())
         if not customer_name:
             raise ValueError("姓名不可為空")
         if not item_name:
@@ -916,7 +916,7 @@ class BookingManager:
         racket = racket_model.strip()
         paid_status = payment_status.strip()
         racket_state = racket_status.strip()
-        pickup = pickup_date.strip()
+        pickup = self._normalize_date_separator(pickup_date.strip())
         if not customer_name:
             raise ValueError("姓名不可為空")
         if not item_name:
@@ -1024,7 +1024,7 @@ class BookingManager:
                 string_tension=(int(row["string_tension"]) if row["string_tension"] is not None else None),
                 payment_status=row["payment_status"] or "",
                 racket_status=row["racket_status"] or "",
-                pickup_date=row["pickup_date"] or "",
+                pickup_date=self._normalize_date_separator(row["pickup_date"] or ""),
             )
             for row in rows
         ]
@@ -1043,6 +1043,13 @@ class BookingManager:
         if value < 0:
             raise ValueError("價錢不可為負數")
         return value
+
+    @staticmethod
+    def _normalize_date_separator(value: str) -> str:
+        text = value.strip()
+        if len(text) >= 10 and text[4] == "/" and text[7] == "/":
+            return f"{text[:4]}-{text[5:7]}-{text[8:10]}{text[10:]}"
+        return text
 
     @staticmethod
     def _month_end(dt: datetime) -> datetime:

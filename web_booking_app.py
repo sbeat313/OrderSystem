@@ -30,7 +30,7 @@ def booking_to_dict(booking: Booking) -> dict:
         "start_time": booking.start_time.strftime(TIME_FORMAT),
         "end_time": booking.end_time.strftime(TIME_FORMAT),
         "note": booking.note,
-        "created_at": booking.created_at,
+        "created_at": normalize_date_separator(booking.created_at),
     }
 
 
@@ -47,7 +47,7 @@ def extra_income_to_dict(income: ExtraIncome) -> dict:
         "string_tension": income.string_tension,
         "payment_status": income.payment_status,
         "racket_status": income.racket_status,
-        "pickup_date": income.pickup_date,
+        "pickup_date": normalize_date_separator(income.pickup_date),
     }
 
 
@@ -65,6 +65,13 @@ def purpose_to_dict(item: Any) -> dict:
         "name": item.name,
         "price": item.price,
     }
+
+
+def normalize_date_separator(value: str) -> str:
+    text = value.strip()
+    if len(text) >= 10 and text[4] == "/" and text[7] == "/":
+        return f"{text[:4]}-{text[5:7]}-{text[8:10]}{text[10:]}"
+    return text
 
 
 def get_admin_password() -> str:
