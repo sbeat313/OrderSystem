@@ -421,12 +421,7 @@ function formatWeekSectionLabel(baseDate, startOffsetDays = 0) {
   start.setDate(start.getDate() + startOffsetDays);
   const end = new Date(start);
   end.setDate(start.getDate() + 6);
-  const startText = `${start.getFullYear()}/${String(start.getMonth() + 1).padStart(2, '0')}/${String(start.getDate()).padStart(2, '0')}`;
-  if (start.getFullYear() === end.getFullYear() && start.getMonth() === end.getMonth()) {
-    return `${startText}-${String(end.getDate()).padStart(2, '0')}`;
-  }
-  const endText = `${end.getFullYear()}/${String(end.getMonth() + 1).padStart(2, '0')}/${String(end.getDate()).padStart(2, '0')}`;
-  return `${startText}-${endText}`;
+  return `${fmtDate(start)} ~ ${fmtDate(end)}`;
 }
 
 async function loadVenues() {
