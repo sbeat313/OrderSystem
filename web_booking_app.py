@@ -332,7 +332,7 @@ td.slot.booked-user .booking-pill { background: #93c5fd; }
     <div class="toolbar">
       <div class="field">
         <label>&nbsp;</label>
-        <input id="date" type="date" />
+        <input id="date" type="date" lang="en-CA" />
       </div>
     </div>
     <div class="week-nav">
@@ -355,8 +355,8 @@ td.slot.booked-user .booking-pill { background: #93c5fd; }
       <div><label>預約人</label><input id="customer" placeholder="例如：江江" /></div>
       <div><label>用途</label><select id="purpose"></select></div>
       <div><label>價錢</label><input id="price" type="number" min="0" step="1" placeholder="例如：500" /></div>
-      <div><label>開始時間</label><input id="start" type="datetime-local" /></div>
-      <div><label>結束時間</label><input id="end" type="datetime-local" /></div>
+      <div><label>開始時間</label><input id="start" type="datetime-local" lang="en-CA" /></div>
+      <div><label>結束時間</label><input id="end" type="datetime-local" lang="en-CA" /></div>
       <div style="grid-column:1 / -1;"><label>備註</label><input id="booking-note" placeholder="可留空" /></div>
     </div>
     <div class="modal-actions">
@@ -1531,7 +1531,7 @@ th { background:#eef2ff; }
   </div>
   <div class="card">
     <div class="filters">
-      <div><div>日期時間</div><input id="income-time" type="datetime-local"/></div>
+      <div><div>日期時間</div><input id="income-time" type="datetime-local" lang="en-CA"/></div>
       <div><div>姓名</div><input id="income-customer" placeholder="例如：王小明"/></div>
       <div>
         <div>項目</div>
@@ -1569,7 +1569,7 @@ th { background:#eef2ff; }
       </div>
       <div>
         <div>客戶取回日</div>
-        <input id="income-pickup-date" type="date"/>
+        <input id="income-pickup-date" type="date" lang="en-CA"/>
       </div>
     </div>
 
@@ -2041,8 +2041,8 @@ th { background:#eef2ff; }
   </div>
   <div class="card">
     <div class="filters">
-      <div><div>開始日期</div><input id="start-date" type="date"/></div>
-      <div><div>結束日期</div><input id="end-date" type="date"/></div>
+      <div><div>開始日期</div><input id="start-date" type="date" lang="en-CA"/></div>
+      <div><div>結束日期</div><input id="end-date" type="date" lang="en-CA"/></div>
       <div><div>姓名</div><input id="customer-filter" placeholder="留空=全部"/></div>
       <button id="query-btn">查詢</button>
       <button id="export-btn">匯出 Excel</button>
