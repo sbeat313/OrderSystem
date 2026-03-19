@@ -488,6 +488,8 @@ const ADMIN_PASSWORD_KEY = 'booking_admin_password';
 const ADMIN_EXPIRES_KEY = 'booking_admin_expires_at';
 const ADMIN_SESSION_TTL_MS_KEY = 'booking_admin_session_ttl_ms';
 const DEFAULT_ADMIN_SESSION_TTL_MS = 2 * 60 * 60 * 1000;
+// 臨時關閉：兩週連續時段圖表，後續可能移除
+const SHOW_CONTINUITY_CHART = false;
 
 function getAdminSessionTtlMs() {
   const raw = Number(localStorage.getItem(ADMIN_SESSION_TTL_MS_KEY) || 0);
@@ -994,33 +996,35 @@ async function refresh() {
   } else {
     const week1Label = formatWeekSectionLabel(date, 0);
     const week2Label = formatWeekSectionLabel(date, 7);
-    const week1Dates = [];
-    const week2Dates = [];
-    const start = weekStart(date);
-    for (let i = 0; i < 7; i++) {
-      const d1 = new Date(start);
-      d1.setDate(start.getDate() + i);
-      week1Dates.push(fmtDate(d1));
-      const d2 = new Date(start);
-      d2.setDate(start.getDate() + 7 + i);
-      week2Dates.push(fmtDate(d2));
-    }
     gridSections.innerHTML = [
       '<div class="grid-section">',
       `  <h3 class="grid-section-title">${week1Label}</h3>`,
       '  <div class="grid-wrap"><table id="grid-week-1"></table></div>',
-      '  <div id="continuity-week-1"></div>',
+      SHOW_CONTINUITY_CHART ? '  <div id="continuity-week-1"></div>' : '',
       '</div>',
       '<div class="grid-section">',
       `  <h3 class="grid-section-title">${week2Label}</h3>`,
       '  <div class="grid-wrap"><table id="grid-week-2"></table></div>',
-      '  <div id="continuity-week-2"></div>',
+      SHOW_CONTINUITY_CHART ? '  <div id="continuity-week-2"></div>' : '',
       '</div>',
     ].join('');
     renderWeekly(weekData, date, 7, document.getElementById('grid-week-1'), 0);
     renderWeekly(weekData, date, 7, document.getElementById('grid-week-2'), 7);
-    renderContinuityList(weekData, week1Dates, 'continuity-week-1');
-    renderContinuityList(weekData, week2Dates, 'continuity-week-2');
+    if (SHOW_CONTINUITY_CHART) {
+      const week1Dates = [];
+      const week2Dates = [];
+      const start = weekStart(date);
+      for (let i = 0; i < 7; i++) {
+        const d1 = new Date(start);
+        d1.setDate(start.getDate() + i);
+        week1Dates.push(fmtDate(d1));
+        const d2 = new Date(start);
+        d2.setDate(start.getDate() + 7 + i);
+        week2Dates.push(fmtDate(d2));
+      }
+      renderContinuityList(weekData, week1Dates, 'continuity-week-1');
+      renderContinuityList(weekData, week2Dates, 'continuity-week-2');
+    }
   }
   updateWeekLabel();
 }
