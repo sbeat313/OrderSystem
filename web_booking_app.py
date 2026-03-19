@@ -213,17 +213,7 @@ button:hover { filter: brightness(.98); transform: translateY(-1px); }
 }
 .continuity-wrap {
   margin-top: 10px;
-  border: 2px solid #bfd2ef;
-  border-radius: 14px;
-  background: #f8fbff;
-  padding: 14px;
-}
-.continuity-title {
-  margin: 0 0 10px;
-  color: #1e3a8a;
-  font-size: 21px;
-  font-weight: 800;
-  letter-spacing: .4px;
+  padding: 0;
 }
 .continuity-day {
   border: 2px solid #dbe5f2;
@@ -310,7 +300,6 @@ button:hover { filter: brightness(.98); transform: translateY(-1px); }
     page-break-inside: avoid;
   }
   .title { font-size: 34px; margin-bottom: 4px; }
-  .continuity-title { font-size: 22px; }
   .continuity-day h5 { font-size: 18px; }
   .continuity-chart .venue-col { font-size: 16px; }
   .continuity-chart th { font-size: 13px; }
@@ -491,8 +480,7 @@ const DEFAULT_ADMIN_SESSION_TTL_MS = 2 * 60 * 60 * 1000;
 const SHOW_CONTINUITY_CHART = true;
 // 臨時隱藏舊版週表（畫面上不顯示）
 const SHOW_WEEKLY_GRID = false;
-// 臨時隱藏第二週版面（未來可能移除）
-const SHOW_SECOND_WEEK_SECTION = false;
+const SHOW_SECOND_WEEK_SECTION = true;
 
 function getAdminSessionTtlMs() {
   const raw = Number(localStorage.getItem(ADMIN_SESSION_TTL_MS_KEY) || 0);
@@ -566,7 +554,7 @@ function renderContinuityList(weekData, dates, containerId) {
   if (!container) return;
   const weekdayNames = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
   let html = '<div class="continuity-wrap">';
-  html += '<h4 class="continuity-title">長輩友善：場地可連續預約時段（列印用）</h4>';
+  html += '<div class="continuity-legend">圖例：○ 可預約、滿 已預約（連續多個○就是可連續預約時段）</div>';
 
   for (const day of dates) {
     const weekDay = new Date(`${day}T00:00:00`).getDay();
@@ -586,7 +574,7 @@ function renderContinuityList(weekData, dates, containerId) {
       html += `<tr><td class="venue-col">${venue.name}</td>`;
       for (let h = START_HOUR; h < END_HOUR; h++) {
         if (bookedHours.has(h)) {
-          html += '<td class="continuity-cell booked">●</td>';
+          html += '<td class="continuity-cell booked">滿</td>';
         } else {
           html += '<td class="continuity-cell free">○</td>';
         }
@@ -594,7 +582,6 @@ function renderContinuityList(weekData, dates, containerId) {
       html += '</tr>';
     }
     html += '</table></div>';
-    html += '<div class="continuity-legend">圖例：○ 可預約、● 已預約（連續多個○就是可連續預約時段）</div>';
     html += '</div>';
   }
   html += '</div>';
@@ -1001,15 +988,11 @@ async function refresh() {
     const week2Label = formatWeekSectionLabel(date, 7);
     gridSections.innerHTML = [
       '<div class="grid-section">',
-      `  <h3 class="grid-section-title">${week1Label}</h3>`,
       SHOW_WEEKLY_GRID ? '  <div class="grid-wrap"><table id="grid-week-1"></table></div>' : '',
-      SHOW_CONTINUITY_CHART ? '  <div id="continuity-week-1"></div>' : '',
+      SHOW_CONTINUITY_CHART ? '  <div id="continuity-range"></div>' : '',
+      SHOW_WEEKLY_GRID && !SHOW_SECOND_WEEK_SECTION ? `  <h3 class="grid-section-title">${week1Label}</h3>` : '',
+      SHOW_WEEKLY_GRID && SHOW_SECOND_WEEK_SECTION ? `  <h3 class="grid-section-title">${week1Label} / ${week2Label}</h3>` : '',
       '</div>',
-      SHOW_SECOND_WEEK_SECTION ? '<div class="grid-section">' : '',
-      SHOW_SECOND_WEEK_SECTION ? `  <h3 class="grid-section-title">${week2Label}</h3>` : '',
-      SHOW_SECOND_WEEK_SECTION && SHOW_WEEKLY_GRID ? '  <div class="grid-wrap"><table id="grid-week-2"></table></div>' : '',
-      SHOW_SECOND_WEEK_SECTION && SHOW_CONTINUITY_CHART ? '  <div id="continuity-week-2"></div>' : '',
-      SHOW_SECOND_WEEK_SECTION ? '</div>' : '',
     ].join('');
     if (SHOW_WEEKLY_GRID) {
       renderWeekly(weekData, date, 7, document.getElementById('grid-week-1'), 0);
@@ -1018,23 +1001,15 @@ async function refresh() {
       renderWeekly(weekData, date, 7, document.getElementById('grid-week-2'), 7);
     }
     if (SHOW_CONTINUITY_CHART) {
-      const week1Dates = [];
+      const rangeDates = [];
+      const rangeDays = SHOW_SECOND_WEEK_SECTION ? 14 : 7;
       const start = weekStart(date);
-      for (let i = 0; i < 7; i++) {
+      for (let i = 0; i < rangeDays; i++) {
         const d1 = new Date(start);
         d1.setDate(start.getDate() + i);
-        week1Dates.push(fmtDate(d1));
+        rangeDates.push(fmtDate(d1));
       }
-      renderContinuityList(weekData, week1Dates, 'continuity-week-1');
-      if (SHOW_SECOND_WEEK_SECTION) {
-        const week2Dates = [];
-        for (let i = 0; i < 7; i++) {
-          const d2 = new Date(start);
-          d2.setDate(start.getDate() + 7 + i);
-          week2Dates.push(fmtDate(d2));
-        }
-        renderContinuityList(weekData, week2Dates, 'continuity-week-2');
-      }
+      renderContinuityList(weekData, rangeDates, 'continuity-range');
     }
   }
   updateWeekLabel();
