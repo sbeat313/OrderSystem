@@ -212,37 +212,68 @@ button:hover { filter: brightness(.98); transform: translateY(-1px); }
   font-weight: 800;
 }
 .continuity-wrap {
-  margin-top: 8px;
-  border: 1px solid #d6e3f2;
-  border-radius: 12px;
+  margin-top: 10px;
+  border: 2px solid #bfd2ef;
+  border-radius: 14px;
   background: #f8fbff;
-  padding: 10px;
+  padding: 14px;
 }
 .continuity-title {
-  margin: 0 0 8px;
-  color: #1f3b6d;
-  font-size: 15px;
+  margin: 0 0 10px;
+  color: #1e3a8a;
+  font-size: 21px;
   font-weight: 800;
+  letter-spacing: .4px;
 }
 .continuity-day {
-  border: 1px solid #dbe5f2;
-  border-radius: 10px;
+  border: 2px solid #dbe5f2;
+  border-radius: 12px;
   background: #fff;
-  padding: 8px 10px;
+  padding: 10px 12px;
 }
 .continuity-day + .continuity-day { margin-top: 8px; }
 .continuity-day h5 {
-  margin: 0 0 6px;
+  margin: 0 0 8px;
   color: #1e3a8a;
-  font-size: 14px;
+  font-size: 18px;
 }
-.continuity-day ul {
-  margin: 0;
-  padding-left: 18px;
+.continuity-venue {
+  border: 1px solid #dce7f5;
+  border-radius: 10px;
+  background: #f9fbff;
+  padding: 8px 10px;
 }
-.continuity-day li {
-  margin: 2px 0;
-  font-size: 14px;
+.continuity-venue + .continuity-venue { margin-top: 8px; }
+.continuity-venue-name {
+  font-size: 18px;
+  font-weight: 800;
+  color: #0f2f66;
+  margin-bottom: 6px;
+}
+.continuity-slots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.continuity-slot {
+  display: inline-block;
+  padding: 7px 10px;
+  border-radius: 999px;
+  background: #e8f7eb;
+  color: #166534;
+  border: 1px solid #bbdfc5;
+  font-size: 16px;
+  font-weight: 700;
+}
+.continuity-slot.short {
+  background: #eef2ff;
+  border-color: #c9d7ff;
+  color: #1e40af;
+}
+.continuity-empty {
+  font-size: 16px;
+  font-weight: 700;
+  color: #991b1b;
 }
 @media print {
   .hover-top-zone,
@@ -265,6 +296,11 @@ button:hover { filter: brightness(.98); transform: translateY(-1px); }
     page-break-inside: avoid;
   }
   .title { font-size: 34px; margin-bottom: 4px; }
+  .continuity-title { font-size: 22px; }
+  .continuity-day h5 { font-size: 18px; }
+  .continuity-venue-name { font-size: 17px; }
+  .continuity-slot,
+  .continuity-empty { font-size: 15px; }
 }
 table { border-collapse: separate; border-spacing: 0; width: max-content; min-width: 100%; background: #fff; }
 th, td { border: 1px solid #dbe5f2; text-align: center; font-size: 16px; padding: 8px; min-width: 48px; }
@@ -521,24 +557,29 @@ function renderContinuityList(weekData, dates, containerId) {
   if (!container) return;
   const weekdayNames = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
   let html = '<div class="continuity-wrap">';
-  html += '<h4 class="continuity-title">場地可連續預約時段清單（列印用）</h4>';
+  html += '<h4 class="continuity-title">長輩友善：場地可連續預約時段（列印用）</h4>';
 
   for (const day of dates) {
     const weekDay = new Date(`${day}T00:00:00`).getDay();
     const bookings = weekData[day] || [];
-    html += `<div class="continuity-day"><h5>${day}（${weekdayNames[weekDay]}）</h5><ul>`;
+    html += `<div class="continuity-day"><h5>${day}（${weekdayNames[weekDay]}）</h5>`;
     for (const venue of venues) {
       const freeSegments = collectVenueContinuousFreeSlots(bookings, venue.venue_id);
+      html += '<div class="continuity-venue">';
+      html += `<div class="continuity-venue-name">${venue.name}</div>`;
       if (!freeSegments.length) {
-        html += `<li><strong>${venue.name}</strong>：無可預約時段</li>`;
+        html += '<div class="continuity-empty">今天沒有可預約時段</div>';
+        html += '</div>';
         continue;
       }
-      const segText = freeSegments
-        .map(seg => `${formatHourRange(seg.start, seg.end)}（${seg.length}h）`)
-        .join('、');
-      html += `<li><strong>${venue.name}</strong>：${segText}</li>`;
+      html += '<div class="continuity-slots">';
+      for (const seg of freeSegments) {
+        const shortClass = seg.length < 2 ? ' short' : '';
+        html += `<span class="continuity-slot${shortClass}">${formatHourRange(seg.start, seg.end)}（${seg.length}小時）</span>`;
+      }
+      html += '</div></div>';
     }
-    html += '</ul></div>';
+    html += '</div>';
   }
   html += '</div>';
   container.innerHTML = html;
