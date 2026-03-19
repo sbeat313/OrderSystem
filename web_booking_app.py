@@ -238,37 +238,51 @@ button:hover { filter: brightness(.98); transform: translateY(-1px); }
   font-size: 18px;
 }
 .continuity-venue {
-  border: 1px solid #dce7f5;
-  border-radius: 10px;
-  background: #f9fbff;
-  padding: 8px 10px;
+  margin-top: 6px;
 }
-.continuity-venue + .continuity-venue { margin-top: 8px; }
-.continuity-venue-name {
-  font-size: 18px;
+.continuity-chart {
+  width: 100%;
+  min-width: 980px;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+.continuity-chart th,
+.continuity-chart td {
+  border: 1px solid #d7e2f1;
+  text-align: center;
+  padding: 7px 6px;
+}
+.continuity-chart th {
+  background: #edf4ff;
+  color: #1e3a8a;
+  font-size: 14px;
+}
+.continuity-chart .venue-col {
+  min-width: 90px;
+  font-size: 17px;
   font-weight: 800;
   color: #0f2f66;
-  margin-bottom: 6px;
+  background: #f6faff;
 }
-.continuity-slots {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+.continuity-chart .time-col {
+  min-width: 55px;
 }
-.continuity-slot {
-  display: inline-block;
-  padding: 7px 10px;
-  border-radius: 999px;
+.continuity-cell {
+  font-size: 16px;
+  font-weight: 800;
+}
+.continuity-cell.free {
   background: #e8f7eb;
   color: #166534;
-  border: 1px solid #bbdfc5;
-  font-size: 16px;
-  font-weight: 700;
 }
-.continuity-slot.short {
-  background: #eef2ff;
-  border-color: #c9d7ff;
-  color: #1e40af;
+.continuity-cell.booked {
+  background: #ffe4e6;
+  color: #9f1239;
+}
+.continuity-legend {
+  margin-top: 8px;
+  font-size: 15px;
+  color: #334155;
 }
 .continuity-empty {
   font-size: 16px;
@@ -298,8 +312,10 @@ button:hover { filter: brightness(.98); transform: translateY(-1px); }
   .title { font-size: 34px; margin-bottom: 4px; }
   .continuity-title { font-size: 22px; }
   .continuity-day h5 { font-size: 18px; }
-  .continuity-venue-name { font-size: 17px; }
-  .continuity-slot,
+  .continuity-chart .venue-col { font-size: 16px; }
+  .continuity-chart th { font-size: 13px; }
+  .continuity-cell,
+  .continuity-legend,
   .continuity-empty { font-size: 15px; }
 }
 table { border-collapse: separate; border-spacing: 0; width: max-content; min-width: 100%; background: #fff; }
@@ -526,7 +542,7 @@ function formatHourRange(startHour, endHour) {
   return `${String(startHour).padStart(2, '0')}:00-${String(endHour).padStart(2, '0')}:00`;
 }
 
-function collectVenueContinuousFreeSlots(bookings, venueId) {
+function collectVenueBookedHours(bookings, venueId) {
   const bookedHours = new Set();
   for (const booking of bookings) {
     if (Number(booking.venue_id) !== Number(venueId)) continue;
@@ -537,19 +553,7 @@ function collectVenueContinuousFreeSlots(bookings, venueId) {
     }
   }
 
-  const freeSegments = [];
-  let segmentStart = null;
-  for (let h = START_HOUR; h <= END_HOUR; h++) {
-    const isFree = h < END_HOUR && !bookedHours.has(h);
-    if (isFree && segmentStart === null) {
-      segmentStart = h;
-    } else if (!isFree && segmentStart !== null) {
-      freeSegments.push({ start: segmentStart, end: h, length: h - segmentStart });
-      segmentStart = null;
-    }
-  }
-
-  return freeSegments;
+  return bookedHours;
 }
 
 function renderContinuityList(weekData, dates, containerId) {
@@ -563,22 +567,29 @@ function renderContinuityList(weekData, dates, containerId) {
     const weekDay = new Date(`${day}T00:00:00`).getDay();
     const bookings = weekData[day] || [];
     html += `<div class="continuity-day"><h5>${day}（${weekdayNames[weekDay]}）</h5>`;
-    for (const venue of venues) {
-      const freeSegments = collectVenueContinuousFreeSlots(bookings, venue.venue_id);
-      html += '<div class="continuity-venue">';
-      html += `<div class="continuity-venue-name">${venue.name}</div>`;
-      if (!freeSegments.length) {
-        html += '<div class="continuity-empty">今天沒有可預約時段</div>';
-        html += '</div>';
-        continue;
-      }
-      html += '<div class="continuity-slots">';
-      for (const seg of freeSegments) {
-        const shortClass = seg.length < 2 ? ' short' : '';
-        html += `<span class="continuity-slot${shortClass}">${formatHourRange(seg.start, seg.end)}（${seg.length}小時）</span>`;
-      }
-      html += '</div></div>';
+    if (!bookings.length) {
+      html += '<div class="continuity-empty">今天目前沒有預約，全部時段可預約</div>';
     }
+    html += '<div class="continuity-venue"><table class="continuity-chart"><tr><th class="venue-col">場地＼時段</th>';
+    for (let h = START_HOUR; h < END_HOUR; h++) {
+      html += `<th class="time-col">${String(h).padStart(2, '0')}-${String(h + 1).padStart(2, '0')}</th>`;
+    }
+    html += '</tr>';
+
+    for (const venue of venues) {
+      const bookedHours = collectVenueBookedHours(bookings, venue.venue_id);
+      html += `<tr><td class="venue-col">${venue.name}</td>`;
+      for (let h = START_HOUR; h < END_HOUR; h++) {
+        if (bookedHours.has(h)) {
+          html += '<td class="continuity-cell booked">●</td>';
+        } else {
+          html += '<td class="continuity-cell free">○</td>';
+        }
+      }
+      html += '</tr>';
+    }
+    html += '</table></div>';
+    html += '<div class="continuity-legend">圖例：○ 可預約、● 已預約（連續多個○就是可連續預約時段）</div>';
     html += '</div>';
   }
   html += '</div>';
