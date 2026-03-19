@@ -211,6 +211,69 @@ button:hover { filter: brightness(.98); transform: translateY(-1px); }
   color: #334155;
   font-weight: 800;
 }
+.venue-summary-wrap {
+  margin-top: 8px;
+  border: 1px solid #d6e3f2;
+  border-radius: 12px;
+  background: #f8fbff;
+  overflow-x: auto;
+}
+.venue-summary-title {
+  margin: 0;
+  padding: 10px 12px;
+  border-bottom: 1px solid #d6e3f2;
+  color: #1f3b6d;
+  font-size: 15px;
+  font-weight: 800;
+}
+.venue-summary-table {
+  width: 100%;
+  min-width: 860px;
+  border-collapse: separate;
+  border-spacing: 0;
+  background: #fff;
+}
+.venue-summary-table th,
+.venue-summary-table td {
+  border: 1px solid #dbe5f2;
+  padding: 8px 6px;
+  font-size: 14px;
+  text-align: center;
+  vertical-align: middle;
+  min-width: 90px;
+}
+.venue-summary-table th {
+  background: linear-gradient(180deg, #f7faff, #edf4ff);
+  color: #193b72;
+}
+.venue-summary-table .venue-col {
+  min-width: 130px;
+  font-weight: 800;
+  background: #f4f8ff;
+}
+.venue-summary-cell-status { font-weight: 700; }
+@media print {
+  .hover-top-zone,
+  .control-row { display: none !important; }
+  .container { padding: 8px 10px 12px; }
+  .panel {
+    min-height: auto;
+    box-shadow: none;
+    border-radius: 10px;
+    padding: 8px;
+  }
+  .grid-wrap,
+  .venue-summary-wrap {
+    box-shadow: none;
+    break-inside: avoid-page;
+    page-break-inside: avoid;
+  }
+  .grid-section {
+    break-inside: avoid-page;
+    page-break-inside: avoid;
+  }
+  .title { font-size: 34px; margin-bottom: 4px; }
+}
 table { border-collapse: separate; border-spacing: 0; width: max-content; min-width: 100%; background: #fff; }
 th, td { border: 1px solid #dbe5f2; text-align: center; font-size: 16px; padding: 8px; min-width: 48px; }
 th {
@@ -429,6 +492,89 @@ function formatWeekSectionLabel(baseDate, startOffsetDays = 0) {
   const end = new Date(start);
   end.setDate(start.getDate() + 6);
   return `${fmtDate(start)} ~ ${fmtDate(end)}`;
+}
+
+function formatHourRange(startHour, endHour) {
+  return `${String(startHour).padStart(2, '0')}:00-${String(endHour).padStart(2, '0')}:00`;
+}
+
+function summarizeVenueDay(bookings, venueId) {
+  const bookedHours = new Set();
+  for (const booking of bookings) {
+    if (Number(booking.venue_id) !== Number(venueId)) continue;
+    const startHour = toDateObj(booking.start_time).getHours();
+    const endHour = toDateObj(booking.end_time).getHours();
+    for (let h = startHour; h < endHour; h++) {
+      if (h >= START_HOUR && h < END_HOUR) bookedHours.add(h);
+    }
+  }
+
+  const freeSegments = [];
+  let segmentStart = null;
+  for (let h = START_HOUR; h <= END_HOUR; h++) {
+    const isFree = h < END_HOUR && !bookedHours.has(h);
+    if (isFree && segmentStart === null) {
+      segmentStart = h;
+    } else if (!isFree && segmentStart !== null) {
+      freeSegments.push({ start: segmentStart, end: h, length: h - segmentStart });
+      segmentStart = null;
+    }
+  }
+
+  const longestFree = freeSegments.reduce(
+    (best, seg) => (seg.length > best.length ? seg : best),
+    { start: START_HOUR, end: START_HOUR, length: 0 },
+  );
+  const bookedHourCount = bookedHours.size;
+  const totalHourCount = END_HOUR - START_HOUR;
+
+  return {
+    bookedHourCount,
+    freeHourCount: totalHourCount - bookedHourCount,
+    longestFree,
+  };
+}
+
+function makeVenueSummaryCell(day, bookings, venueId) {
+  const summary = summarizeVenueDay(bookings, venueId);
+  const canBookConsecutive = summary.longestFree.length >= 2;
+  const statusText = canBookConsecutive ? '可連續預約' : '連續時段較少';
+  const consecutiveText = summary.longestFree.length > 0
+    ? `${summary.longestFree.length}小時（${formatHourRange(summary.longestFree.start, summary.longestFree.end)}）`
+    : '無空檔';
+
+  return [
+    `<td data-day="${day}" data-venue-id="${venueId}">`,
+    `  <div class="venue-summary-cell-status">${statusText}</div>`,
+    `  <div>最長連續空檔：${consecutiveText}</div>`,
+    `  <div>已預約 ${summary.bookedHourCount}h ／ 空檔 ${summary.freeHourCount}h</div>`,
+    '</td>',
+  ].join('');
+}
+
+function renderVenueSummary(weekData, dates, containerId) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  const weekdayNames = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
+
+  let html = '<div class="venue-summary-wrap">';
+  html += '<h4 class="venue-summary-title">場地連續預約總覽（方便列印給使用者）</h4>';
+  html += '<table class="venue-summary-table"><tr><th class="venue-col">場地</th>';
+  for (const day of dates) {
+    const weekDay = new Date(`${day}T00:00:00`).getDay();
+    html += `<th>${day}<br/>${weekdayNames[weekDay]}</th>`;
+  }
+  html += '</tr>';
+
+  for (const venue of venues) {
+    html += `<tr><td class="venue-col">${venue.name}</td>`;
+    for (const day of dates) {
+      html += makeVenueSummaryCell(day, weekData[day] || [], venue.venue_id);
+    }
+    html += '</tr>';
+  }
+  html += '</table></div>';
+  container.innerHTML = html;
 }
 
 async function loadVenues() {
@@ -829,18 +975,33 @@ async function refresh() {
   } else {
     const week1Label = formatWeekSectionLabel(date, 0);
     const week2Label = formatWeekSectionLabel(date, 7);
+    const week1Dates = [];
+    const week2Dates = [];
+    const start = weekStart(date);
+    for (let i = 0; i < 7; i++) {
+      const d1 = new Date(start);
+      d1.setDate(start.getDate() + i);
+      week1Dates.push(fmtDate(d1));
+      const d2 = new Date(start);
+      d2.setDate(start.getDate() + 7 + i);
+      week2Dates.push(fmtDate(d2));
+    }
     gridSections.innerHTML = [
       '<div class="grid-section">',
       `  <h3 class="grid-section-title">${week1Label}</h3>`,
       '  <div class="grid-wrap"><table id="grid-week-1"></table></div>',
+      '  <div id="venue-summary-week-1"></div>',
       '</div>',
       '<div class="grid-section">',
       `  <h3 class="grid-section-title">${week2Label}</h3>`,
       '  <div class="grid-wrap"><table id="grid-week-2"></table></div>',
+      '  <div id="venue-summary-week-2"></div>',
       '</div>',
     ].join('');
     renderWeekly(weekData, date, 7, document.getElementById('grid-week-1'), 0);
     renderWeekly(weekData, date, 7, document.getElementById('grid-week-2'), 7);
+    renderVenueSummary(weekData, week1Dates, 'venue-summary-week-1');
+    renderVenueSummary(weekData, week2Dates, 'venue-summary-week-2');
   }
   updateWeekLabel();
 }
