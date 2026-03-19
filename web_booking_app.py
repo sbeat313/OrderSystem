@@ -489,6 +489,8 @@ const ADMIN_EXPIRES_KEY = 'booking_admin_expires_at';
 const ADMIN_SESSION_TTL_MS_KEY = 'booking_admin_session_ttl_ms';
 const DEFAULT_ADMIN_SESSION_TTL_MS = 2 * 60 * 60 * 1000;
 const SHOW_CONTINUITY_CHART = true;
+// 臨時隱藏舊版週表（畫面上不顯示）
+const SHOW_WEEKLY_GRID = false;
 // 臨時隱藏第二週版面（未來可能移除）
 const SHOW_SECOND_WEEK_SECTION = false;
 
@@ -1000,17 +1002,19 @@ async function refresh() {
     gridSections.innerHTML = [
       '<div class="grid-section">',
       `  <h3 class="grid-section-title">${week1Label}</h3>`,
-      '  <div class="grid-wrap"><table id="grid-week-1"></table></div>',
+      SHOW_WEEKLY_GRID ? '  <div class="grid-wrap"><table id="grid-week-1"></table></div>' : '',
       SHOW_CONTINUITY_CHART ? '  <div id="continuity-week-1"></div>' : '',
       '</div>',
       SHOW_SECOND_WEEK_SECTION ? '<div class="grid-section">' : '',
       SHOW_SECOND_WEEK_SECTION ? `  <h3 class="grid-section-title">${week2Label}</h3>` : '',
-      SHOW_SECOND_WEEK_SECTION ? '  <div class="grid-wrap"><table id="grid-week-2"></table></div>' : '',
+      SHOW_SECOND_WEEK_SECTION && SHOW_WEEKLY_GRID ? '  <div class="grid-wrap"><table id="grid-week-2"></table></div>' : '',
       SHOW_SECOND_WEEK_SECTION && SHOW_CONTINUITY_CHART ? '  <div id="continuity-week-2"></div>' : '',
       SHOW_SECOND_WEEK_SECTION ? '</div>' : '',
     ].join('');
-    renderWeekly(weekData, date, 7, document.getElementById('grid-week-1'), 0);
-    if (SHOW_SECOND_WEEK_SECTION) {
+    if (SHOW_WEEKLY_GRID) {
+      renderWeekly(weekData, date, 7, document.getElementById('grid-week-1'), 0);
+    }
+    if (SHOW_SECOND_WEEK_SECTION && SHOW_WEEKLY_GRID) {
       renderWeekly(weekData, date, 7, document.getElementById('grid-week-2'), 7);
     }
     if (SHOW_CONTINUITY_CHART) {
