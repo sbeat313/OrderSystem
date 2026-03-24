@@ -301,7 +301,7 @@ button:hover { filter: brightness(.98); transform: translateY(-1px); }
   padding: 10px 12px;
 }
 .continuity-day.weekend {
-  background: antiquewhite;
+  background: orange;
 }
 .continuity-day + .continuity-day { margin-top: 8px; }
 .continuity-day h5 {
@@ -356,11 +356,6 @@ button:hover { filter: brightness(.98); transform: translateY(-1px); }
   font-size: 15px;
   color: #334155;
 }
-.continuity-empty {
-  font-size: 16px;
-  font-weight: 700;
-  color: #991b1b;
-}
 @media print {
   .hover-top-zone,
   .control-row { display: none !important; }
@@ -386,8 +381,7 @@ button:hover { filter: brightness(.98); transform: translateY(-1px); }
   .continuity-chart .venue-col { font-size: 16px; }
   .continuity-chart th { font-size: 13px; }
   .continuity-cell,
-  .continuity-legend,
-  .continuity-empty { font-size: 15px; }
+  .continuity-legend { font-size: 15px; }
 }
 table { border-collapse: separate; border-spacing: 0; width: max-content; min-width: 100%; background: #fff; }
 th, td { border: 1px solid #dbe5f2; text-align: center; font-size: 16px; padding: 8px; min-width: 48px; }
@@ -636,16 +630,13 @@ function renderContinuityList(weekData, dates, containerId) {
   if (!container) return;
   const weekdayNames = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
   let html = '<div class="continuity-wrap">';
-  html += '<div class="continuity-legend">圖例：○ 可預約、滿 已預約（連續多個○就是可連續預約時段）</div>';
+  html += '<div class="continuity-legend">圖例：○ 可預約、滿 已預約</div>';
 
   for (const day of dates) {
     const weekDay = new Date(`${day}T00:00:00`).getDay();
     const bookings = weekData[day] || [];
     const dayClass = isWeekend(day) ? 'continuity-day weekend' : 'continuity-day';
     html += `<div class="${dayClass}"><h5>${day}（${weekdayNames[weekDay]}）</h5>`;
-    if (!bookings.length) {
-      html += '<div class="continuity-empty">今天目前沒有預約，全部時段可預約</div>';
-    }
     html += '<div class="continuity-venue"><table class="continuity-chart"><tr><th class="venue-col">場地＼時段</th>';
     for (let h = START_HOUR; h < END_HOUR; h++) {
       html += `<th class="time-col">${String(h).padStart(2, '0')}-${String(h + 1).padStart(2, '0')}</th>`;
