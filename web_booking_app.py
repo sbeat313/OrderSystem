@@ -211,6 +211,105 @@ button:hover { filter: brightness(.98); transform: translateY(-1px); }
   color: #334155;
   font-weight: 800;
 }
+.continuity-wrap {
+  margin-top: 10px;
+  padding: 0;
+}
+.continuity-day {
+  border: 2px solid #dbe5f2;
+  border-radius: 12px;
+  background: #fff;
+  padding: 10px 12px;
+}
+.continuity-day.weekend {
+  background: antiquewhite;
+}
+.continuity-day + .continuity-day { margin-top: 8px; }
+.continuity-day h5 {
+  margin: 0 0 8px;
+  color: #1e3a8a;
+  font-size: 18px;
+}
+.continuity-venue {
+  margin-top: 6px;
+}
+.continuity-chart {
+  width: 100%;
+  min-width: 980px;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+.continuity-chart th,
+.continuity-chart td {
+  border: 1px solid #d7e2f1;
+  text-align: center;
+  padding: 7px 6px;
+}
+.continuity-chart th {
+  background: #edf4ff;
+  color: #1e3a8a;
+  font-size: 14px;
+}
+.continuity-chart .venue-col {
+  min-width: 90px;
+  font-size: 17px;
+  font-weight: 800;
+  color: #0f2f66;
+  background: #f6faff;
+}
+.continuity-chart .time-col {
+  min-width: 55px;
+}
+.continuity-cell {
+  font-size: 16px;
+  font-weight: 800;
+}
+.continuity-cell.free {
+  background: #e8f7eb;
+  color: #166534;
+}
+.continuity-cell.booked {
+  background: #ffe4e6;
+  color: #9f1239;
+}
+.continuity-legend {
+  margin-top: 8px;
+  font-size: 15px;
+  color: #334155;
+}
+.continuity-empty {
+  font-size: 16px;
+  font-weight: 700;
+  color: #991b1b;
+}
+@media print {
+  .hover-top-zone,
+  .control-row { display: none !important; }
+  .container { padding: 8px 10px 12px; }
+  .panel {
+    min-height: auto;
+    box-shadow: none;
+    border-radius: 10px;
+    padding: 8px;
+  }
+  .grid-wrap,
+  .continuity-wrap {
+    box-shadow: none;
+    break-inside: avoid-page;
+    page-break-inside: avoid;
+  }
+  .grid-section {
+    break-inside: avoid-page;
+    page-break-inside: avoid;
+  }
+  .title { font-size: 34px; margin-bottom: 4px; }
+  .continuity-day h5 { font-size: 18px; }
+  .continuity-chart .venue-col { font-size: 16px; }
+  .continuity-chart th { font-size: 13px; }
+  .continuity-cell,
+  .continuity-legend,
+  .continuity-empty { font-size: 15px; }
+}
 table { border-collapse: separate; border-spacing: 0; width: max-content; min-width: 100%; background: #fff; }
 th, td { border: 1px solid #dbe5f2; text-align: center; font-size: 16px; padding: 8px; min-width: 48px; }
 th {
@@ -314,7 +413,7 @@ td.slot.booked-user .booking-pill { background: #93c5fd; }
 <div class="container">
   <div class="title-row">
     <div class="title-wrap">
-      <h2 class="title">暖西羽球館預約系統</h2>
+      <h2 class="title">暖西羽球館場地更新表</h2>
       <div class="title-icon">🏸</div>
     </div>
     <div class="contact-info">
@@ -381,6 +480,10 @@ const ADMIN_PASSWORD_KEY = 'booking_admin_password';
 const ADMIN_EXPIRES_KEY = 'booking_admin_expires_at';
 const ADMIN_SESSION_TTL_MS_KEY = 'booking_admin_session_ttl_ms';
 const DEFAULT_ADMIN_SESSION_TTL_MS = 2 * 60 * 60 * 1000;
+const SHOW_CONTINUITY_CHART = true;
+// 臨時隱藏舊版週表（畫面上不顯示）
+const SHOW_WEEKLY_GRID = false;
+const SHOW_SECOND_WEEK_SECTION = true;
 
 function getAdminSessionTtlMs() {
   const raw = Number(localStorage.getItem(ADMIN_SESSION_TTL_MS_KEY) || 0);
@@ -429,6 +532,64 @@ function formatWeekSectionLabel(baseDate, startOffsetDays = 0) {
   const end = new Date(start);
   end.setDate(start.getDate() + 6);
   return `${fmtDate(start)} ~ ${fmtDate(end)}`;
+}
+
+function formatHourRange(startHour, endHour) {
+  return `${String(startHour).padStart(2, '0')}:00-${String(endHour).padStart(2, '0')}:00`;
+}
+
+function collectVenueBookedHours(bookings, venueId) {
+  const bookedHours = new Set();
+  for (const booking of bookings) {
+    if (Number(booking.venue_id) !== Number(venueId)) continue;
+    const startHour = toDateObj(booking.start_time).getHours();
+    const endHour = toDateObj(booking.end_time).getHours();
+    for (let h = startHour; h < endHour; h++) {
+      if (h >= START_HOUR && h < END_HOUR) bookedHours.add(h);
+    }
+  }
+
+  return bookedHours;
+}
+
+function renderContinuityList(weekData, dates, containerId) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  const weekdayNames = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
+  let html = '<div class="continuity-wrap">';
+  html += '<div class="continuity-legend">圖例：○ 可預約、滿 已預約（連續多個○就是可連續預約時段）</div>';
+
+  for (const day of dates) {
+    const weekDay = new Date(`${day}T00:00:00`).getDay();
+    const bookings = weekData[day] || [];
+    const dayClass = isWeekend(day) ? 'continuity-day weekend' : 'continuity-day';
+    html += `<div class="${dayClass}"><h5>${day}（${weekdayNames[weekDay]}）</h5>`;
+    if (!bookings.length) {
+      html += '<div class="continuity-empty">今天目前沒有預約，全部時段可預約</div>';
+    }
+    html += '<div class="continuity-venue"><table class="continuity-chart"><tr><th class="venue-col">場地＼時段</th>';
+    for (let h = START_HOUR; h < END_HOUR; h++) {
+      html += `<th class="time-col">${String(h).padStart(2, '0')}-${String(h + 1).padStart(2, '0')}</th>`;
+    }
+    html += '</tr>';
+
+    for (const venue of venues) {
+      const bookedHours = collectVenueBookedHours(bookings, venue.venue_id);
+      html += `<tr><td class="venue-col">${venue.name}</td>`;
+      for (let h = START_HOUR; h < END_HOUR; h++) {
+        if (bookedHours.has(h)) {
+          html += '<td class="continuity-cell booked">滿</td>';
+        } else {
+          html += '<td class="continuity-cell free">○</td>';
+        }
+      }
+      html += '</tr>';
+    }
+    html += '</table></div>';
+    html += '</div>';
+  }
+  html += '</div>';
+  container.innerHTML = html;
 }
 
 async function loadVenues() {
@@ -764,6 +925,7 @@ function renderWeekly(weekData, baseDate, days = 14, grid, startOffsetDays = 0) 
         for (const [index, venue] of venues.entries()) {
           const classes = [];
           if (dayIndex > 0 && index === 0) classes.push('day-block-start');
+          if (isWeekendDay) classes.push('weekend-date-label');
           html += `<th class="${classes.join(' ')}">${venue.name}</th>`;
         }
       } else {
@@ -802,11 +964,13 @@ ${b.purpose || ''}
 $${Number(b.price || 0).toFixed(0)}`;
             let cell = makeSlotCell(day, h, venue.venue_id, b, text, span);
             if (dayIndex > 0 && index === 0) cell = cell.replace('class="slot', 'class="slot day-block-start');
+            if (isWeekendDay) cell = cell.replace('class="slot', 'class="slot weekend-time');
             html += cell;
             continue;
           }
           let cell = makeSlotCell(day, h, venue.venue_id, null, '', 1);
           if (dayIndex > 0 && index === 0) cell = cell.replace('class="slot', 'class="slot day-block-start');
+          if (isWeekendDay) cell = cell.replace('class="slot', 'class="slot weekend-time');
           html += cell;
         }
       }
@@ -831,16 +995,29 @@ async function refresh() {
     const week2Label = formatWeekSectionLabel(date, 7);
     gridSections.innerHTML = [
       '<div class="grid-section">',
-      `  <h3 class="grid-section-title">${week1Label}</h3>`,
-      '  <div class="grid-wrap"><table id="grid-week-1"></table></div>',
-      '</div>',
-      '<div class="grid-section">',
-      `  <h3 class="grid-section-title">${week2Label}</h3>`,
-      '  <div class="grid-wrap"><table id="grid-week-2"></table></div>',
+      SHOW_WEEKLY_GRID ? '  <div class="grid-wrap"><table id="grid-week-1"></table></div>' : '',
+      SHOW_CONTINUITY_CHART ? '  <div id="continuity-range"></div>' : '',
+      SHOW_WEEKLY_GRID && !SHOW_SECOND_WEEK_SECTION ? `  <h3 class="grid-section-title">${week1Label}</h3>` : '',
+      SHOW_WEEKLY_GRID && SHOW_SECOND_WEEK_SECTION ? `  <h3 class="grid-section-title">${week1Label} / ${week2Label}</h3>` : '',
       '</div>',
     ].join('');
-    renderWeekly(weekData, date, 7, document.getElementById('grid-week-1'), 0);
-    renderWeekly(weekData, date, 7, document.getElementById('grid-week-2'), 7);
+    if (SHOW_WEEKLY_GRID) {
+      renderWeekly(weekData, date, 7, document.getElementById('grid-week-1'), 0);
+    }
+    if (SHOW_SECOND_WEEK_SECTION && SHOW_WEEKLY_GRID) {
+      renderWeekly(weekData, date, 7, document.getElementById('grid-week-2'), 7);
+    }
+    if (SHOW_CONTINUITY_CHART) {
+      const rangeDates = [];
+      const rangeDays = SHOW_SECOND_WEEK_SECTION ? 14 : 7;
+      const start = weekStart(date);
+      for (let i = 0; i < rangeDays; i++) {
+        const d1 = new Date(start);
+        d1.setDate(start.getDate() + i);
+        rangeDates.push(fmtDate(d1));
+      }
+      renderContinuityList(weekData, rangeDates, 'continuity-range');
+    }
   }
   updateWeekLabel();
 }
