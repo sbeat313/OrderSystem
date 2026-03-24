@@ -79,6 +79,85 @@ def get_admin_password() -> str:
         saved = manager.get_setting("admin_password", "")
     return saved or ADMIN_PASSWORD
 
+
+def include_extra_income_record(row: Dict[str, Any]) -> bool:
+    if row["item"] != "球拍":
+        return True
+    return row["payment_status"] == "結清" and bool(row["pickup_date"])
+
+
+def filter_booking_records(
+    all_bookings: List[Dict[str, Any]],
+    start_date: str,
+    end_date: str,
+    customer: str,
+) -> List[Dict[str, Any]]:
+    booking_records: List[Dict[str, Any]] = []
+    for row in all_bookings:
+        booking_date = row["start_time"][:10]
+        if booking_date < start_date or booking_date > end_date:
+            continue
+        if customer and row["customer"] != customer:
+            continue
+        booking_records.append(row)
+    return booking_records
+
+
+def build_report_payload(start_date: str, end_date: str, customer: str) -> Dict[str, Any]:
+    with manager_lock:
+        booking_items = manager.summarize_fees(start_date, end_date, customer)
+        all_bookings = [booking_to_dict(item) for item in manager.list_bookings()]
+        all_extra_records = [
+            extra_income_to_dict(item)
+            for item in manager.list_extra_incomes(start_date=start_date, end_date=end_date, customer=customer)
+        ]
+
+    booking_records = filter_booking_records(all_bookings, start_date, end_date, customer)
+    extra_records = [row for row in all_extra_records if include_extra_income_record(row)]
+
+    booking_map = {
+        item["customer"]: {
+            "customer": item["customer"],
+            "booking_total": float(item["total_fee"]),
+            "extra_income_total": 0.0,
+        }
+        for item in booking_items
+    }
+    for row in extra_records:
+        if row["customer"] not in booking_map:
+            booking_map[row["customer"]] = {
+                "customer": row["customer"],
+                "booking_total": 0.0,
+                "extra_income_total": 0.0,
+            }
+        booking_map[row["customer"]]["extra_income_total"] += float(row["amount"])
+
+    summary_items = []
+    for item in booking_map.values():
+        total_fee = float(item["booking_total"] + item["extra_income_total"])
+        summary_items.append(
+            {
+                "customer": item["customer"],
+                "booking_total": float(item["booking_total"]),
+                "extra_income_total": float(item["extra_income_total"]),
+                "total_fee": total_fee,
+            }
+        )
+    summary_items.sort(key=lambda row: (-row["total_fee"], row["customer"]))
+
+    booking_grand_total = sum(float(item["total_fee"]) for item in booking_items)
+    extra_income_grand_total = sum(float(row["amount"]) for row in extra_records)
+
+    return {
+        "booking_items": booking_items,
+        "booking_records": booking_records,
+        "extra_records": extra_records,
+        "summary_items": summary_items,
+        "booking_grand_total": booking_grand_total,
+        "extra_income_grand_total": extra_income_grand_total,
+        "grand_total": booking_grand_total + extra_income_grand_total,
+    }
+
 HTML_PAGE = """<!doctype html>
 <html lang="zh-Hant">
 <head>
@@ -2435,6 +2514,17 @@ document.addEventListener('click', (event) => {
 
 
 class BookingWebHandler(BaseHTTPRequestHandler):
+    def _read_json_payload(self) -> Dict[str, Any]:
+        content_len = int(self.headers.get("Content-Length", "0"))
+        try:
+            raw = self.rfile.read(content_len) if content_len > 0 else b"{}"
+            payload = json.loads(raw or b"{}")
+        except json.JSONDecodeError as exc:
+            raise ValueError("JSON 格式錯誤") from exc
+        if not isinstance(payload, dict):
+            raise ValueError("JSON 格式錯誤")
+        return payload
+
     def _send_json(self, payload: Union[Dict[str, Any], List[Any]], status: int = HTTPStatus.OK) -> None:
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         self.send_response(status)
@@ -2498,9 +2588,8 @@ class BookingWebHandler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
         parsed = urlparse(self.path)
         try:
-            content_len = int(self.headers.get("Content-Length", "0"))
-            payload = json.loads(self.rfile.read(content_len) or "{}")
-        except json.JSONDecodeError:
+            payload = self._read_json_payload()
+        except ValueError:
             self._send_json({"error": "JSON 格式錯誤"}, status=HTTPStatus.BAD_REQUEST)
             return
 
@@ -2610,57 +2699,16 @@ class BookingWebHandler(BaseHTTPRequestHandler):
                 if not start_date or not end_date:
                     raise ValueError("請提供開始與結束日期")
                 customer = str(payload.get("customer", "")).strip()
-                with manager_lock:
-                    booking_items = manager.summarize_fees(start_date, end_date, customer)
-                    all_bookings = [booking_to_dict(item) for item in manager.list_bookings()]
-                    all_extra_records = [
-                        extra_income_to_dict(item)
-                        for item in manager.list_extra_incomes(start_date=start_date, end_date=end_date, customer=customer)
-                    ]
-
-                booking_records = []
-                for row in all_bookings:
-                    booking_date = row["start_time"][:10]
-                    if booking_date < start_date or booking_date > end_date:
-                        continue
-                    if customer and row["customer"] != customer:
-                        continue
-                    booking_records.append(row)
-
-                extra_records = []
-                for row in all_extra_records:
-                    if row["item"] != "球拍":
-                        extra_records.append(row)
-                        continue
-                    if row["payment_status"] == "結清" and row["pickup_date"]:
-                        extra_records.append(row)
-
-                booking_map = {
-                    item["customer"]: {
-                        "customer": item["customer"],
-                        "booking_total": float(item["total_fee"]),
-                        "extra_income_total": 0.0,
-                    }
-                    for item in booking_items
-                }
-                for row in extra_records:
-                    if row["customer"] not in booking_map:
-                        booking_map[row["customer"]] = {
-                            "customer": row["customer"],
-                            "booking_total": 0.0,
-                            "extra_income_total": 0.0,
-                        }
-                    booking_map[row["customer"]]["extra_income_total"] += float(row["amount"])
-
-                summary_rows = []
-                for item in booking_map.values():
-                    total_fee = float(item["booking_total"] + item["extra_income_total"])
-                    summary_rows.append((item["customer"], item["booking_total"], item["extra_income_total"], total_fee))
-                summary_rows.sort(key=lambda row: (-row[3], row[0]))
-
-                booking_grand_total = sum(float(item["total_fee"]) for item in booking_items)
-                extra_income_grand_total = sum(float(row["amount"]) for row in extra_records)
-                grand_total = booking_grand_total + extra_income_grand_total
+                report = build_report_payload(start_date, end_date, customer)
+                booking_records = report["booking_records"]
+                extra_records = report["extra_records"]
+                summary_rows = [
+                    (item["customer"], item["booking_total"], item["extra_income_total"], item["total_fee"])
+                    for item in report["summary_items"]
+                ]
+                booking_grand_total = report["booking_grand_total"]
+                extra_income_grand_total = report["extra_income_grand_total"]
+                grand_total = report["grand_total"]
 
                 def build_racket_details(row: Dict[str, Any]) -> str:
                     if row["item"] != "球拍":
@@ -2758,62 +2806,14 @@ class BookingWebHandler(BaseHTTPRequestHandler):
                 page_size = max(1, min(100, int(payload.get("page_size", 10) or 10)))
                 booking_page = max(1, int(payload.get("booking_page", 1) or 1))
                 extra_income_page = max(1, int(payload.get("extra_income_page", 1) or 1))
-                with manager_lock:
-                    booking_items = manager.summarize_fees(start_date, end_date, customer)
-                    all_bookings = [booking_to_dict(item) for item in manager.list_bookings()]
-                    all_extra_records = [
-                        extra_income_to_dict(item)
-                        for item in manager.list_extra_incomes(start_date=start_date, end_date=end_date, customer=customer)
-                    ]
-
-                booking_records = []
-                for row in all_bookings:
-                    booking_date = row["start_time"][:10]
-                    if booking_date < start_date or booking_date > end_date:
-                        continue
-                    if customer and row["customer"] != customer:
-                        continue
-                    booking_records.append(row)
-
-                extra_records = []
-                for row in all_extra_records:
-                    if row["item"] != "球拍":
-                        extra_records.append(row)
-                        continue
-                    if row["payment_status"] == "結清" and row["pickup_date"]:
-                        extra_records.append(row)
-
-                booking_map = {
-                    item["customer"]: {
-                        "customer": item["customer"],
-                        "booking_total": float(item["total_fee"]),
-                        "extra_income_total": 0.0,
-                    }
-                    for item in booking_items
-                }
-                for row in extra_records:
-                    if row["customer"] not in booking_map:
-                        booking_map[row["customer"]] = {
-                            "customer": row["customer"],
-                            "booking_total": 0.0,
-                            "extra_income_total": 0.0,
-                        }
-                    booking_map[row["customer"]]["extra_income_total"] += float(row["amount"])
-
-                items = []
-                for item in booking_map.values():
-                    total_fee = float(item["booking_total"] + item["extra_income_total"])
-                    items.append({
-                        "customer": item["customer"],
-                        "booking_total": float(item["booking_total"]),
-                        "extra_income_total": float(item["extra_income_total"]),
-                        "total_fee": total_fee,
-                    })
-                items.sort(key=lambda row: (-row["total_fee"], row["customer"]))
-
-                booking_grand_total = sum(float(item["total_fee"]) for item in booking_items)
-                extra_income_grand_total = sum(float(row["amount"]) for row in extra_records)
-                grand_total = booking_grand_total + extra_income_grand_total
+                report = build_report_payload(start_date, end_date, customer)
+                booking_items = report["booking_items"]
+                booking_records = report["booking_records"]
+                extra_records = report["extra_records"]
+                items = report["summary_items"]
+                booking_grand_total = report["booking_grand_total"]
+                extra_income_grand_total = report["extra_income_grand_total"]
+                grand_total = report["grand_total"]
 
                 booking_total_records = len(booking_records)
                 extra_income_total_records = len(extra_records)
@@ -2887,8 +2887,7 @@ class BookingWebHandler(BaseHTTPRequestHandler):
     def do_PUT(self) -> None:
         parsed = urlparse(self.path)
         try:
-            content_len = int(self.headers.get("Content-Length", "0"))
-            payload = json.loads(self.rfile.read(content_len) or "{}")
+            payload = self._read_json_payload()
             self._check_admin_password(payload)
             with manager_lock:
                 if parsed.path == "/api/venues":
@@ -2938,14 +2937,13 @@ class BookingWebHandler(BaseHTTPRequestHandler):
                     self._send_json(extra_income_to_dict(item))
                     return
                 self._send_json({"error": "Not Found"}, status=HTTPStatus.NOT_FOUND)
-        except (ValueError, json.JSONDecodeError) as exc:
+        except ValueError as exc:
             self._send_json({"error": str(exc) or "JSON 格式錯誤"}, status=HTTPStatus.BAD_REQUEST)
 
     def do_DELETE(self) -> None:
         parsed = urlparse(self.path)
         try:
-            content_len = int(self.headers.get("Content-Length", "0"))
-            payload = json.loads(self.rfile.read(content_len) or "{}")
+            payload = self._read_json_payload()
             self._check_admin_password(payload)
             with manager_lock:
                 if parsed.path == "/api/venues":
@@ -2965,7 +2963,7 @@ class BookingWebHandler(BaseHTTPRequestHandler):
                 self._send_json({"error": "資料不存在"}, status=HTTPStatus.NOT_FOUND)
                 return
             self._send_json({"ok": True})
-        except (ValueError, json.JSONDecodeError) as exc:
+        except ValueError as exc:
             self._send_json({"error": str(exc) or "JSON 格式錯誤"}, status=HTTPStatus.BAD_REQUEST)
 
     @staticmethod
