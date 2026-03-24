@@ -139,33 +139,19 @@ class BookingManager:
                 )
                 """
             )
-            columns = [row["name"] for row in conn.execute("PRAGMA table_info(bookings)").fetchall()]
-            if "price" not in columns:
-                conn.execute("ALTER TABLE bookings ADD COLUMN price REAL NOT NULL DEFAULT 0")
-            if "rental_group_id" not in columns:
-                conn.execute("ALTER TABLE bookings ADD COLUMN rental_group_id TEXT")
-            if "note" not in columns:
-                conn.execute("ALTER TABLE bookings ADD COLUMN note TEXT NOT NULL DEFAULT ''")
-            if "created_at" not in columns:
-                conn.execute("ALTER TABLE bookings ADD COLUMN created_at TEXT NOT NULL DEFAULT ''")
+            self._ensure_column(conn, "bookings", "price", "ALTER TABLE bookings ADD COLUMN price REAL NOT NULL DEFAULT 0")
+            self._ensure_column(conn, "bookings", "rental_group_id", "ALTER TABLE bookings ADD COLUMN rental_group_id TEXT")
+            self._ensure_column(conn, "bookings", "note", "ALTER TABLE bookings ADD COLUMN note TEXT NOT NULL DEFAULT ''")
+            self._ensure_column(conn, "bookings", "created_at", "ALTER TABLE bookings ADD COLUMN created_at TEXT NOT NULL DEFAULT ''")
 
-            extra_columns = [row["name"] for row in conn.execute("PRAGMA table_info(extra_incomes)").fetchall()]
-            if "contact_phone" not in extra_columns:
-                conn.execute("ALTER TABLE extra_incomes ADD COLUMN contact_phone TEXT NOT NULL DEFAULT ''")
-            if "racket_model" not in extra_columns:
-                conn.execute("ALTER TABLE extra_incomes ADD COLUMN racket_model TEXT NOT NULL DEFAULT ''")
-            if "string_tension" not in extra_columns:
-                conn.execute("ALTER TABLE extra_incomes ADD COLUMN string_tension INTEGER")
-            if "payment_status" not in extra_columns:
-                conn.execute("ALTER TABLE extra_incomes ADD COLUMN payment_status TEXT NOT NULL DEFAULT ''")
-            if "racket_status" not in extra_columns:
-                conn.execute("ALTER TABLE extra_incomes ADD COLUMN racket_status TEXT NOT NULL DEFAULT ''")
-            if "pickup_date" not in extra_columns:
-                conn.execute("ALTER TABLE extra_incomes ADD COLUMN pickup_date TEXT NOT NULL DEFAULT ''")
+            self._ensure_column(conn, "extra_incomes", "contact_phone", "ALTER TABLE extra_incomes ADD COLUMN contact_phone TEXT NOT NULL DEFAULT ''")
+            self._ensure_column(conn, "extra_incomes", "racket_model", "ALTER TABLE extra_incomes ADD COLUMN racket_model TEXT NOT NULL DEFAULT ''")
+            self._ensure_column(conn, "extra_incomes", "string_tension", "ALTER TABLE extra_incomes ADD COLUMN string_tension INTEGER")
+            self._ensure_column(conn, "extra_incomes", "payment_status", "ALTER TABLE extra_incomes ADD COLUMN payment_status TEXT NOT NULL DEFAULT ''")
+            self._ensure_column(conn, "extra_incomes", "racket_status", "ALTER TABLE extra_incomes ADD COLUMN racket_status TEXT NOT NULL DEFAULT ''")
+            self._ensure_column(conn, "extra_incomes", "pickup_date", "ALTER TABLE extra_incomes ADD COLUMN pickup_date TEXT NOT NULL DEFAULT ''")
 
-            purpose_columns = [row["name"] for row in conn.execute("PRAGMA table_info(purposes)").fetchall()]
-            if "price" not in purpose_columns:
-                conn.execute("ALTER TABLE purposes ADD COLUMN price REAL NOT NULL DEFAULT 0")
+            self._ensure_column(conn, "purposes", "price", "ALTER TABLE purposes ADD COLUMN price REAL NOT NULL DEFAULT 0")
 
             count = conn.execute("SELECT COUNT(*) FROM venues").fetchone()[0]
             if count == 0:
@@ -817,39 +803,19 @@ class BookingManager:
         racket_status: str = "",
         pickup_date: str = "",
     ) -> ExtraIncome:
-        customer_name = customer.strip()
-        item_name = item.strip()
-        memo = note.strip()
-        phone = contact_phone.strip()
-        racket = racket_model.strip()
-        paid_status = payment_status.strip()
-        racket_state = racket_status.strip()
-        pickup = self._normalize_date_separator(pickup_date.strip())
-        if not customer_name:
-            raise ValueError("姓名不可為空")
-        if not item_name:
-            raise ValueError("項目不可為空")
-
-        try:
-            dt = datetime.strptime(income_time.strip(), TIME_FORMAT)
-        except ValueError as exc:
-            raise ValueError(f"時間格式錯誤，請使用 {TIME_FORMAT}") from exc
-        income_amount = self._parse_price(amount)
-
-        tension_value: Optional[int] = None
-        if string_tension not in (None, ""):
-            try:
-                tension_value = int(string_tension)
-            except (TypeError, ValueError) as exc:
-                raise ValueError("磅數格式錯誤") from exc
-            if tension_value <= 0:
-                raise ValueError("磅數必須為正整數")
-
-        if item_name == "球拍":
-            if not racket:
-                raise ValueError("球拍項目需填寫穿線項目")
-            if tension_value is None:
-                raise ValueError("球拍項目需填寫磅數")
+        parsed = self._validate_extra_income_payload(
+            customer=customer,
+            item=item,
+            amount=amount,
+            income_time=income_time,
+            note=note,
+            contact_phone=contact_phone,
+            racket_model=racket_model,
+            string_tension=string_tension,
+            payment_status=payment_status,
+            racket_status=racket_status,
+            pickup_date=pickup_date,
+        )
 
         with self._connect() as conn:
             cursor = conn.execute(
@@ -861,34 +827,34 @@ class BookingManager:
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
-                    customer_name,
-                    item_name,
-                    income_amount,
-                    memo,
-                    dt.strftime(TIME_FORMAT),
-                    phone,
-                    racket,
-                    tension_value,
-                    paid_status,
-                    racket_state,
-                    pickup,
+                    parsed["customer_name"],
+                    parsed["item_name"],
+                    parsed["income_amount"],
+                    parsed["memo"],
+                    parsed["income_time"].strftime(TIME_FORMAT),
+                    parsed["phone"],
+                    parsed["racket"],
+                    parsed["tension_value"],
+                    parsed["paid_status"],
+                    parsed["racket_state"],
+                    parsed["pickup"],
                 ),
             )
             income_id = cursor.lastrowid
 
         return ExtraIncome(
             income_id=income_id,
-            customer=customer_name,
-            item=item_name,
-            amount=income_amount,
-            note=memo,
-            income_time=dt,
-            contact_phone=phone,
-            racket_model=racket,
-            string_tension=tension_value,
-            payment_status=paid_status,
-            racket_status=racket_state,
-            pickup_date=pickup,
+            customer=parsed["customer_name"],
+            item=parsed["item_name"],
+            amount=parsed["income_amount"],
+            note=parsed["memo"],
+            income_time=parsed["income_time"],
+            contact_phone=parsed["phone"],
+            racket_model=parsed["racket"],
+            string_tension=parsed["tension_value"],
+            payment_status=parsed["paid_status"],
+            racket_status=parsed["racket_state"],
+            pickup_date=parsed["pickup"],
         )
 
     def update_extra_income(
@@ -909,39 +875,19 @@ class BookingManager:
         if income_id <= 0:
             raise ValueError("收入資料不存在")
 
-        customer_name = customer.strip()
-        item_name = item.strip()
-        memo = note.strip()
-        phone = contact_phone.strip()
-        racket = racket_model.strip()
-        paid_status = payment_status.strip()
-        racket_state = racket_status.strip()
-        pickup = self._normalize_date_separator(pickup_date.strip())
-        if not customer_name:
-            raise ValueError("姓名不可為空")
-        if not item_name:
-            raise ValueError("項目不可為空")
-
-        try:
-            dt = datetime.strptime(income_time.strip(), TIME_FORMAT)
-        except ValueError as exc:
-            raise ValueError(f"時間格式錯誤，請使用 {TIME_FORMAT}") from exc
-        income_amount = self._parse_price(amount)
-
-        tension_value: Optional[int] = None
-        if string_tension not in (None, ""):
-            try:
-                tension_value = int(string_tension)
-            except (TypeError, ValueError) as exc:
-                raise ValueError("磅數格式錯誤") from exc
-            if tension_value <= 0:
-                raise ValueError("磅數必須為正整數")
-
-        if item_name == "球拍":
-            if not racket:
-                raise ValueError("球拍項目需填寫穿線項目")
-            if tension_value is None:
-                raise ValueError("球拍項目需填寫磅數")
+        parsed = self._validate_extra_income_payload(
+            customer=customer,
+            item=item,
+            amount=amount,
+            income_time=income_time,
+            note=note,
+            contact_phone=contact_phone,
+            racket_model=racket_model,
+            string_tension=string_tension,
+            payment_status=payment_status,
+            racket_status=racket_status,
+            pickup_date=pickup_date,
+        )
 
         with self._connect() as conn:
             cur = conn.execute(
@@ -953,17 +899,17 @@ class BookingManager:
                 WHERE id = ?
                 """,
                 (
-                    customer_name,
-                    item_name,
-                    income_amount,
-                    memo,
-                    dt.strftime(TIME_FORMAT),
-                    phone,
-                    racket,
-                    tension_value,
-                    paid_status,
-                    racket_state,
-                    pickup,
+                    parsed["customer_name"],
+                    parsed["item_name"],
+                    parsed["income_amount"],
+                    parsed["memo"],
+                    parsed["income_time"].strftime(TIME_FORMAT),
+                    parsed["phone"],
+                    parsed["racket"],
+                    parsed["tension_value"],
+                    parsed["paid_status"],
+                    parsed["racket_state"],
+                    parsed["pickup"],
                     income_id,
                 ),
             )
@@ -972,17 +918,17 @@ class BookingManager:
 
         return ExtraIncome(
             income_id=income_id,
-            customer=customer_name,
-            item=item_name,
-            amount=income_amount,
-            note=memo,
-            income_time=dt,
-            contact_phone=phone,
-            racket_model=racket,
-            string_tension=tension_value,
-            payment_status=paid_status,
-            racket_status=racket_state,
-            pickup_date=pickup,
+            customer=parsed["customer_name"],
+            item=parsed["item_name"],
+            amount=parsed["income_amount"],
+            note=parsed["memo"],
+            income_time=parsed["income_time"],
+            contact_phone=parsed["phone"],
+            racket_model=parsed["racket"],
+            string_tension=parsed["tension_value"],
+            payment_status=parsed["paid_status"],
+            racket_status=parsed["racket_state"],
+            pickup_date=parsed["pickup"],
         )
 
     def list_extra_incomes(
@@ -1033,6 +979,74 @@ class BookingManager:
         with self._connect() as conn:
             cur = conn.execute("DELETE FROM extra_incomes WHERE id = ?", (income_id,))
             return cur.rowcount > 0
+
+    @staticmethod
+    def _ensure_column(conn: sqlite3.Connection, table_name: str, column_name: str, ddl: str) -> None:
+        columns = {row["name"] for row in conn.execute(f"PRAGMA table_info({table_name})").fetchall()}
+        if column_name not in columns:
+            conn.execute(ddl)
+
+    def _validate_extra_income_payload(
+        self,
+        customer: str,
+        item: str,
+        amount: float,
+        income_time: str,
+        note: str = "",
+        contact_phone: str = "",
+        racket_model: str = "",
+        string_tension: Optional[int] = None,
+        payment_status: str = "",
+        racket_status: str = "",
+        pickup_date: str = "",
+    ) -> dict:
+        customer_name = customer.strip()
+        item_name = item.strip()
+        memo = note.strip()
+        phone = contact_phone.strip()
+        racket = racket_model.strip()
+        paid_status = payment_status.strip()
+        racket_state = racket_status.strip()
+        pickup = self._normalize_date_separator(pickup_date.strip())
+        if not customer_name:
+            raise ValueError("姓名不可為空")
+        if not item_name:
+            raise ValueError("項目不可為空")
+
+        try:
+            dt = datetime.strptime(income_time.strip(), TIME_FORMAT)
+        except ValueError as exc:
+            raise ValueError(f"時間格式錯誤，請使用 {TIME_FORMAT}") from exc
+        income_amount = self._parse_price(amount)
+
+        tension_value: Optional[int] = None
+        if string_tension not in (None, ""):
+            try:
+                tension_value = int(string_tension)
+            except (TypeError, ValueError) as exc:
+                raise ValueError("磅數格式錯誤") from exc
+            if tension_value <= 0:
+                raise ValueError("磅數必須為正整數")
+
+        if item_name == "球拍":
+            if not racket:
+                raise ValueError("球拍項目需填寫穿線項目")
+            if tension_value is None:
+                raise ValueError("球拍項目需填寫磅數")
+
+        return {
+            "customer_name": customer_name,
+            "item_name": item_name,
+            "memo": memo,
+            "phone": phone,
+            "racket": racket,
+            "paid_status": paid_status,
+            "racket_state": racket_state,
+            "pickup": pickup,
+            "income_time": dt,
+            "income_amount": income_amount,
+            "tension_value": tension_value,
+        }
 
     @staticmethod
     def _parse_price(price: float) -> float:

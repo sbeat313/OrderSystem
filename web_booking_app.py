@@ -79,6 +79,85 @@ def get_admin_password() -> str:
         saved = manager.get_setting("admin_password", "")
     return saved or ADMIN_PASSWORD
 
+
+def include_extra_income_record(row: Dict[str, Any]) -> bool:
+    if row["item"] != "球拍":
+        return True
+    return row["payment_status"] == "結清" and bool(row["pickup_date"])
+
+
+def filter_booking_records(
+    all_bookings: List[Dict[str, Any]],
+    start_date: str,
+    end_date: str,
+    customer: str,
+) -> List[Dict[str, Any]]:
+    booking_records: List[Dict[str, Any]] = []
+    for row in all_bookings:
+        booking_date = row["start_time"][:10]
+        if booking_date < start_date or booking_date > end_date:
+            continue
+        if customer and row["customer"] != customer:
+            continue
+        booking_records.append(row)
+    return booking_records
+
+
+def build_report_payload(start_date: str, end_date: str, customer: str) -> Dict[str, Any]:
+    with manager_lock:
+        booking_items = manager.summarize_fees(start_date, end_date, customer)
+        all_bookings = [booking_to_dict(item) for item in manager.list_bookings()]
+        all_extra_records = [
+            extra_income_to_dict(item)
+            for item in manager.list_extra_incomes(start_date=start_date, end_date=end_date, customer=customer)
+        ]
+
+    booking_records = filter_booking_records(all_bookings, start_date, end_date, customer)
+    extra_records = [row for row in all_extra_records if include_extra_income_record(row)]
+
+    booking_map = {
+        item["customer"]: {
+            "customer": item["customer"],
+            "booking_total": float(item["total_fee"]),
+            "extra_income_total": 0.0,
+        }
+        for item in booking_items
+    }
+    for row in extra_records:
+        if row["customer"] not in booking_map:
+            booking_map[row["customer"]] = {
+                "customer": row["customer"],
+                "booking_total": 0.0,
+                "extra_income_total": 0.0,
+            }
+        booking_map[row["customer"]]["extra_income_total"] += float(row["amount"])
+
+    summary_items = []
+    for item in booking_map.values():
+        total_fee = float(item["booking_total"] + item["extra_income_total"])
+        summary_items.append(
+            {
+                "customer": item["customer"],
+                "booking_total": float(item["booking_total"]),
+                "extra_income_total": float(item["extra_income_total"]),
+                "total_fee": total_fee,
+            }
+        )
+    summary_items.sort(key=lambda row: (-row["total_fee"], row["customer"]))
+
+    booking_grand_total = sum(float(item["total_fee"]) for item in booking_items)
+    extra_income_grand_total = sum(float(row["amount"]) for row in extra_records)
+
+    return {
+        "booking_items": booking_items,
+        "booking_records": booking_records,
+        "extra_records": extra_records,
+        "summary_items": summary_items,
+        "booking_grand_total": booking_grand_total,
+        "extra_income_grand_total": extra_income_grand_total,
+        "grand_total": booking_grand_total + extra_income_grand_total,
+    }
+
 HTML_PAGE = """<!doctype html>
 <html lang="zh-Hant">
 <head>
@@ -222,7 +301,7 @@ button:hover { filter: brightness(.98); transform: translateY(-1px); }
   padding: 10px 12px;
 }
 .continuity-day.weekend {
-  background: antiquewhite;
+  background: orange;
 }
 .continuity-day + .continuity-day { margin-top: 8px; }
 .continuity-day h5 {
@@ -277,11 +356,6 @@ button:hover { filter: brightness(.98); transform: translateY(-1px); }
   font-size: 15px;
   color: #334155;
 }
-.continuity-empty {
-  font-size: 16px;
-  font-weight: 700;
-  color: #991b1b;
-}
 @media print {
   .hover-top-zone,
   .control-row { display: none !important; }
@@ -307,8 +381,7 @@ button:hover { filter: brightness(.98); transform: translateY(-1px); }
   .continuity-chart .venue-col { font-size: 16px; }
   .continuity-chart th { font-size: 13px; }
   .continuity-cell,
-  .continuity-legend,
-  .continuity-empty { font-size: 15px; }
+  .continuity-legend { font-size: 15px; }
 }
 table { border-collapse: separate; border-spacing: 0; width: max-content; min-width: 100%; background: #fff; }
 th, td { border: 1px solid #dbe5f2; text-align: center; font-size: 16px; padding: 8px; min-width: 48px; }
@@ -557,16 +630,13 @@ function renderContinuityList(weekData, dates, containerId) {
   if (!container) return;
   const weekdayNames = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
   let html = '<div class="continuity-wrap">';
-  html += '<div class="continuity-legend">圖例：○ 可預約、滿 已預約（連續多個○就是可連續預約時段）</div>';
+  html += '<div class="continuity-legend">圖例：○ 可預約、滿 已預約</div>';
 
   for (const day of dates) {
     const weekDay = new Date(`${day}T00:00:00`).getDay();
     const bookings = weekData[day] || [];
     const dayClass = isWeekend(day) ? 'continuity-day weekend' : 'continuity-day';
     html += `<div class="${dayClass}"><h5>${day}（${weekdayNames[weekDay]}）</h5>`;
-    if (!bookings.length) {
-      html += '<div class="continuity-empty">今天目前沒有預約，全部時段可預約</div>';
-    }
     html += '<div class="continuity-venue"><table class="continuity-chart"><tr><th class="venue-col">場地＼時段</th>';
     for (let h = START_HOUR; h < END_HOUR; h++) {
       html += `<th class="time-col">${String(h).padStart(2, '0')}-${String(h + 1).padStart(2, '0')}</th>`;
@@ -1479,6 +1549,11 @@ input, button { padding:10px 12px; border-radius:10px; border:1px solid #cbd5e1;
 button { background:#4f46e5; color:#fff; border:none; cursor:pointer; }
 .btn-danger { background:#dc2626 !important; }
 .toolbar { display:flex; justify-content:flex-end; margin-bottom:10px; }
+.entry-form { display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap; margin-bottom:8px; }
+.entry-form .field { display:flex; flex-direction:column; gap:4px; min-width:220px; }
+.entry-form .field label { font-weight:700; color:#334155; font-size:14px; }
+.entry-form .field input { width:100%; }
+.entry-form button { margin-top:0; }
 table { width:100%; border-collapse:collapse; margin-top:12px; }
 th, td { border:1px solid #dbe2f0; padding:10px; text-align:left; }
 th { background:#eef2ff; }
@@ -1508,16 +1583,27 @@ th { background:#eef2ff; }
   <div class="stack">
     <div class="card">
       <h3 class="section-title">場地設定</h3>
-      <input id="new-venue" placeholder="新增場地名稱" />
-      <button style="margin-top:8px;" onclick="createVenue()">新增場地</button>
+      <div class="entry-form">
+        <div class="field">
+          <label for="new-venue">場地名稱</label>
+          <input id="new-venue" placeholder="新增場地名稱" />
+        </div>
+        <button onclick="createVenue()">新增場地</button>
+      </div>
       <table id="venue-table"></table>
     </div>
 
     <div class="card">
       <h3 class="section-title">用途設定</h3>
-      <div style="display:grid;grid-template-columns:2fr 1fr auto;gap:10px;align-items:end;">
-        <div><label>用途名稱</label><input id="new-purpose" placeholder="新增用途名稱" /></div>
-        <div><label>價格</label><input id="new-purpose-price" type="number" min="0" step="1" value="0"/></div>
+      <div class="entry-form">
+        <div class="field">
+          <label for="new-purpose">用途名稱</label>
+          <input id="new-purpose" placeholder="新增用途名稱" />
+        </div>
+        <div class="field">
+          <label for="new-purpose-price">價格</label>
+          <input id="new-purpose-price" type="number" min="0" step="1" value="0"/>
+        </div>
         <button onclick="createPurpose()">新增用途</button>
       </div>
       <table id="purpose-table"></table>
@@ -1525,9 +1611,9 @@ th { background:#eef2ff; }
 
     <div class="card">
       <h3 class="section-title">穿線項目設定</h3>
-      <div style="display:flex; gap:10px; align-items:end; flex-wrap:wrap;">
-        <div><div>穿線項目</div><input id="string-item-name"/></div>
-        <div><div>對應金額</div><input id="string-item-amount" type="number" min="0" step="1"/></div>
+      <div class="entry-form">
+        <div class="field"><label for="string-item-name">穿線項目</label><input id="string-item-name"/></div>
+        <div class="field"><label for="string-item-amount">對應金額</label><input id="string-item-amount" type="number" min="0" step="1"/></div>
         <button id="save-string-item">儲存</button>
         <button id="cancel-string-item-edit" style="display:none; background:#64748b;">取消編輯</button>
       </div>
@@ -2435,6 +2521,17 @@ document.addEventListener('click', (event) => {
 
 
 class BookingWebHandler(BaseHTTPRequestHandler):
+    def _read_json_payload(self) -> Dict[str, Any]:
+        content_len = int(self.headers.get("Content-Length", "0"))
+        try:
+            raw = self.rfile.read(content_len) if content_len > 0 else b"{}"
+            payload = json.loads(raw or b"{}")
+        except json.JSONDecodeError as exc:
+            raise ValueError("JSON 格式錯誤") from exc
+        if not isinstance(payload, dict):
+            raise ValueError("JSON 格式錯誤")
+        return payload
+
     def _send_json(self, payload: Union[Dict[str, Any], List[Any]], status: int = HTTPStatus.OK) -> None:
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         self.send_response(status)
@@ -2498,9 +2595,8 @@ class BookingWebHandler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
         parsed = urlparse(self.path)
         try:
-            content_len = int(self.headers.get("Content-Length", "0"))
-            payload = json.loads(self.rfile.read(content_len) or "{}")
-        except json.JSONDecodeError:
+            payload = self._read_json_payload()
+        except ValueError:
             self._send_json({"error": "JSON 格式錯誤"}, status=HTTPStatus.BAD_REQUEST)
             return
 
@@ -2610,57 +2706,16 @@ class BookingWebHandler(BaseHTTPRequestHandler):
                 if not start_date or not end_date:
                     raise ValueError("請提供開始與結束日期")
                 customer = str(payload.get("customer", "")).strip()
-                with manager_lock:
-                    booking_items = manager.summarize_fees(start_date, end_date, customer)
-                    all_bookings = [booking_to_dict(item) for item in manager.list_bookings()]
-                    all_extra_records = [
-                        extra_income_to_dict(item)
-                        for item in manager.list_extra_incomes(start_date=start_date, end_date=end_date, customer=customer)
-                    ]
-
-                booking_records = []
-                for row in all_bookings:
-                    booking_date = row["start_time"][:10]
-                    if booking_date < start_date or booking_date > end_date:
-                        continue
-                    if customer and row["customer"] != customer:
-                        continue
-                    booking_records.append(row)
-
-                extra_records = []
-                for row in all_extra_records:
-                    if row["item"] != "球拍":
-                        extra_records.append(row)
-                        continue
-                    if row["payment_status"] == "結清" and row["pickup_date"]:
-                        extra_records.append(row)
-
-                booking_map = {
-                    item["customer"]: {
-                        "customer": item["customer"],
-                        "booking_total": float(item["total_fee"]),
-                        "extra_income_total": 0.0,
-                    }
-                    for item in booking_items
-                }
-                for row in extra_records:
-                    if row["customer"] not in booking_map:
-                        booking_map[row["customer"]] = {
-                            "customer": row["customer"],
-                            "booking_total": 0.0,
-                            "extra_income_total": 0.0,
-                        }
-                    booking_map[row["customer"]]["extra_income_total"] += float(row["amount"])
-
-                summary_rows = []
-                for item in booking_map.values():
-                    total_fee = float(item["booking_total"] + item["extra_income_total"])
-                    summary_rows.append((item["customer"], item["booking_total"], item["extra_income_total"], total_fee))
-                summary_rows.sort(key=lambda row: (-row[3], row[0]))
-
-                booking_grand_total = sum(float(item["total_fee"]) for item in booking_items)
-                extra_income_grand_total = sum(float(row["amount"]) for row in extra_records)
-                grand_total = booking_grand_total + extra_income_grand_total
+                report = build_report_payload(start_date, end_date, customer)
+                booking_records = report["booking_records"]
+                extra_records = report["extra_records"]
+                summary_rows = [
+                    (item["customer"], item["booking_total"], item["extra_income_total"], item["total_fee"])
+                    for item in report["summary_items"]
+                ]
+                booking_grand_total = report["booking_grand_total"]
+                extra_income_grand_total = report["extra_income_grand_total"]
+                grand_total = report["grand_total"]
 
                 def build_racket_details(row: Dict[str, Any]) -> str:
                     if row["item"] != "球拍":
@@ -2758,62 +2813,14 @@ class BookingWebHandler(BaseHTTPRequestHandler):
                 page_size = max(1, min(100, int(payload.get("page_size", 10) or 10)))
                 booking_page = max(1, int(payload.get("booking_page", 1) or 1))
                 extra_income_page = max(1, int(payload.get("extra_income_page", 1) or 1))
-                with manager_lock:
-                    booking_items = manager.summarize_fees(start_date, end_date, customer)
-                    all_bookings = [booking_to_dict(item) for item in manager.list_bookings()]
-                    all_extra_records = [
-                        extra_income_to_dict(item)
-                        for item in manager.list_extra_incomes(start_date=start_date, end_date=end_date, customer=customer)
-                    ]
-
-                booking_records = []
-                for row in all_bookings:
-                    booking_date = row["start_time"][:10]
-                    if booking_date < start_date or booking_date > end_date:
-                        continue
-                    if customer and row["customer"] != customer:
-                        continue
-                    booking_records.append(row)
-
-                extra_records = []
-                for row in all_extra_records:
-                    if row["item"] != "球拍":
-                        extra_records.append(row)
-                        continue
-                    if row["payment_status"] == "結清" and row["pickup_date"]:
-                        extra_records.append(row)
-
-                booking_map = {
-                    item["customer"]: {
-                        "customer": item["customer"],
-                        "booking_total": float(item["total_fee"]),
-                        "extra_income_total": 0.0,
-                    }
-                    for item in booking_items
-                }
-                for row in extra_records:
-                    if row["customer"] not in booking_map:
-                        booking_map[row["customer"]] = {
-                            "customer": row["customer"],
-                            "booking_total": 0.0,
-                            "extra_income_total": 0.0,
-                        }
-                    booking_map[row["customer"]]["extra_income_total"] += float(row["amount"])
-
-                items = []
-                for item in booking_map.values():
-                    total_fee = float(item["booking_total"] + item["extra_income_total"])
-                    items.append({
-                        "customer": item["customer"],
-                        "booking_total": float(item["booking_total"]),
-                        "extra_income_total": float(item["extra_income_total"]),
-                        "total_fee": total_fee,
-                    })
-                items.sort(key=lambda row: (-row["total_fee"], row["customer"]))
-
-                booking_grand_total = sum(float(item["total_fee"]) for item in booking_items)
-                extra_income_grand_total = sum(float(row["amount"]) for row in extra_records)
-                grand_total = booking_grand_total + extra_income_grand_total
+                report = build_report_payload(start_date, end_date, customer)
+                booking_items = report["booking_items"]
+                booking_records = report["booking_records"]
+                extra_records = report["extra_records"]
+                items = report["summary_items"]
+                booking_grand_total = report["booking_grand_total"]
+                extra_income_grand_total = report["extra_income_grand_total"]
+                grand_total = report["grand_total"]
 
                 booking_total_records = len(booking_records)
                 extra_income_total_records = len(extra_records)
@@ -2887,8 +2894,7 @@ class BookingWebHandler(BaseHTTPRequestHandler):
     def do_PUT(self) -> None:
         parsed = urlparse(self.path)
         try:
-            content_len = int(self.headers.get("Content-Length", "0"))
-            payload = json.loads(self.rfile.read(content_len) or "{}")
+            payload = self._read_json_payload()
             self._check_admin_password(payload)
             with manager_lock:
                 if parsed.path == "/api/venues":
@@ -2938,14 +2944,13 @@ class BookingWebHandler(BaseHTTPRequestHandler):
                     self._send_json(extra_income_to_dict(item))
                     return
                 self._send_json({"error": "Not Found"}, status=HTTPStatus.NOT_FOUND)
-        except (ValueError, json.JSONDecodeError) as exc:
+        except ValueError as exc:
             self._send_json({"error": str(exc) or "JSON 格式錯誤"}, status=HTTPStatus.BAD_REQUEST)
 
     def do_DELETE(self) -> None:
         parsed = urlparse(self.path)
         try:
-            content_len = int(self.headers.get("Content-Length", "0"))
-            payload = json.loads(self.rfile.read(content_len) or "{}")
+            payload = self._read_json_payload()
             self._check_admin_password(payload)
             with manager_lock:
                 if parsed.path == "/api/venues":
@@ -2965,7 +2970,7 @@ class BookingWebHandler(BaseHTTPRequestHandler):
                 self._send_json({"error": "資料不存在"}, status=HTTPStatus.NOT_FOUND)
                 return
             self._send_json({"ok": True})
-        except (ValueError, json.JSONDecodeError) as exc:
+        except ValueError as exc:
             self._send_json({"error": str(exc) or "JSON 格式錯誤"}, status=HTTPStatus.BAD_REQUEST)
 
     @staticmethod
