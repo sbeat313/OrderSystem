@@ -1558,6 +1558,11 @@ input, button { padding:10px 12px; border-radius:10px; border:1px solid #cbd5e1;
 button { background:#4f46e5; color:#fff; border:none; cursor:pointer; }
 .btn-danger { background:#dc2626 !important; }
 .toolbar { display:flex; justify-content:flex-end; margin-bottom:10px; }
+.entry-form { display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap; margin-bottom:8px; }
+.entry-form .field { display:flex; flex-direction:column; gap:4px; min-width:220px; }
+.entry-form .field label { font-weight:700; color:#334155; font-size:14px; }
+.entry-form .field input { width:100%; }
+.entry-form button { margin-top:0; }
 table { width:100%; border-collapse:collapse; margin-top:12px; }
 th, td { border:1px solid #dbe2f0; padding:10px; text-align:left; }
 th { background:#eef2ff; }
@@ -1587,16 +1592,27 @@ th { background:#eef2ff; }
   <div class="stack">
     <div class="card">
       <h3 class="section-title">場地設定</h3>
-      <input id="new-venue" placeholder="新增場地名稱" />
-      <button style="margin-top:8px;" onclick="createVenue()">新增場地</button>
+      <div class="entry-form">
+        <div class="field">
+          <label for="new-venue">場地名稱</label>
+          <input id="new-venue" placeholder="新增場地名稱" />
+        </div>
+        <button onclick="createVenue()">新增場地</button>
+      </div>
       <table id="venue-table"></table>
     </div>
 
     <div class="card">
       <h3 class="section-title">用途設定</h3>
-      <div style="display:grid;grid-template-columns:2fr 1fr auto;gap:10px;align-items:end;">
-        <div><label>用途名稱</label><input id="new-purpose" placeholder="新增用途名稱" /></div>
-        <div><label>價格</label><input id="new-purpose-price" type="number" min="0" step="1" value="0"/></div>
+      <div class="entry-form">
+        <div class="field">
+          <label for="new-purpose">用途名稱</label>
+          <input id="new-purpose" placeholder="新增用途名稱" />
+        </div>
+        <div class="field">
+          <label for="new-purpose-price">價格</label>
+          <input id="new-purpose-price" type="number" min="0" step="1" value="0"/>
+        </div>
         <button onclick="createPurpose()">新增用途</button>
       </div>
       <table id="purpose-table"></table>
@@ -1604,9 +1620,9 @@ th { background:#eef2ff; }
 
     <div class="card">
       <h3 class="section-title">穿線項目設定</h3>
-      <div style="display:flex; gap:10px; align-items:end; flex-wrap:wrap;">
-        <div><div>穿線項目</div><input id="string-item-name"/></div>
-        <div><div>對應金額</div><input id="string-item-amount" type="number" min="0" step="1"/></div>
+      <div class="entry-form">
+        <div class="field"><label for="string-item-name">穿線項目</label><input id="string-item-name"/></div>
+        <div class="field"><label for="string-item-amount">對應金額</label><input id="string-item-amount" type="number" min="0" step="1"/></div>
         <button id="save-string-item">儲存</button>
         <button id="cancel-string-item-edit" style="display:none; background:#64748b;">取消編輯</button>
       </div>
