@@ -221,6 +221,9 @@ button:hover { filter: brightness(.98); transform: translateY(-1px); }
   background: #fff;
   padding: 10px 12px;
 }
+.continuity-day.weekend {
+  background: antiquewhite;
+}
 .continuity-day + .continuity-day { margin-top: 8px; }
 .continuity-day h5 {
   margin: 0 0 8px;
@@ -559,7 +562,8 @@ function renderContinuityList(weekData, dates, containerId) {
   for (const day of dates) {
     const weekDay = new Date(`${day}T00:00:00`).getDay();
     const bookings = weekData[day] || [];
-    html += `<div class="continuity-day"><h5>${day}（${weekdayNames[weekDay]}）</h5>`;
+    const dayClass = isWeekend(day) ? 'continuity-day weekend' : 'continuity-day';
+    html += `<div class="${dayClass}"><h5>${day}（${weekdayNames[weekDay]}）</h5>`;
     if (!bookings.length) {
       html += '<div class="continuity-empty">今天目前沒有預約，全部時段可預約</div>';
     }
