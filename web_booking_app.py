@@ -410,7 +410,7 @@ td.slot.booked-user .booking-pill { background: #93c5fd; }
 <div class="container">
   <div class="title-row">
     <div class="title-wrap">
-      <h2 class="title">暖西羽球館預約系統</h2>
+      <h2 class="title">暖西羽球館場地更新表</h2>
       <div class="title-icon">🏸</div>
     </div>
     <div class="contact-info">
@@ -921,6 +921,7 @@ function renderWeekly(weekData, baseDate, days = 14, grid, startOffsetDays = 0) 
         for (const [index, venue] of venues.entries()) {
           const classes = [];
           if (dayIndex > 0 && index === 0) classes.push('day-block-start');
+          if (isWeekendDay) classes.push('weekend-date-label');
           html += `<th class="${classes.join(' ')}">${venue.name}</th>`;
         }
       } else {
@@ -959,11 +960,13 @@ ${b.purpose || ''}
 $${Number(b.price || 0).toFixed(0)}`;
             let cell = makeSlotCell(day, h, venue.venue_id, b, text, span);
             if (dayIndex > 0 && index === 0) cell = cell.replace('class="slot', 'class="slot day-block-start');
+            if (isWeekendDay) cell = cell.replace('class="slot', 'class="slot weekend-time');
             html += cell;
             continue;
           }
           let cell = makeSlotCell(day, h, venue.venue_id, null, '', 1);
           if (dayIndex > 0 && index === 0) cell = cell.replace('class="slot', 'class="slot day-block-start');
+          if (isWeekendDay) cell = cell.replace('class="slot', 'class="slot weekend-time');
           html += cell;
         }
       }
