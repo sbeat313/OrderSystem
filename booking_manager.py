@@ -22,6 +22,9 @@ class Purpose:
     purpose_id: int
     name: str
     price: float
+    months: int = 0
+    weeks: int = 0
+    days: int = 0
 
 
 @dataclass
@@ -86,7 +89,10 @@ class BookingManager:
                 CREATE TABLE IF NOT EXISTS purposes (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     name TEXT NOT NULL UNIQUE,
-                    price REAL NOT NULL DEFAULT 0
+                    price REAL NOT NULL DEFAULT 0,
+                    months INTEGER NOT NULL DEFAULT 0,
+                    weeks INTEGER NOT NULL DEFAULT 0,
+                    days INTEGER NOT NULL DEFAULT 0
                 )
                 """
             )
@@ -152,6 +158,9 @@ class BookingManager:
             self._ensure_column(conn, "extra_incomes", "pickup_date", "ALTER TABLE extra_incomes ADD COLUMN pickup_date TEXT NOT NULL DEFAULT ''")
 
             self._ensure_column(conn, "purposes", "price", "ALTER TABLE purposes ADD COLUMN price REAL NOT NULL DEFAULT 0")
+            self._ensure_column(conn, "purposes", "months", "ALTER TABLE purposes ADD COLUMN months INTEGER NOT NULL DEFAULT 0")
+            self._ensure_column(conn, "purposes", "weeks", "ALTER TABLE purposes ADD COLUMN weeks INTEGER NOT NULL DEFAULT 0")
+            self._ensure_column(conn, "purposes", "days", "ALTER TABLE purposes ADD COLUMN days INTEGER NOT NULL DEFAULT 0")
 
             count = conn.execute("SELECT COUNT(*) FROM venues").fetchone()[0]
             if count == 0:
@@ -163,16 +172,16 @@ class BookingManager:
             purpose_count = conn.execute("SELECT COUNT(*) FROM purposes").fetchone()[0]
             if purpose_count == 0:
                 conn.executemany(
-                    "INSERT INTO purposes(name, price) VALUES (?, ?)",
+                    "INSERT INTO purposes(name, price, months, weeks, days) VALUES (?, ?, ?, ?, ?)",
                     [
-                        ("單月租", 0),
-                        ("雙月租", 0),
-                        ("臨租", 0),
-                        ("月租球友續租", 0),
-                        ("股東價", 0),
-                        ("連假專案", 0),
-                        ("寒暑假專案", 0),
-                        ("過年專案", 0),
+                        ("單月租", 0, 1, 0, 0),
+                        ("雙月租", 0, 2, 0, 0),
+                        ("臨租", 0, 0, 0, 0),
+                        ("月租球友續租", 0, 1, 0, 0),
+                        ("股東價", 0, 0, 0, 0),
+                        ("連假專案", 0, 0, 0, 0),
+                        ("寒暑假專案", 0, 0, 0, 0),
+                        ("過年專案", 0, 0, 0, 0),
                     ],
                 )
 
@@ -227,8 +236,18 @@ class BookingManager:
 
     def list_purposes(self) -> List[Purpose]:
         with self._connect() as conn:
-            rows = conn.execute("SELECT id, name, price FROM purposes ORDER BY id").fetchall()
-        return [Purpose(purpose_id=row["id"], name=row["name"], price=float(row["price"] or 0)) for row in rows]
+            rows = conn.execute("SELECT id, name, price, months, weeks, days FROM purposes ORDER BY id").fetchall()
+        return [
+            Purpose(
+                purpose_id=row["id"],
+                name=row["name"],
+                price=float(row["price"] or 0),
+                months=int(row["months"] or 0),
+                weeks=int(row["weeks"] or 0),
+                days=int(row["days"] or 0),
+            )
+            for row in rows
+        ]
 
 
     def list_string_items(self) -> List[StringItem]:
@@ -268,30 +287,52 @@ class BookingManager:
             cur = conn.execute("DELETE FROM string_items WHERE id = ?", (string_item_id,))
             return cur.rowcount > 0
 
-    def add_purpose(self, name: str, price: float = 0) -> Purpose:
+    def add_purpose(self, name: str, price: float = 0, months: int = 0, weeks: int = 0, days: int = 0) -> Purpose:
         purpose_name = name.strip()
         if not purpose_name:
             raise ValueError("用途名稱不可為空")
         purpose_price = self._parse_price(price)
+        months_value, weeks_value, days_value = self._parse_cycle(months, weeks, days)
         try:
             with self._connect() as conn:
-                cursor = conn.execute("INSERT INTO purposes(name, price) VALUES (?, ?)", (purpose_name, purpose_price))
+                cursor = conn.execute(
+                    "INSERT INTO purposes(name, price, months, weeks, days) VALUES (?, ?, ?, ?, ?)",
+                    (purpose_name, purpose_price, months_value, weeks_value, days_value),
+                )
                 purpose_id = cursor.lastrowid
-            return Purpose(purpose_id=purpose_id, name=purpose_name, price=purpose_price)
+            return Purpose(
+                purpose_id=purpose_id,
+                name=purpose_name,
+                price=purpose_price,
+                months=months_value,
+                weeks=weeks_value,
+                days=days_value,
+            )
         except sqlite3.IntegrityError as exc:
             raise ValueError("用途名稱不可重複") from exc
 
-    def update_purpose(self, purpose_id: int, name: str, price: float = 0) -> Purpose:
+    def update_purpose(self, purpose_id: int, name: str, price: float = 0, months: int = 0, weeks: int = 0, days: int = 0) -> Purpose:
         purpose_name = name.strip()
         if not purpose_name:
             raise ValueError("用途名稱不可為空")
         purpose_price = self._parse_price(price)
+        months_value, weeks_value, days_value = self._parse_cycle(months, weeks, days)
         try:
             with self._connect() as conn:
-                cur = conn.execute("UPDATE purposes SET name = ?, price = ? WHERE id = ?", (purpose_name, purpose_price, purpose_id))
+                cur = conn.execute(
+                    "UPDATE purposes SET name = ?, price = ?, months = ?, weeks = ?, days = ? WHERE id = ?",
+                    (purpose_name, purpose_price, months_value, weeks_value, days_value, purpose_id),
+                )
                 if cur.rowcount == 0:
                     raise ValueError("用途不存在")
-            return Purpose(purpose_id=purpose_id, name=purpose_name, price=purpose_price)
+            return Purpose(
+                purpose_id=purpose_id,
+                name=purpose_name,
+                price=purpose_price,
+                months=months_value,
+                weeks=weeks_value,
+                days=days_value,
+            )
         except sqlite3.IntegrityError as exc:
             raise ValueError("用途名稱不可重複") from exc
 
@@ -418,34 +459,57 @@ class BookingManager:
         price: float = 0,
         note: str = "",
     ) -> List[Booking]:
-        purpose_name = purpose.strip()
-        if purpose_name not in {"單月租", "雙月租"}:
-            return [self.add_booking(venue_id, customer, start, end, purpose, price, note)]
-
         start_time, end_time = self._parse_time_range(start, end)
         booking_price = self._parse_price(price)
         note_text = note.strip()
         created_at = datetime.now().strftime(TIME_FORMAT)
         duration = end_time - start_time
-        period_end = self._month_end(start_time)
-        if purpose_name == "雙月租":
-            period_end = self._month_end(self._next_month_start(start_time))
+        purpose_name = purpose.strip()
 
         slot_starts: List[datetime] = []
-        cursor = start_time
-        while cursor.date() <= period_end.date():
-            slot_starts.append(cursor)
-            cursor += timedelta(days=7)
 
         with self._connect() as conn:
-            group_id = str(uuid.uuid4())
             venue = conn.execute("SELECT id, name FROM venues WHERE id = ?", (venue_id,)).fetchone()
             if venue is None:
                 raise ValueError("場地不存在")
 
-            purpose_row = conn.execute("SELECT 1 FROM purposes WHERE name = ?", (purpose_name,)).fetchone()
+            purpose_row = conn.execute(
+                "SELECT months, weeks, days FROM purposes WHERE name = ?",
+                (purpose_name,),
+            ).fetchone()
             if purpose_row is None:
                 raise ValueError("用途不存在，請從選單選擇")
+
+            months = int(purpose_row["months"] or 0)
+            weeks = int(purpose_row["weeks"] or 0)
+            days = int(purpose_row["days"] or 0)
+            if months <= 0 and weeks <= 0 and days <= 0:
+                slot_starts = [start_time]
+            else:
+                slot_candidates: set[datetime] = set()
+
+                # 週期（月/周）維持每 7 天一筆
+                if months > 0:
+                    period_end_weekly = self._month_end(self._add_months(start_time, months - 1))
+                else:
+                    period_end_weekly = start_time
+                if weeks > 0:
+                    period_end_weekly = period_end_weekly + timedelta(days=max(0, weeks * 7 - 1))
+
+                if months > 0 or weeks > 0:
+                    slot_cursor = start_time
+                    while slot_cursor.date() <= period_end_weekly.date():
+                        slot_candidates.add(slot_cursor)
+                        slot_cursor += timedelta(days=7)
+
+                # 日規則：改為每日建立
+                if days > 0:
+                    for offset in range(days):
+                        slot_candidates.add(start_time + timedelta(days=offset))
+
+                slot_starts = sorted(slot_candidates)
+
+            group_id = str(uuid.uuid4()) if len(slot_starts) > 1 else None
 
             for slot_start in slot_starts:
                 slot_end = slot_start + duration
@@ -522,38 +586,10 @@ class BookingManager:
             if row is None:
                 return False
 
-            if row["purpose"] in {"單月租", "雙月租"}:
-                if row["rental_group_id"]:
-                    cur = conn.execute(
-                        "DELETE FROM bookings WHERE rental_group_id = ?",
-                        (row["rental_group_id"],),
-                    )
-                    return cur.rowcount > 0
-
-                start_time = datetime.strptime(row["start_time"], TIME_FORMAT)
-                period_end = self._month_end(start_time)
-                if row["purpose"] == "雙月租":
-                    period_end = self._month_end(self._next_month_start(start_time))
-
+            if row["rental_group_id"]:
                 cur = conn.execute(
-                    """
-                    DELETE FROM bookings
-                    WHERE venue_id = ?
-                      AND customer = ?
-                      AND purpose = ?
-                      AND date(start_time) BETWEEN date(?) AND date(?)
-                      AND time(start_time) = time(?)
-                      AND time(end_time) = time(?)
-                    """,
-                    (
-                        row["venue_id"],
-                        row["customer"],
-                        row["purpose"],
-                        start_time.strftime("%Y-%m-%d"),
-                        period_end.strftime("%Y-%m-%d"),
-                        row["start_time"],
-                        row["end_time"],
-                    ),
+                    "DELETE FROM bookings WHERE rental_group_id = ?",
+                    (row["rental_group_id"],),
                 )
                 return cur.rowcount > 0
 
@@ -628,41 +664,6 @@ class BookingManager:
                         }
                         for row in group_rows
                     ]
-            elif existing["purpose"] in {"單月租", "雙月租"}:
-                legacy_period_end = self._month_end(original_start)
-                if existing["purpose"] == "雙月租":
-                    legacy_period_end = self._month_end(self._next_month_start(original_start))
-                legacy_rows = conn.execute(
-                    """
-                    SELECT id, start_time
-                    FROM bookings
-                    WHERE venue_id = ?
-                      AND customer = ?
-                      AND purpose = ?
-                      AND date(start_time) BETWEEN date(?) AND date(?)
-                      AND time(start_time) = time(?)
-                      AND time(end_time) = time(?)
-                    ORDER BY start_time
-                    """,
-                    (
-                        existing["venue_id"],
-                        existing["customer"],
-                        existing["purpose"],
-                        original_start.strftime("%Y-%m-%d"),
-                        legacy_period_end.strftime("%Y-%m-%d"),
-                        existing["start_time"],
-                        existing["end_time"],
-                    ),
-                ).fetchall()
-                if legacy_rows:
-                    rows_to_update = [
-                        {
-                            "id": row["id"],
-                            "start_time": datetime.strptime(row["start_time"], TIME_FORMAT),
-                        }
-                        for row in legacy_rows
-                    ]
-
             start_delta = start_time - original_start
             update_targets = []
             row_ids = {row["id"] for row in rows_to_update}
@@ -767,7 +768,15 @@ class BookingManager:
 
         customer_name = customer.strip()
         query = """
-            SELECT b.customer, COUNT(*) AS booking_count, SUM(b.price) AS total_fee
+            SELECT
+                b.customer,
+                COUNT(*) AS booking_count,
+                ROUND(
+                    SUM(
+                        b.price * ((julianday(b.end_time) - julianday(b.start_time)) * 24.0)
+                    ),
+                    2
+                ) AS total_fee
             FROM bookings b
             WHERE date(b.start_time) BETWEEN date(?) AND date(?)
         """
@@ -1059,6 +1068,18 @@ class BookingManager:
         return value
 
     @staticmethod
+    def _parse_cycle(months: int, weeks: int, days: int) -> tuple[int, int, int]:
+        try:
+            m = int(months or 0)
+            w = int(weeks or 0)
+            d = int(days or 0)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("週期格式錯誤，月/周/日需為整數") from exc
+        if m < 0 or w < 0 or d < 0:
+            raise ValueError("週期不可為負數")
+        return m, w, d
+
+    @staticmethod
     def _normalize_date_separator(value: str) -> str:
         text = value.strip()
         if len(text) >= 10 and text[4] == "/" and text[7] == "/":
@@ -1074,6 +1095,13 @@ class BookingManager:
     def _next_month_start(dt: datetime) -> datetime:
         year = dt.year + 1 if dt.month == 12 else dt.year
         month = 1 if dt.month == 12 else dt.month + 1
+        return datetime(year, month, 1, dt.hour, dt.minute)
+
+    @staticmethod
+    def _add_months(dt: datetime, months: int) -> datetime:
+        total_month = (dt.year * 12 + (dt.month - 1)) + max(0, months)
+        year = total_month // 12
+        month = (total_month % 12) + 1
         return datetime(year, month, 1, dt.hour, dt.minute)
 
     @staticmethod

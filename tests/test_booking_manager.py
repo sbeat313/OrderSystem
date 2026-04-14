@@ -32,11 +32,14 @@ class BookingManagerTests(unittest.TestCase):
         self.assertIn("7號場-更新", [v.name for v in venues])
         self.assertTrue(self.manager.delete_venue(venue.venue_id))
 
-        purpose = self.manager.add_purpose("測試用途")
+        purpose = self.manager.add_purpose("測試用途", months=1, weeks=2, days=3)
         self.assertEqual(purpose.name, "測試用途")
-        self.manager.update_purpose(purpose.purpose_id, "測試用途2")
+        self.assertEqual((purpose.months, purpose.weeks, purpose.days), (1, 2, 3))
+        self.manager.update_purpose(purpose.purpose_id, "測試用途2", months=2, weeks=0, days=1)
         purposes = self.manager.list_purposes()
         self.assertIn("測試用途2", [p.name for p in purposes])
+        updated = next(p for p in purposes if p.name == "測試用途2")
+        self.assertEqual((updated.months, updated.weeks, updated.days), (2, 0, 1))
         self.assertTrue(self.manager.delete_purpose(purpose.purpose_id))
 
     def test_add_booking_success(self):
@@ -73,6 +76,33 @@ class BookingManagerTests(unittest.TestCase):
         self.assertEqual(items[0].start_time.strftime("%Y-%m-%d"), "2026-04-01")
         self.assertEqual(items[-1].start_time.strftime("%Y-%m-%d"), "2026-04-29")
 
+    def test_add_bookings_uses_purpose_cycle_rules(self):
+        self.manager.add_purpose("三週方案", price=500, weeks=3)
+        items = self.manager.add_bookings_for_purpose(
+            venue_id=1,
+            customer="王小明",
+            purpose="三週方案",
+            price=500,
+            start="2026-04-01 09:00",
+            end="2026-04-01 11:00",
+        )
+        self.assertEqual(len(items), 3)
+        self.assertEqual(items[-1].start_time.strftime("%Y-%m-%d"), "2026-04-15")
+
+    def test_add_bookings_uses_daily_cycle_rules(self):
+        self.manager.add_purpose("五日方案", price=500, days=5)
+        items = self.manager.add_bookings_for_purpose(
+            venue_id=1,
+            customer="王小明",
+            purpose="五日方案",
+            price=500,
+            start="2026-04-01 09:00",
+            end="2026-04-01 11:00",
+        )
+        self.assertEqual(len(items), 5)
+        self.assertEqual(items[0].start_time.strftime("%Y-%m-%d"), "2026-04-01")
+        self.assertEqual(items[-1].start_time.strftime("%Y-%m-%d"), "2026-04-05")
+
     def test_add_bookings_for_double_month_rent(self):
         items = self.manager.add_bookings_for_purpose(
             venue_id=1,
@@ -90,10 +120,10 @@ class BookingManagerTests(unittest.TestCase):
         self.manager.add_booking(2, "王小明", "2026-04-02 09:00", "2026-04-02 11:00", "臨租", 700)
         items = self.manager.summarize_fees("2026-04-01", "2026-04-30")
         self.assertEqual(items[0]["customer"], "王小明")
-        self.assertEqual(items[0]["total_fee"], 1200)
+        self.assertEqual(items[0]["total_fee"], 2400)
         filtered = self.manager.summarize_fees("2026-04-01", "2026-04-30", "王小明")
         self.assertEqual(len(filtered), 1)
-        self.assertEqual(filtered[0]["total_fee"], 1200)
+        self.assertEqual(filtered[0]["total_fee"], 2400)
 
     def test_cancel_single_month_rent_deletes_related_bookings(self):
         items = self.manager.add_bookings_for_purpose(
