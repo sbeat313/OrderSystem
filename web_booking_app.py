@@ -527,6 +527,7 @@ td.slot.booked-user .booking-pill { background: #93c5fd; }
       <div><label>預約人</label><input id="customer" placeholder="例如：江江" /></div>
       <div><label>用途</label><select id="purpose"></select></div>
       <div><label>價錢</label><input id="price" type="number" min="0" step="1" placeholder="例如：500" /></div>
+      <div id="rental-months-field"><label>租期（月）</label><input id="rental-months" type="number" min="1" step="1" value="2" /></div>
       <div><label>開始時間</label><input id="start" type="datetime-local" lang="en-CA" /></div>
       <div><label>結束時間</label><input id="end" type="datetime-local" lang="en-CA" /></div>
       <div style="grid-column:1 / -1;"><label>備註</label><input id="booking-note" placeholder="可留空" /></div>
@@ -674,8 +675,27 @@ async function loadPurposes() {
   purposes = await resp.json();
   const select = document.getElementById('purpose');
   select.innerHTML = purposes.map(p => `<option value="${p.name}" data-price="${Number(p.price || 0)}">${p.name}</option>`).join('');
-  const first = purposes[0];
-  if (first) document.getElementById('price').value = Number(first.price || 0);
+  syncPriceByPurpose();
+  toggleRentalMonthsField();
+}
+
+function getSelectedPurpose() {
+  const selectedName = document.getElementById('purpose').value;
+  return purposes.find(p => p.name === selectedName) || null;
+}
+
+function syncPriceByPurpose() {
+  const selected = getSelectedPurpose();
+  if (!selected) return;
+  document.getElementById('price').value = Number(selected.price || 0);
+}
+
+function toggleRentalMonthsField() {
+  const field = document.getElementById('rental-months-field');
+  const selected = getSelectedPurpose();
+  const isDoubleMonthly = selected?.name === '雙月租';
+  field.style.display = isDoubleMonthly ? 'block' : 'none';
+  document.getElementById('rental-months').value = isDoubleMonthly ? 2 : 1;
 }
 
 async function loadBookings(date, force = false) {
@@ -1167,6 +1187,7 @@ function openBookingModal(data = null) {
     document.getElementById('customer').value = data.customer || '';
     document.getElementById('purpose').value = data.purpose || '';
     document.getElementById('price').value = Number(data.price || 0);
+    toggleRentalMonthsField();
     document.getElementById('start').value = data.start_time.replace(' ', 'T');
     document.getElementById('end').value = data.end_time.replace(' ', 'T');
     document.getElementById('booking-note').value = data.note || '';
@@ -1194,7 +1215,8 @@ function openBookingModalFromCell(cell, bookingId) {
   });
   document.getElementById('customer').value = '';
   document.getElementById('purpose').value = purposes[0]?.name || '';
-  document.getElementById('price').value = 0;
+  syncPriceByPurpose();
+  toggleRentalMonthsField();
   document.getElementById('start').value = start;
   document.getElementById('end').value = end;
   document.getElementById('booking-note').value = '';
@@ -1232,8 +1254,8 @@ async function deleteSelectedBooking() {
 }
 
 document.getElementById('purpose').addEventListener('change', () => {
-  const selected = purposes.find(p => p.name === document.getElementById('purpose').value);
-  if (selected) document.getElementById('price').value = Number(selected.price || 0);
+  syncPriceByPurpose();
+  toggleRentalMonthsField();
 });
 
 document.getElementById('admin-view').addEventListener('click', async () => {
@@ -1273,6 +1295,7 @@ document.getElementById('add-btn').addEventListener('click', async () => {
     start: toServerDateTime(document.getElementById('start').value),
     end: toServerDateTime(document.getElementById('end').value),
     note: document.getElementById('booking-note').value.trim(),
+    rental_months: Number(document.getElementById('rental-months').value || 1),
     admin_password: adminPassword,
   };
 
@@ -2882,6 +2905,7 @@ class BookingWebHandler(BaseHTTPRequestHandler):
                             start=payload["start"],
                             end=payload["end"],
                             note=str(payload.get("note", "")),
+                            rental_months=payload.get("rental_months", None),
                         )
                     )
             first = created[0]

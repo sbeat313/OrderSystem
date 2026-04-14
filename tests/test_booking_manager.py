@@ -85,15 +85,28 @@ class BookingManagerTests(unittest.TestCase):
         self.assertEqual(len(items), 9)
         self.assertEqual(items[-1].start_time.strftime("%Y-%m-%d"), "2026-05-27")
 
+    def test_add_bookings_for_double_month_rent_supports_manual_months(self):
+        items = self.manager.add_bookings_for_purpose(
+            venue_id=1,
+            customer="王小明",
+            purpose="雙月租",
+            price=500,
+            start="2026-04-01 09:00",
+            end="2026-04-01 11:00",
+            rental_months=3,
+        )
+        self.assertEqual(len(items), 13)
+        self.assertEqual(items[-1].start_time.strftime("%Y-%m-%d"), "2026-06-24")
+
     def test_summarize_fees(self):
         self.manager.add_booking(1, "王小明", "2026-04-01 09:00", "2026-04-01 11:00", "臨租", 500)
         self.manager.add_booking(2, "王小明", "2026-04-02 09:00", "2026-04-02 11:00", "臨租", 700)
         items = self.manager.summarize_fees("2026-04-01", "2026-04-30")
         self.assertEqual(items[0]["customer"], "王小明")
-        self.assertEqual(items[0]["total_fee"], 1200)
+        self.assertEqual(items[0]["total_fee"], 2400)
         filtered = self.manager.summarize_fees("2026-04-01", "2026-04-30", "王小明")
         self.assertEqual(len(filtered), 1)
-        self.assertEqual(filtered[0]["total_fee"], 1200)
+        self.assertEqual(filtered[0]["total_fee"], 2400)
 
     def test_cancel_single_month_rent_deletes_related_bookings(self):
         items = self.manager.add_bookings_for_purpose(

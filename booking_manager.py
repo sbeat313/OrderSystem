@@ -417,6 +417,7 @@ class BookingManager:
         purpose: str = "",
         price: float = 0,
         note: str = "",
+        rental_months: Optional[int] = None,
     ) -> List[Booking]:
         purpose_name = purpose.strip()
         if purpose_name not in {"單月租", "雙月租"}:
@@ -427,9 +428,11 @@ class BookingManager:
         note_text = note.strip()
         created_at = datetime.now().strftime(TIME_FORMAT)
         duration = end_time - start_time
-        period_end = self._month_end(start_time)
-        if purpose_name == "雙月租":
-            period_end = self._month_end(self._next_month_start(start_time))
+        default_months = 2 if purpose_name == "雙月租" else 1
+        months = default_months if rental_months is None else int(rental_months)
+        if months <= 0:
+            raise ValueError("租期月份必須大於 0")
+        period_end = self._month_end(self._add_months(start_time, months - 1))
 
         slot_starts: List[datetime] = []
         cursor = start_time
@@ -767,7 +770,15 @@ class BookingManager:
 
         customer_name = customer.strip()
         query = """
-            SELECT b.customer, COUNT(*) AS booking_count, SUM(b.price) AS total_fee
+            SELECT
+                b.customer,
+                COUNT(*) AS booking_count,
+                ROUND(
+                    SUM(
+                        b.price * ((julianday(b.end_time) - julianday(b.start_time)) * 24.0)
+                    ),
+                    2
+                ) AS total_fee
             FROM bookings b
             WHERE date(b.start_time) BETWEEN date(?) AND date(?)
         """
@@ -1074,6 +1085,15 @@ class BookingManager:
     def _next_month_start(dt: datetime) -> datetime:
         year = dt.year + 1 if dt.month == 12 else dt.year
         month = 1 if dt.month == 12 else dt.month + 1
+        return datetime(year, month, 1, dt.hour, dt.minute)
+
+    @staticmethod
+    def _add_months(dt: datetime, months: int) -> datetime:
+        if months <= 0:
+            return dt
+        total_month = (dt.year * 12 + (dt.month - 1)) + months
+        year = total_month // 12
+        month = (total_month % 12) + 1
         return datetime(year, month, 1, dt.hour, dt.minute)
 
     @staticmethod
