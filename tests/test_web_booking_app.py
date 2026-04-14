@@ -64,7 +64,7 @@ class TestWebBookingApp(unittest.TestCase):
         status, body = self.request("GET", "/api/purposes")
         self.assertEqual(status, 200)
         purposes = json.loads(body)
-        self.assertIn({"purpose_id": 1, "name": "單月租", "price": 0.0}, purposes)
+        self.assertIn({"purpose_id": 1, "name": "單月租", "price": 0.0, "months": 1, "weeks": 0, "days": 0}, purposes)
 
     def test_homepage_helper_text_removed(self):
         status, body = self.request("GET", "/")
@@ -751,17 +751,21 @@ class TestWebBookingApp(unittest.TestCase):
         status, body = self.request(
             "POST",
             "/api/purposes",
-            {"admin_password": "admin123", "name": "測試用途"},
+            {"admin_password": "admin123", "name": "測試用途", "months": 1, "weeks": 1, "days": 2},
         )
         self.assertEqual(status, 201)
-        purpose_id = json.loads(body)["purpose_id"]
+        created = json.loads(body)
+        purpose_id = created["purpose_id"]
+        self.assertEqual((created["months"], created["weeks"], created["days"]), (1, 1, 2))
 
-        status, _ = self.request(
+        status, body = self.request(
             "PUT",
             "/api/purposes",
-            {"admin_password": "admin123", "purpose_id": purpose_id, "name": "測試用途2"},
+            {"admin_password": "admin123", "purpose_id": purpose_id, "name": "測試用途2", "months": 2, "weeks": 0, "days": 1},
         )
         self.assertEqual(status, 200)
+        updated = json.loads(body)
+        self.assertEqual((updated["months"], updated["weeks"], updated["days"]), (2, 0, 1))
 
         status, _ = self.request(
             "DELETE",

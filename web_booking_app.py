@@ -68,6 +68,9 @@ def purpose_to_dict(item: Any) -> dict:
         "purpose_id": item.purpose_id,
         "name": item.name,
         "price": item.price,
+        "months": item.months,
+        "weeks": item.weeks,
+        "days": item.days,
     }
 
 
@@ -1617,6 +1620,18 @@ th { background:#eef2ff; }
           <label for="new-purpose-price">價格</label>
           <input id="new-purpose-price" type="number" min="0" step="1" value="0"/>
         </div>
+        <div class="field">
+          <label for="new-purpose-months">月</label>
+          <input id="new-purpose-months" type="number" min="0" step="1" value="0"/>
+        </div>
+        <div class="field">
+          <label for="new-purpose-weeks">周</label>
+          <input id="new-purpose-weeks" type="number" min="0" step="1" value="0"/>
+        </div>
+        <div class="field">
+          <label for="new-purpose-days">日</label>
+          <input id="new-purpose-days" type="number" min="0" step="1" value="0"/>
+        </div>
         <button onclick="createPurpose()">新增用途</button>
       </div>
       <table id="purpose-table"></table>
@@ -1650,9 +1665,9 @@ async function login(){ const pw = prompt('請輸入管理員密碼：'); if (pw
 async function ensureLogin(){ if (!adminPassword) adminPassword = loadAdminPassword(); if (adminPassword) { const resp = await fetch('/api/admin/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({password: adminPassword})}); if (resp.ok) return true; adminPassword = ''; } return await login(); }
 async function api(method, path, payload = {}) { const ok = await ensureLogin(); if (!ok) throw new Error('need login'); payload.admin_password = adminPassword; const resp = await fetch(path, { method, headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) }); const data = await resp.json(); if (!resp.ok) throw new Error(data.error || '操作失敗'); return data; }
 
-async function refreshPurposes(){ const purposes = await (await fetch('/api/purposes')).json(); const pt = document.getElementById('purpose-table'); pt.innerHTML = '<tr><th>ID</th><th>名稱</th><th>價格</th><th>操作</th></tr>' + purposes.map(p => `<tr><td>${p.purpose_id}</td><td><input value="${p.name}" id="purpose-${p.purpose_id}"/></td><td><input type="number" min="0" step="1" value="${Number(p.price || 0)}" id="purpose-price-${p.purpose_id}"/></td><td class="actions"><button onclick="updatePurpose(${p.purpose_id})">儲存</button><button class="btn-danger" onclick="deletePurpose(${p.purpose_id})">刪除</button></td></tr>`).join(''); }
-async function createPurpose(){ try { await api('POST', '/api/purposes', {name: document.getElementById('new-purpose').value, price: Number(document.getElementById('new-purpose-price').value || 0)}); await refreshPurposes(); } catch (e) { alert(e.message); } }
-async function updatePurpose(id){ try { await api('PUT', '/api/purposes', {purpose_id: id, name: document.getElementById(`purpose-${id}`).value, price: Number(document.getElementById(`purpose-price-${id}`).value || 0)}); await refreshPurposes(); } catch (e) { alert(e.message); } }
+async function refreshPurposes(){ const purposes = await (await fetch('/api/purposes')).json(); const pt = document.getElementById('purpose-table'); pt.innerHTML = '<tr><th>ID</th><th>名稱</th><th>價格</th><th>月</th><th>周</th><th>日</th><th>操作</th></tr>' + purposes.map(p => `<tr><td>${p.purpose_id}</td><td><input value="${p.name}" id="purpose-${p.purpose_id}"/></td><td><input type="number" min="0" step="1" value="${Number(p.price || 0)}" id="purpose-price-${p.purpose_id}"/></td><td><input type="number" min="0" step="1" value="${Number(p.months || 0)}" id="purpose-months-${p.purpose_id}"/></td><td><input type="number" min="0" step="1" value="${Number(p.weeks || 0)}" id="purpose-weeks-${p.purpose_id}"/></td><td><input type="number" min="0" step="1" value="${Number(p.days || 0)}" id="purpose-days-${p.purpose_id}"/></td><td class="actions"><button onclick="updatePurpose(${p.purpose_id})">儲存</button><button class="btn-danger" onclick="deletePurpose(${p.purpose_id})">刪除</button></td></tr>`).join(''); }
+async function createPurpose(){ try { await api('POST', '/api/purposes', {name: document.getElementById('new-purpose').value, price: Number(document.getElementById('new-purpose-price').value || 0), months: Number(document.getElementById('new-purpose-months').value || 0), weeks: Number(document.getElementById('new-purpose-weeks').value || 0), days: Number(document.getElementById('new-purpose-days').value || 0)}); await refreshPurposes(); } catch (e) { alert(e.message); } }
+async function updatePurpose(id){ try { await api('PUT', '/api/purposes', {purpose_id: id, name: document.getElementById(`purpose-${id}`).value, price: Number(document.getElementById(`purpose-price-${id}`).value || 0), months: Number(document.getElementById(`purpose-months-${id}`).value || 0), weeks: Number(document.getElementById(`purpose-weeks-${id}`).value || 0), days: Number(document.getElementById(`purpose-days-${id}`).value || 0)}); await refreshPurposes(); } catch (e) { alert(e.message); } }
 async function deletePurpose(id){ if (!confirm('確定刪除用途？')) return; try { await api('DELETE', '/api/purposes', {purpose_id: id}); await refreshPurposes(); } catch (e) { alert(e.message); } }
 
 async function refreshVenues(){ const venues = await (await fetch('/api/venues')).json(); const vt = document.getElementById('venue-table'); vt.innerHTML = '<tr><th>ID</th><th>名稱</th><th>操作</th></tr>' + venues.map(v => `<tr><td>${v.venue_id}</td><td><input value="${v.name}" id="venue-${v.venue_id}"/></td><td class="actions"><button onclick="updateVenue(${v.venue_id})">儲存</button><button class="btn-danger" onclick="deleteVenue(${v.venue_id})">刪除</button></td></tr>`).join(''); }
@@ -1669,6 +1684,9 @@ async function saveAllChanges(){
         purpose_id: p.purpose_id,
         name: document.getElementById(`purpose-${p.purpose_id}`).value,
         price: Number(document.getElementById(`purpose-price-${p.purpose_id}`).value || 0),
+        months: Number(document.getElementById(`purpose-months-${p.purpose_id}`).value || 0),
+        weeks: Number(document.getElementById(`purpose-weeks-${p.purpose_id}`).value || 0),
+        days: Number(document.getElementById(`purpose-days-${p.purpose_id}`).value || 0),
       });
     }
     for (const v of venues) {
@@ -2666,7 +2684,13 @@ class BookingWebHandler(BaseHTTPRequestHandler):
                         item = manager.add_venue(name)
                         self._send_json(item.__dict__, status=HTTPStatus.CREATED)
                     else:
-                        item = manager.add_purpose(name, payload.get("price", 0))
+                        item = manager.add_purpose(
+                            name,
+                            payload.get("price", 0),
+                            payload.get("months", 0),
+                            payload.get("weeks", 0),
+                            payload.get("days", 0),
+                        )
                         self._send_json(item.__dict__, status=HTTPStatus.CREATED)
                 return
             except ValueError as exc:
@@ -2915,7 +2939,14 @@ class BookingWebHandler(BaseHTTPRequestHandler):
                     self._send_json(item.__dict__)
                     return
                 if parsed.path == "/api/purposes":
-                    item = manager.update_purpose(int(payload.get("purpose_id", 0)), str(payload.get("name", "")), payload.get("price", 0))
+                    item = manager.update_purpose(
+                        int(payload.get("purpose_id", 0)),
+                        str(payload.get("name", "")),
+                        payload.get("price", 0),
+                        payload.get("months", 0),
+                        payload.get("weeks", 0),
+                        payload.get("days", 0),
+                    )
                     self._send_json(item.__dict__)
                     return
                 if parsed.path == "/api/bookings":
