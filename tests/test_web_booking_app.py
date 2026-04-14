@@ -303,24 +303,6 @@ class TestWebBookingApp(unittest.TestCase):
         created = json.loads(body)
         self.assertEqual(created["created_count"], 9)
 
-    def test_double_monthly_rent_supports_manual_months(self):
-        status, body = self.request(
-            "POST",
-            "/api/bookings",
-            {
-                "venue_id": 1,
-                "customer": "王小明",
-                "purpose": "雙月租",
-                "price": 500,
-                "start": "2026-04-01 09:00",
-                "end": "2026-04-01 11:00",
-                "rental_months": 3,
-            },
-        )
-        self.assertEqual(status, 201)
-        created = json.loads(body)
-        self.assertEqual(created["created_count"], 13)
-
     def test_delete_monthly_rent_removes_related_bookings(self):
         status, body = self.request(
             "POST",
@@ -400,6 +382,7 @@ class TestWebBookingApp(unittest.TestCase):
         self.assertEqual(data["grand_total"], 2800)
         self.assertEqual(data["items"][0]["customer"], "王小明")
         self.assertTrue(any(row["purpose"] == "臨租" for row in data["booking_records"]))
+        self.assertTrue(all("booking_fee" in row for row in data["booking_records"]))
         self.assertTrue(all("start_time" in row and "end_time" in row for row in data["booking_records"]))
         self.assertTrue(all("created_at" in row for row in data["booking_records"]))
 

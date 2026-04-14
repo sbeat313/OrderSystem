@@ -20,6 +20,8 @@ manager_lock = Lock()
 
 
 def booking_to_dict(booking: Booking) -> dict:
+    duration_hours = (booking.end_time - booking.start_time).total_seconds() / 3600
+    booking_fee = round(float(booking.price) * duration_hours, 2)
     return {
         "booking_id": booking.booking_id,
         "venue_id": booking.venue_id,
@@ -27,6 +29,8 @@ def booking_to_dict(booking: Booking) -> dict:
         "customer": booking.customer,
         "purpose": booking.purpose,
         "price": booking.price,
+        "duration_hours": round(duration_hours, 2),
+        "booking_fee": booking_fee,
         "start_time": booking.start_time.strftime(TIME_FORMAT),
         "end_time": booking.end_time.strftime(TIME_FORMAT),
         "note": booking.note,
@@ -527,7 +531,6 @@ td.slot.booked-user .booking-pill { background: #93c5fd; }
       <div><label>預約人</label><input id="customer" placeholder="例如：江江" /></div>
       <div><label>用途</label><select id="purpose"></select></div>
       <div><label>價錢</label><input id="price" type="number" min="0" step="1" placeholder="例如：500" /></div>
-      <div id="rental-months-field"><label>租期（月）</label><input id="rental-months" type="number" min="1" step="1" value="2" /></div>
       <div><label>開始時間</label><input id="start" type="datetime-local" lang="en-CA" /></div>
       <div><label>結束時間</label><input id="end" type="datetime-local" lang="en-CA" /></div>
       <div style="grid-column:1 / -1;"><label>備註</label><input id="booking-note" placeholder="可留空" /></div>
@@ -676,7 +679,6 @@ async function loadPurposes() {
   const select = document.getElementById('purpose');
   select.innerHTML = purposes.map(p => `<option value="${p.name}" data-price="${Number(p.price || 0)}">${p.name}</option>`).join('');
   syncPriceByPurpose();
-  toggleRentalMonthsField();
 }
 
 function getSelectedPurpose() {
@@ -688,14 +690,6 @@ function syncPriceByPurpose() {
   const selected = getSelectedPurpose();
   if (!selected) return;
   document.getElementById('price').value = Number(selected.price || 0);
-}
-
-function toggleRentalMonthsField() {
-  const field = document.getElementById('rental-months-field');
-  const selected = getSelectedPurpose();
-  const isDoubleMonthly = selected?.name === '雙月租';
-  field.style.display = isDoubleMonthly ? 'block' : 'none';
-  document.getElementById('rental-months').value = isDoubleMonthly ? 2 : 1;
 }
 
 async function loadBookings(date, force = false) {
@@ -1187,7 +1181,6 @@ function openBookingModal(data = null) {
     document.getElementById('customer').value = data.customer || '';
     document.getElementById('purpose').value = data.purpose || '';
     document.getElementById('price').value = Number(data.price || 0);
-    toggleRentalMonthsField();
     document.getElementById('start').value = data.start_time.replace(' ', 'T');
     document.getElementById('end').value = data.end_time.replace(' ', 'T');
     document.getElementById('booking-note').value = data.note || '';
@@ -1216,7 +1209,6 @@ function openBookingModalFromCell(cell, bookingId) {
   document.getElementById('customer').value = '';
   document.getElementById('purpose').value = purposes[0]?.name || '';
   syncPriceByPurpose();
-  toggleRentalMonthsField();
   document.getElementById('start').value = start;
   document.getElementById('end').value = end;
   document.getElementById('booking-note').value = '';
@@ -1255,7 +1247,6 @@ async function deleteSelectedBooking() {
 
 document.getElementById('purpose').addEventListener('change', () => {
   syncPriceByPurpose();
-  toggleRentalMonthsField();
 });
 
 document.getElementById('admin-view').addEventListener('click', async () => {
@@ -1295,7 +1286,6 @@ document.getElementById('add-btn').addEventListener('click', async () => {
     start: toServerDateTime(document.getElementById('start').value),
     end: toServerDateTime(document.getElementById('end').value),
     note: document.getElementById('booking-note').value.trim(),
-    rental_months: Number(document.getElementById('rental-months').value || 1),
     admin_password: adminPassword,
   };
 
@@ -2441,7 +2431,7 @@ async function refreshReport() {
 
   const table = document.getElementById('report-table');
   table.innerHTML = '<tr><th>姓名</th><th>用途</th><th>開始時間</th><th>結束時間</th><th>新增時間</th><th>預約費用</th></tr>' +
-    data.booking_records.map(row => `<tr><td>${row.customer}</td><td>${row.purpose}</td><td>${row.start_time}</td><td>${row.end_time}</td><td>${row.created_at || ''}</td><td>$${Number(row.price).toFixed(0)}</td></tr>`).join('');
+    data.booking_records.map(row => `<tr><td>${row.customer}</td><td>${row.purpose}</td><td>${row.start_time}</td><td>${row.end_time}</td><td>${row.created_at || ''}</td><td>$${Number(row.booking_fee ?? row.price).toFixed(0)}</td></tr>`).join('');
   renderPagination('booking-pagination', 'booking', data.booking_page, data.booking_total_pages, data.booking_total_records);
 
   const extraTable = document.getElementById('extra-income-table');
@@ -2779,7 +2769,7 @@ class BookingWebHandler(BaseHTTPRequestHandler):
                         f"<td>{escape(str(row['start_time']))}</td>"
                         f"<td>{escape(str(row['end_time']))}</td>"
                         f"<td>{escape(str(row.get('created_at', '')))}</td>"
-                        f"<td>${float(row['price']):.0f}</td>"
+                        f"<td>${float(row.get('booking_fee', row['price'])):.0f}</td>"
                         f"<td>{escape(str(row.get('note', '')))}</td>"
                         "</tr>"
                     )
@@ -2905,7 +2895,6 @@ class BookingWebHandler(BaseHTTPRequestHandler):
                             start=payload["start"],
                             end=payload["end"],
                             note=str(payload.get("note", "")),
-                            rental_months=payload.get("rental_months", None),
                         )
                     )
             first = created[0]
