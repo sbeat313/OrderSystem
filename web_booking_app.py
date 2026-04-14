@@ -1555,8 +1555,8 @@ PURPOSES_PAGE = """<!doctype html>
 <title>資料設定</title>
 <style>
 * { box-sizing: border-box; }
-body { font-family: "Noto Sans TC", Arial, sans-serif; margin:0; padding:22px; background:#f4f6ff; color:#0f172a; }
-.wrap { max-width: 1200px; margin: 0 auto; }
+body { font-family: "Noto Sans TC", Arial, sans-serif; margin:0; padding:18px; background:#f4f6ff; color:#0f172a; }
+.wrap { max-width: 1680px; margin: 0 auto; }
 .top { display:flex; gap:10px; align-items:center; margin-bottom:12px; }
 .card { background:#fff; border:1px solid #dbe2f0; border-radius:14px; padding:16px; box-shadow:0 10px 25px rgba(30,64,175,.08); }
 .stack { display:flex; flex-direction:column; gap:14px; }
@@ -1566,16 +1566,17 @@ button { background:#4f46e5; color:#fff; border:none; cursor:pointer; }
 .btn-danger { background:#dc2626 !important; }
 .toolbar { display:flex; justify-content:flex-end; margin-bottom:10px; }
 .entry-form { display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap; margin-bottom:8px; }
-.entry-form .field { display:flex; flex-direction:column; gap:4px; min-width:220px; }
+.entry-form .field { display:flex; flex-direction:column; gap:4px; min-width:160px; }
 .entry-form .field label { font-weight:700; color:#334155; font-size:14px; }
 .entry-form .field input { width:100%; }
 .entry-form button { margin-top:0; }
-.table-wrap { width:100%; overflow-x:auto; }
-table { width:100%; border-collapse:collapse; margin-top:12px; min-width: 680px; }
-#purpose-table { min-width: 1120px; }
+.table-wrap { width:100%; overflow:visible; }
+table { width:100%; border-collapse:collapse; margin-top:12px; table-layout:fixed; }
 th, td { border:1px solid #dbe2f0; padding:10px; text-align:left; }
 th { background:#eef2ff; }
+td input { width:100%; }
 .actions{display:flex;gap:8px;flex-wrap:nowrap;white-space:nowrap;}
+.actions button{padding:8px 10px;font-size:14px;}
 .hover-top-zone { position: fixed; top: 0; left: 0; right: 0; height: 82px; z-index: 40; display:flex; justify-content:center; }
 .floating-actions { margin-top:8px; display:flex; gap:10px; align-items:center; padding:10px 14px; border:1px solid #dbe2f0; border-radius:14px; background:rgba(255,255,255,.94); box-shadow:0 10px 24px rgba(30,64,175,.18); opacity:0; transform:translateY(-20px); pointer-events:none; transition:opacity .2s ease, transform .2s ease; }
 .hover-top-zone:hover .floating-actions, .floating-actions:focus-within { opacity:1; transform:translateY(0); pointer-events:auto; }
