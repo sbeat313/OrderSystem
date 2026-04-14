@@ -89,6 +89,20 @@ class BookingManagerTests(unittest.TestCase):
         self.assertEqual(len(items), 3)
         self.assertEqual(items[-1].start_time.strftime("%Y-%m-%d"), "2026-04-15")
 
+    def test_add_bookings_uses_daily_cycle_rules(self):
+        self.manager.add_purpose("五日方案", price=500, days=5)
+        items = self.manager.add_bookings_for_purpose(
+            venue_id=1,
+            customer="王小明",
+            purpose="五日方案",
+            price=500,
+            start="2026-04-01 09:00",
+            end="2026-04-01 11:00",
+        )
+        self.assertEqual(len(items), 5)
+        self.assertEqual(items[0].start_time.strftime("%Y-%m-%d"), "2026-04-01")
+        self.assertEqual(items[-1].start_time.strftime("%Y-%m-%d"), "2026-04-05")
+
     def test_add_bookings_for_double_month_rent(self):
         items = self.manager.add_bookings_for_purpose(
             venue_id=1,

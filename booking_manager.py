@@ -483,22 +483,33 @@ class BookingManager:
             months = int(purpose_row["months"] or 0)
             weeks = int(purpose_row["weeks"] or 0)
             days = int(purpose_row["days"] or 0)
-            cycle_days = weeks * 7 + days
-            if months <= 0 and cycle_days <= 0:
+            if months <= 0 and weeks <= 0 and days <= 0:
                 slot_starts = [start_time]
-                group_id = None
             else:
+                slot_candidates: set[datetime] = set()
+
+                # 週期（月/周）維持每 7 天一筆
                 if months > 0:
-                    period_end = self._month_end(self._add_months(start_time, months - 1))
+                    period_end_weekly = self._month_end(self._add_months(start_time, months - 1))
                 else:
-                    period_end = start_time
-                if cycle_days > 0:
-                    period_end = period_end + timedelta(days=max(0, cycle_days - 1))
-                slot_cursor = start_time
-                while slot_cursor.date() <= period_end.date():
-                    slot_starts.append(slot_cursor)
-                    slot_cursor += timedelta(days=7)
-                group_id = str(uuid.uuid4())
+                    period_end_weekly = start_time
+                if weeks > 0:
+                    period_end_weekly = period_end_weekly + timedelta(days=max(0, weeks * 7 - 1))
+
+                if months > 0 or weeks > 0:
+                    slot_cursor = start_time
+                    while slot_cursor.date() <= period_end_weekly.date():
+                        slot_candidates.add(slot_cursor)
+                        slot_cursor += timedelta(days=7)
+
+                # 日規則：改為每日建立
+                if days > 0:
+                    for offset in range(days):
+                        slot_candidates.add(start_time + timedelta(days=offset))
+
+                slot_starts = sorted(slot_candidates)
+
+            group_id = str(uuid.uuid4()) if len(slot_starts) > 1 else None
 
             for slot_start in slot_starts:
                 slot_end = slot_start + duration

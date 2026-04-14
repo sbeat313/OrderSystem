@@ -303,6 +303,31 @@ class TestWebBookingApp(unittest.TestCase):
         created = json.loads(body)
         self.assertEqual(created["created_count"], 9)
 
+    def test_daily_purpose_creates_consecutive_daily_bookings(self):
+        status, body = self.request(
+            "POST",
+            "/api/purposes",
+            {"admin_password": "admin123", "name": "五日方案", "days": 5},
+        )
+        self.assertEqual(status, 201)
+        self.assertEqual(json.loads(body)["days"], 5)
+
+        status, body = self.request(
+            "POST",
+            "/api/bookings",
+            {
+                "venue_id": 1,
+                "customer": "王小明",
+                "purpose": "五日方案",
+                "price": 500,
+                "start": "2026-04-01 09:00",
+                "end": "2026-04-01 11:00",
+            },
+        )
+        self.assertEqual(status, 201)
+        created = json.loads(body)
+        self.assertEqual(created["created_count"], 5)
+
     def test_delete_monthly_rent_removes_related_bookings(self):
         status, body = self.request(
             "POST",
