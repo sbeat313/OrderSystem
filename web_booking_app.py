@@ -1570,10 +1570,12 @@ button { background:#4f46e5; color:#fff; border:none; cursor:pointer; }
 .entry-form .field label { font-weight:700; color:#334155; font-size:14px; }
 .entry-form .field input { width:100%; }
 .entry-form button { margin-top:0; }
-table { width:100%; border-collapse:collapse; margin-top:12px; }
+.table-wrap { width:100%; overflow-x:auto; }
+table { width:100%; border-collapse:collapse; margin-top:12px; min-width: 680px; }
+#purpose-table { min-width: 1120px; }
 th, td { border:1px solid #dbe2f0; padding:10px; text-align:left; }
 th { background:#eef2ff; }
-.actions{display:flex;gap:8px;}
+.actions{display:flex;gap:8px;flex-wrap:nowrap;white-space:nowrap;}
 .hover-top-zone { position: fixed; top: 0; left: 0; right: 0; height: 82px; z-index: 40; display:flex; justify-content:center; }
 .floating-actions { margin-top:8px; display:flex; gap:10px; align-items:center; padding:10px 14px; border:1px solid #dbe2f0; border-radius:14px; background:rgba(255,255,255,.94); box-shadow:0 10px 24px rgba(30,64,175,.18); opacity:0; transform:translateY(-20px); pointer-events:none; transition:opacity .2s ease, transform .2s ease; }
 .hover-top-zone:hover .floating-actions, .floating-actions:focus-within { opacity:1; transform:translateY(0); pointer-events:auto; }
@@ -1606,7 +1608,7 @@ th { background:#eef2ff; }
         </div>
         <button onclick="createVenue()">新增場地</button>
       </div>
-      <table id="venue-table"></table>
+      <div class="table-wrap"><table id="venue-table"></table></div>
     </div>
 
     <div class="card">
@@ -1634,7 +1636,7 @@ th { background:#eef2ff; }
         </div>
         <button onclick="createPurpose()">新增用途</button>
       </div>
-      <table id="purpose-table"></table>
+      <div class="table-wrap"><table id="purpose-table"></table></div>
     </div>
 
     <div class="card">
@@ -1646,7 +1648,7 @@ th { background:#eef2ff; }
         <button id="cancel-string-item-edit" style="display:none; background:#64748b;">取消編輯</button>
       </div>
       <div id="string-item-msg" style="margin-top:8px;"></div>
-      <table id="string-item-table"></table>
+      <div class="table-wrap"><table id="string-item-table"></table></div>
     </div>
   </div>
 </div>
