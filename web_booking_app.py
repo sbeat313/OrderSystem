@@ -20,6 +20,8 @@ manager_lock = Lock()
 
 
 def booking_to_dict(booking: Booking) -> dict:
+    duration_hours = (booking.end_time - booking.start_time).total_seconds() / 3600
+    booking_fee = round(float(booking.price) * duration_hours, 2)
     return {
         "booking_id": booking.booking_id,
         "venue_id": booking.venue_id,
@@ -27,6 +29,8 @@ def booking_to_dict(booking: Booking) -> dict:
         "customer": booking.customer,
         "purpose": booking.purpose,
         "price": booking.price,
+        "duration_hours": round(duration_hours, 2),
+        "booking_fee": booking_fee,
         "start_time": booking.start_time.strftime(TIME_FORMAT),
         "end_time": booking.end_time.strftime(TIME_FORMAT),
         "note": booking.note,
@@ -64,6 +68,9 @@ def purpose_to_dict(item: Any) -> dict:
         "purpose_id": item.purpose_id,
         "name": item.name,
         "price": item.price,
+        "months": item.months,
+        "weeks": item.weeks,
+        "days": item.days,
     }
 
 
@@ -674,8 +681,18 @@ async function loadPurposes() {
   purposes = await resp.json();
   const select = document.getElementById('purpose');
   select.innerHTML = purposes.map(p => `<option value="${p.name}" data-price="${Number(p.price || 0)}">${p.name}</option>`).join('');
-  const first = purposes[0];
-  if (first) document.getElementById('price').value = Number(first.price || 0);
+  syncPriceByPurpose();
+}
+
+function getSelectedPurpose() {
+  const selectedName = document.getElementById('purpose').value;
+  return purposes.find(p => p.name === selectedName) || null;
+}
+
+function syncPriceByPurpose() {
+  const selected = getSelectedPurpose();
+  if (!selected) return;
+  document.getElementById('price').value = Number(selected.price || 0);
 }
 
 async function loadBookings(date, force = false) {
@@ -1194,7 +1211,7 @@ function openBookingModalFromCell(cell, bookingId) {
   });
   document.getElementById('customer').value = '';
   document.getElementById('purpose').value = purposes[0]?.name || '';
-  document.getElementById('price').value = 0;
+  syncPriceByPurpose();
   document.getElementById('start').value = start;
   document.getElementById('end').value = end;
   document.getElementById('booking-note').value = '';
@@ -1211,10 +1228,16 @@ async function deleteSelectedBooking() {
   if (!isAdmin || !selectedBookingId) return;
   if (!confirm(`確定刪除預約 #${selectedBookingId}？`)) return;
 
+  let deleteMode = 'single';
+  const booking = Object.values(bookingsCache).flat().find(item => item.booking_id === selectedBookingId);
+  if (booking && confirm('此預約可能屬於連續預約。\n按「確定」刪除整組連續預約；按「取消」只刪除此筆。')) {
+    deleteMode = 'group';
+  }
+
   const resp = await fetch('/api/bookings', {
     method: 'DELETE',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({ booking_id: selectedBookingId, admin_password: adminPassword }),
+    body: JSON.stringify({ booking_id: selectedBookingId, delete_mode: deleteMode, admin_password: adminPassword }),
   });
   const data = await resp.json();
   const msg = document.getElementById('msg');
@@ -1225,15 +1248,16 @@ async function deleteSelectedBooking() {
   }
 
   msg.style.color = '#16a34a';
-  msg.textContent = `已刪除預約 #${selectedBookingId}`;
+  msg.textContent = deleteMode === 'group'
+    ? `已刪除連續預約（含 #${selectedBookingId}）`
+    : `已刪除預約 #${selectedBookingId}`;
   selectedBookingId = null;
   bookingsCache = {};
   refresh();
 }
 
 document.getElementById('purpose').addEventListener('change', () => {
-  const selected = purposes.find(p => p.name === document.getElementById('purpose').value);
-  if (selected) document.getElementById('price').value = Number(selected.price || 0);
+  syncPriceByPurpose();
 });
 
 document.getElementById('admin-view').addEventListener('click', async () => {
@@ -1539,8 +1563,8 @@ PURPOSES_PAGE = """<!doctype html>
 <title>資料設定</title>
 <style>
 * { box-sizing: border-box; }
-body { font-family: "Noto Sans TC", Arial, sans-serif; margin:0; padding:22px; background:#f4f6ff; color:#0f172a; }
-.wrap { max-width: 1200px; margin: 0 auto; }
+body { font-family: "Noto Sans TC", Arial, sans-serif; margin:0; padding:18px; background:#f4f6ff; color:#0f172a; }
+.wrap { max-width: 1680px; margin: 0 auto; }
 .top { display:flex; gap:10px; align-items:center; margin-bottom:12px; }
 .card { background:#fff; border:1px solid #dbe2f0; border-radius:14px; padding:16px; box-shadow:0 10px 25px rgba(30,64,175,.08); }
 .stack { display:flex; flex-direction:column; gap:14px; }
@@ -1550,14 +1574,17 @@ button { background:#4f46e5; color:#fff; border:none; cursor:pointer; }
 .btn-danger { background:#dc2626 !important; }
 .toolbar { display:flex; justify-content:flex-end; margin-bottom:10px; }
 .entry-form { display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap; margin-bottom:8px; }
-.entry-form .field { display:flex; flex-direction:column; gap:4px; min-width:220px; }
+.entry-form .field { display:flex; flex-direction:column; gap:4px; min-width:160px; }
 .entry-form .field label { font-weight:700; color:#334155; font-size:14px; }
 .entry-form .field input { width:100%; }
 .entry-form button { margin-top:0; }
-table { width:100%; border-collapse:collapse; margin-top:12px; }
+.table-wrap { width:100%; overflow:visible; }
+table { width:100%; border-collapse:collapse; margin-top:12px; table-layout:fixed; }
 th, td { border:1px solid #dbe2f0; padding:10px; text-align:left; }
 th { background:#eef2ff; }
-.actions{display:flex;gap:8px;}
+td input { width:100%; }
+.actions{display:flex;gap:8px;flex-wrap:nowrap;white-space:nowrap;}
+.actions button{padding:8px 10px;font-size:14px;}
 .hover-top-zone { position: fixed; top: 0; left: 0; right: 0; height: 82px; z-index: 40; display:flex; justify-content:center; }
 .floating-actions { margin-top:8px; display:flex; gap:10px; align-items:center; padding:10px 14px; border:1px solid #dbe2f0; border-radius:14px; background:rgba(255,255,255,.94); box-shadow:0 10px 24px rgba(30,64,175,.18); opacity:0; transform:translateY(-20px); pointer-events:none; transition:opacity .2s ease, transform .2s ease; }
 .hover-top-zone:hover .floating-actions, .floating-actions:focus-within { opacity:1; transform:translateY(0); pointer-events:auto; }
@@ -1590,7 +1617,7 @@ th { background:#eef2ff; }
         </div>
         <button onclick="createVenue()">新增場地</button>
       </div>
-      <table id="venue-table"></table>
+      <div class="table-wrap"><table id="venue-table"></table></div>
     </div>
 
     <div class="card">
@@ -1604,9 +1631,21 @@ th { background:#eef2ff; }
           <label for="new-purpose-price">價格</label>
           <input id="new-purpose-price" type="number" min="0" step="1" value="0"/>
         </div>
+        <div class="field">
+          <label for="new-purpose-months">月</label>
+          <input id="new-purpose-months" type="number" min="0" step="1" value="0"/>
+        </div>
+        <div class="field">
+          <label for="new-purpose-weeks">周</label>
+          <input id="new-purpose-weeks" type="number" min="0" step="1" value="0"/>
+        </div>
+        <div class="field">
+          <label for="new-purpose-days">日</label>
+          <input id="new-purpose-days" type="number" min="0" step="1" value="0"/>
+        </div>
         <button onclick="createPurpose()">新增用途</button>
       </div>
-      <table id="purpose-table"></table>
+      <div class="table-wrap"><table id="purpose-table"></table></div>
     </div>
 
     <div class="card">
@@ -1618,7 +1657,7 @@ th { background:#eef2ff; }
         <button id="cancel-string-item-edit" style="display:none; background:#64748b;">取消編輯</button>
       </div>
       <div id="string-item-msg" style="margin-top:8px;"></div>
-      <table id="string-item-table"></table>
+      <div class="table-wrap"><table id="string-item-table"></table></div>
     </div>
   </div>
 </div>
@@ -1637,9 +1676,9 @@ async function login(){ const pw = prompt('請輸入管理員密碼：'); if (pw
 async function ensureLogin(){ if (!adminPassword) adminPassword = loadAdminPassword(); if (adminPassword) { const resp = await fetch('/api/admin/login', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({password: adminPassword})}); if (resp.ok) return true; adminPassword = ''; } return await login(); }
 async function api(method, path, payload = {}) { const ok = await ensureLogin(); if (!ok) throw new Error('need login'); payload.admin_password = adminPassword; const resp = await fetch(path, { method, headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) }); const data = await resp.json(); if (!resp.ok) throw new Error(data.error || '操作失敗'); return data; }
 
-async function refreshPurposes(){ const purposes = await (await fetch('/api/purposes')).json(); const pt = document.getElementById('purpose-table'); pt.innerHTML = '<tr><th>ID</th><th>名稱</th><th>價格</th><th>操作</th></tr>' + purposes.map(p => `<tr><td>${p.purpose_id}</td><td><input value="${p.name}" id="purpose-${p.purpose_id}"/></td><td><input type="number" min="0" step="1" value="${Number(p.price || 0)}" id="purpose-price-${p.purpose_id}"/></td><td class="actions"><button onclick="updatePurpose(${p.purpose_id})">儲存</button><button class="btn-danger" onclick="deletePurpose(${p.purpose_id})">刪除</button></td></tr>`).join(''); }
-async function createPurpose(){ try { await api('POST', '/api/purposes', {name: document.getElementById('new-purpose').value, price: Number(document.getElementById('new-purpose-price').value || 0)}); await refreshPurposes(); } catch (e) { alert(e.message); } }
-async function updatePurpose(id){ try { await api('PUT', '/api/purposes', {purpose_id: id, name: document.getElementById(`purpose-${id}`).value, price: Number(document.getElementById(`purpose-price-${id}`).value || 0)}); await refreshPurposes(); } catch (e) { alert(e.message); } }
+async function refreshPurposes(){ const purposes = await (await fetch('/api/purposes')).json(); const pt = document.getElementById('purpose-table'); pt.innerHTML = '<tr><th>ID</th><th>名稱</th><th>價格</th><th>月</th><th>周</th><th>日</th><th>操作</th></tr>' + purposes.map(p => `<tr><td>${p.purpose_id}</td><td><input value="${p.name}" id="purpose-${p.purpose_id}"/></td><td><input type="number" min="0" step="1" value="${Number(p.price || 0)}" id="purpose-price-${p.purpose_id}"/></td><td><input type="number" min="0" step="1" value="${Number(p.months || 0)}" id="purpose-months-${p.purpose_id}"/></td><td><input type="number" min="0" step="1" value="${Number(p.weeks || 0)}" id="purpose-weeks-${p.purpose_id}"/></td><td><input type="number" min="0" step="1" value="${Number(p.days || 0)}" id="purpose-days-${p.purpose_id}"/></td><td class="actions"><button onclick="updatePurpose(${p.purpose_id})">儲存</button><button class="btn-danger" onclick="deletePurpose(${p.purpose_id})">刪除</button></td></tr>`).join(''); }
+async function createPurpose(){ try { await api('POST', '/api/purposes', {name: document.getElementById('new-purpose').value, price: Number(document.getElementById('new-purpose-price').value || 0), months: Number(document.getElementById('new-purpose-months').value || 0), weeks: Number(document.getElementById('new-purpose-weeks').value || 0), days: Number(document.getElementById('new-purpose-days').value || 0)}); await refreshPurposes(); } catch (e) { alert(e.message); } }
+async function updatePurpose(id){ try { await api('PUT', '/api/purposes', {purpose_id: id, name: document.getElementById(`purpose-${id}`).value, price: Number(document.getElementById(`purpose-price-${id}`).value || 0), months: Number(document.getElementById(`purpose-months-${id}`).value || 0), weeks: Number(document.getElementById(`purpose-weeks-${id}`).value || 0), days: Number(document.getElementById(`purpose-days-${id}`).value || 0)}); await refreshPurposes(); } catch (e) { alert(e.message); } }
 async function deletePurpose(id){ if (!confirm('確定刪除用途？')) return; try { await api('DELETE', '/api/purposes', {purpose_id: id}); await refreshPurposes(); } catch (e) { alert(e.message); } }
 
 async function refreshVenues(){ const venues = await (await fetch('/api/venues')).json(); const vt = document.getElementById('venue-table'); vt.innerHTML = '<tr><th>ID</th><th>名稱</th><th>操作</th></tr>' + venues.map(v => `<tr><td>${v.venue_id}</td><td><input value="${v.name}" id="venue-${v.venue_id}"/></td><td class="actions"><button onclick="updateVenue(${v.venue_id})">儲存</button><button class="btn-danger" onclick="deleteVenue(${v.venue_id})">刪除</button></td></tr>`).join(''); }
@@ -1656,6 +1695,9 @@ async function saveAllChanges(){
         purpose_id: p.purpose_id,
         name: document.getElementById(`purpose-${p.purpose_id}`).value,
         price: Number(document.getElementById(`purpose-price-${p.purpose_id}`).value || 0),
+        months: Number(document.getElementById(`purpose-months-${p.purpose_id}`).value || 0),
+        weeks: Number(document.getElementById(`purpose-weeks-${p.purpose_id}`).value || 0),
+        days: Number(document.getElementById(`purpose-days-${p.purpose_id}`).value || 0),
       });
     }
     for (const v of venues) {
@@ -2418,7 +2460,7 @@ async function refreshReport() {
 
   const table = document.getElementById('report-table');
   table.innerHTML = '<tr><th>姓名</th><th>用途</th><th>開始時間</th><th>結束時間</th><th>新增時間</th><th>預約費用</th></tr>' +
-    data.booking_records.map(row => `<tr><td>${row.customer}</td><td>${row.purpose}</td><td>${row.start_time}</td><td>${row.end_time}</td><td>${row.created_at || ''}</td><td>$${Number(row.price).toFixed(0)}</td></tr>`).join('');
+    data.booking_records.map(row => `<tr><td>${row.customer}</td><td>${row.purpose}</td><td>${row.start_time}</td><td>${row.end_time}</td><td>${row.created_at || ''}</td><td>$${Number(row.booking_fee ?? row.price).toFixed(0)}</td></tr>`).join('');
   renderPagination('booking-pagination', 'booking', data.booking_page, data.booking_total_pages, data.booking_total_records);
 
   const extraTable = document.getElementById('extra-income-table');
@@ -2653,7 +2695,13 @@ class BookingWebHandler(BaseHTTPRequestHandler):
                         item = manager.add_venue(name)
                         self._send_json(item.__dict__, status=HTTPStatus.CREATED)
                     else:
-                        item = manager.add_purpose(name, payload.get("price", 0))
+                        item = manager.add_purpose(
+                            name,
+                            payload.get("price", 0),
+                            payload.get("months", 0),
+                            payload.get("weeks", 0),
+                            payload.get("days", 0),
+                        )
                         self._send_json(item.__dict__, status=HTTPStatus.CREATED)
                 return
             except ValueError as exc:
@@ -2756,7 +2804,7 @@ class BookingWebHandler(BaseHTTPRequestHandler):
                         f"<td>{escape(str(row['start_time']))}</td>"
                         f"<td>{escape(str(row['end_time']))}</td>"
                         f"<td>{escape(str(row.get('created_at', '')))}</td>"
-                        f"<td>${float(row['price']):.0f}</td>"
+                        f"<td>${float(row.get('booking_fee', row['price'])):.0f}</td>"
                         f"<td>{escape(str(row.get('note', '')))}</td>"
                         "</tr>"
                     )
@@ -2902,7 +2950,14 @@ class BookingWebHandler(BaseHTTPRequestHandler):
                     self._send_json(item.__dict__)
                     return
                 if parsed.path == "/api/purposes":
-                    item = manager.update_purpose(int(payload.get("purpose_id", 0)), str(payload.get("name", "")), payload.get("price", 0))
+                    item = manager.update_purpose(
+                        int(payload.get("purpose_id", 0)),
+                        str(payload.get("name", "")),
+                        payload.get("price", 0),
+                        payload.get("months", 0),
+                        payload.get("weeks", 0),
+                        payload.get("days", 0),
+                    )
                     self._send_json(item.__dict__)
                     return
                 if parsed.path == "/api/bookings":
@@ -2958,7 +3013,10 @@ class BookingWebHandler(BaseHTTPRequestHandler):
                 elif parsed.path == "/api/purposes":
                     ok = manager.delete_purpose(int(payload.get("purpose_id", 0)))
                 elif parsed.path == "/api/bookings":
-                    ok = manager.cancel_booking(int(payload.get("booking_id", 0)))
+                    ok = manager.cancel_booking(
+                        int(payload.get("booking_id", 0)),
+                        str(payload.get("delete_mode", "group")),
+                    )
                 elif parsed.path == "/api/string-items":
                     ok = manager.delete_string_item(int(payload.get("string_item_id", 0)))
                 elif parsed.path == "/api/extra-incomes":
