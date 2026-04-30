@@ -35,6 +35,7 @@ def booking_to_dict(booking: Booking) -> dict:
         "end_time": booking.end_time.strftime(TIME_FORMAT),
         "note": booking.note,
         "created_at": normalize_date_separator(booking.created_at),
+        "rental_group_id": booking.rental_group_id,
     }
 
 
@@ -488,6 +489,7 @@ td.slot.booked-user .booking-pill { background: #93c5fd; }
     <button class="chip" id="report-link" style="display:none;" onclick="location.href='/reports'">費用統計</button>
     <button class="chip" id="extra-income-link" style="display:none;" onclick="location.href='/extra-income'">額外收入</button>
     <button class="chip" id="open-add-modal" style="display:none;">新增預約</button>
+    <button class="chip btn-danger" id="delete-booking-btn" style="display:none;">刪除選取預約</button>
   </div>
 </div>
 <div class="container">
@@ -755,6 +757,7 @@ function setAuthBadge() {
   document.getElementById('report-link').style.display = isAdmin ? 'inline-block' : 'none';
   document.getElementById('extra-income-link').style.display = isAdmin ? 'inline-block' : 'none';
   document.getElementById('open-add-modal').style.display = isAdmin ? 'inline-block' : 'none';
+  document.getElementById('delete-booking-btn').style.display = isAdmin ? 'inline-block' : 'none';
 }
 
 function makeSlotCell(day, hour, venueId, booking, text, rowspan = 1) {
@@ -1226,12 +1229,18 @@ function closeBookingModal() {
 
 async function deleteSelectedBooking() {
   if (!isAdmin || !selectedBookingId) return;
-  if (!confirm(`確定刪除預約 #${selectedBookingId}？`)) return;
+  const selected = findBookingByIdInCache(selectedBookingId);
+  let delete_scope = "group";
+  if (selected?.rental_group_id) {
+    const deleteAll = confirm(`此筆為連續預約。按「確定」刪除全部，按「取消」改為只刪除單筆。`);
+    delete_scope = deleteAll ? "group" : "single";
+    if (delete_scope === "single" && !confirm(`確定只刪除預約 #${selectedBookingId}？`)) return;
+  } else if (!confirm(`確定刪除預約 #${selectedBookingId}？`)) return;
 
   const resp = await fetch('/api/bookings', {
     method: 'DELETE',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({ booking_id: selectedBookingId, admin_password: adminPassword }),
+    body: JSON.stringify({ booking_id: selectedBookingId, admin_password: adminPassword, delete_scope }),
   });
   const data = await resp.json();
   const msg = document.getElementById('msg');
@@ -1264,6 +1273,7 @@ document.getElementById('date').addEventListener('change', refresh);
 document.getElementById('prev-week').addEventListener('click', async () => { shiftDateByDays(-7); await refresh(); });
 document.getElementById('next-week').addEventListener('click', async () => { shiftDateByDays(7); await refresh(); });
 document.getElementById('open-add-modal').addEventListener('click', () => openBookingModal());
+document.getElementById('delete-booking-btn').addEventListener('click', deleteSelectedBooking);
 document.getElementById('close-add-modal').addEventListener('click', closeBookingModal);
 document.addEventListener('keydown', (event) => {
   if (event.key === 'Delete') deleteSelectedBooking();
@@ -3005,7 +3015,10 @@ class BookingWebHandler(BaseHTTPRequestHandler):
                 elif parsed.path == "/api/purposes":
                     ok = manager.delete_purpose(int(payload.get("purpose_id", 0)))
                 elif parsed.path == "/api/bookings":
-                    ok = manager.cancel_booking(int(payload.get("booking_id", 0)))
+                    ok = manager.cancel_booking(
+                        int(payload.get("booking_id", 0)),
+                        str(payload.get("delete_scope", "group")),
+                    )
                 elif parsed.path == "/api/string-items":
                     ok = manager.delete_string_item(int(payload.get("string_item_id", 0)))
                 elif parsed.path == "/api/extra-incomes":

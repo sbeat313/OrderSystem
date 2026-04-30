@@ -61,6 +61,7 @@ class Booking:
     end_time: datetime
     note: str = ""
     created_at: str = ""
+    rental_group_id: str = ""
 
 
 class BookingManager:
@@ -573,7 +574,7 @@ class BookingManager:
 
         return created
 
-    def cancel_booking(self, booking_id: int) -> bool:
+    def cancel_booking(self, booking_id: int, delete_scope: str = "group") -> bool:
         with self._connect() as conn:
             row = conn.execute(
                 """
@@ -586,7 +587,10 @@ class BookingManager:
             if row is None:
                 return False
 
-            if row["rental_group_id"]:
+            if delete_scope not in {"single", "group"}:
+                raise ValueError("刪除範圍不正確")
+
+            if row["rental_group_id"] and delete_scope == "group":
                 cur = conn.execute(
                     "DELETE FROM bookings WHERE rental_group_id = ?",
                     (row["rental_group_id"],),
@@ -729,7 +733,7 @@ class BookingManager:
 
     def list_bookings(self, date: Optional[str] = None) -> List[Booking]:
         query = (
-            "SELECT b.id, b.venue_id, v.name AS venue_name, b.customer, b.purpose, b.price, b.start_time, b.end_time, b.note, b.created_at "
+            "SELECT b.id, b.venue_id, v.name AS venue_name, b.customer, b.purpose, b.price, b.start_time, b.end_time, b.note, b.created_at, b.rental_group_id "
             "FROM bookings b JOIN venues v ON b.venue_id = v.id"
         )
         params: tuple = ()
@@ -753,6 +757,7 @@ class BookingManager:
                 end_time=datetime.strptime(row["end_time"], TIME_FORMAT),
                 note=row["note"] or "",
                 created_at=row["created_at"] or "",
+                rental_group_id=row["rental_group_id"] or "",
             )
             for row in rows
         ]
