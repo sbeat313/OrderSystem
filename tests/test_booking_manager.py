@@ -138,6 +138,19 @@ class BookingManagerTests(unittest.TestCase):
         self.assertEqual(len(self.manager.list_bookings("2026-04-01")), 0)
         self.assertEqual(len(self.manager.list_bookings("2026-04-08")), 0)
 
+
+    def test_cancel_month_rent_single_only_deletes_target_booking(self):
+        items = self.manager.add_bookings_for_purpose(
+            venue_id=1,
+            customer="王小明",
+            purpose="單月租",
+            price=500,
+            start="2026-04-01 09:00",
+            end="2026-04-01 11:00",
+        )
+        self.assertTrue(self.manager.cancel_booking(items[0].booking_id, delete_scope="single"))
+        self.assertEqual(len(self.manager.list_bookings()), 4)
+
     def test_cancel_double_month_rent_deletes_related_bookings(self):
         items = self.manager.add_bookings_for_purpose(
             venue_id=1,

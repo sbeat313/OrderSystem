@@ -35,6 +35,7 @@ def booking_to_dict(booking: Booking) -> dict:
         "end_time": booking.end_time.strftime(TIME_FORMAT),
         "note": booking.note,
         "created_at": normalize_date_separator(booking.created_at),
+        "rental_group_id": booking.rental_group_id,
     }
 
 
@@ -1226,12 +1227,19 @@ function closeBookingModal() {
 
 async function deleteSelectedBooking() {
   if (!isAdmin || !selectedBookingId) return;
-  if (!confirm(`確定刪除預約 #${selectedBookingId}？`)) return;
+  const dayBookings = bookingsCache[selectedDay] || [];
+  const selected = dayBookings.find(item => item.booking_id === selectedBookingId);
+  let delete_scope = "group";
+  if (selected?.rental_group_id) {
+    const deleteAll = confirm(`此筆為連續預約。按「確定」刪除全部，按「取消」改為只刪除單筆。`);
+    delete_scope = deleteAll ? "group" : "single";
+    if (delete_scope === "single" && !confirm(`確定只刪除預約 #${selectedBookingId}？`)) return;
+  } else if (!confirm(`確定刪除預約 #${selectedBookingId}？`)) return;
 
   const resp = await fetch('/api/bookings', {
     method: 'DELETE',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({ booking_id: selectedBookingId, admin_password: adminPassword }),
+    body: JSON.stringify({ booking_id: selectedBookingId, admin_password: adminPassword, delete_scope }),
   });
   const data = await resp.json();
   const msg = document.getElementById('msg');
@@ -3005,7 +3013,10 @@ class BookingWebHandler(BaseHTTPRequestHandler):
                 elif parsed.path == "/api/purposes":
                     ok = manager.delete_purpose(int(payload.get("purpose_id", 0)))
                 elif parsed.path == "/api/bookings":
-                    ok = manager.cancel_booking(int(payload.get("booking_id", 0)))
+                    ok = manager.cancel_booking(
+                        int(payload.get("booking_id", 0)),
+                        str(payload.get("delete_scope", "group")),
+                    )
                 elif parsed.path == "/api/string-items":
                     ok = manager.delete_string_item(int(payload.get("string_item_id", 0)))
                 elif parsed.path == "/api/extra-incomes":
