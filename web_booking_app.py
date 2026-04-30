@@ -1229,8 +1229,7 @@ function closeBookingModal() {
 
 async function deleteSelectedBooking() {
   if (!isAdmin || !selectedBookingId) return;
-  const dayBookings = bookingsCache[selectedDay] || [];
-  const selected = dayBookings.find(item => item.booking_id === selectedBookingId);
+  const selected = findBookingByIdInCache(selectedBookingId);
   let delete_scope = "group";
   if (selected?.rental_group_id) {
     const deleteAll = confirm(`此筆為連續預約。按「確定」刪除全部，按「取消」改為只刪除單筆。`);
