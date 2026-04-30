@@ -489,6 +489,7 @@ td.slot.booked-user .booking-pill { background: #93c5fd; }
     <button class="chip" id="report-link" style="display:none;" onclick="location.href='/reports'">費用統計</button>
     <button class="chip" id="extra-income-link" style="display:none;" onclick="location.href='/extra-income'">額外收入</button>
     <button class="chip" id="open-add-modal" style="display:none;">新增預約</button>
+    <button class="chip btn-danger" id="delete-booking-btn" style="display:none;">刪除選取預約</button>
   </div>
 </div>
 <div class="container">
@@ -756,6 +757,7 @@ function setAuthBadge() {
   document.getElementById('report-link').style.display = isAdmin ? 'inline-block' : 'none';
   document.getElementById('extra-income-link').style.display = isAdmin ? 'inline-block' : 'none';
   document.getElementById('open-add-modal').style.display = isAdmin ? 'inline-block' : 'none';
+  document.getElementById('delete-booking-btn').style.display = isAdmin ? 'inline-block' : 'none';
 }
 
 function makeSlotCell(day, hour, venueId, booking, text, rowspan = 1) {
@@ -1272,6 +1274,7 @@ document.getElementById('date').addEventListener('change', refresh);
 document.getElementById('prev-week').addEventListener('click', async () => { shiftDateByDays(-7); await refresh(); });
 document.getElementById('next-week').addEventListener('click', async () => { shiftDateByDays(7); await refresh(); });
 document.getElementById('open-add-modal').addEventListener('click', () => openBookingModal());
+document.getElementById('delete-booking-btn').addEventListener('click', deleteSelectedBooking);
 document.getElementById('close-add-modal').addEventListener('click', closeBookingModal);
 document.addEventListener('keydown', (event) => {
   if (event.key === 'Delete') deleteSelectedBooking();
